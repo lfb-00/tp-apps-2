@@ -1,0 +1,14 @@
+Usando la configuración de inicio de src\RepMatch.Web\Properties\launchSettings.json...
+[10:27:00 INF] [Web] [] Base de datos lista (proveedor Microsoft.EntityFrameworkCore.InMemory).
+[10:27:00 INF] [Web] [] Web iniciada. Modo de acceso al catalogo: Local (en proceso)
+[10:27:00 INF] [Web] [] Now listening on: http://localhost:5080
+[10:27:00 INF] [Web] [] Application started. Press Ctrl+C to shut down.
+[10:27:00 INF] [Web] [] Hosting environment: Development
+[10:27:00 INF] [Web] [] Content root path: C:\Users\d78650\src\tp-apps-2\src\RepMatch.Web
+[10:27:00 INF] [Web] [51a2ef88fa4a] HTTP GET /salud responded 200 in 40.1079 ms
+[10:27:01 INF] [Web] [81081ace9997] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[10:27:01 INF] [Web] [81081ace9997] Evidencia acceso origen=Local duracion=215,7ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
+[10:27:01 INF] [Web] [81081ace9997] HTTP GET /evidencia/catalogo responded 200 in 233.9964 ms
+[10:27:01 INF] [Web] [1f2dbc116026] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[10:27:01 INF] [Web] [1f2dbc116026] Evidencia acceso origen=Local duracion=68,3ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
+[10:27:01 INF] [Web] [1f2dbc116026] HTTP GET /evidencia/catalogo responded 200 in 72.6460 ms

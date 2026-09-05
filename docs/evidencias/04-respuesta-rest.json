@@ -1,0 +1,161 @@
+[
+    {
+        "id": "30260a31-9da7-48ef-a147-d590a48b65af",
+        "codigoCanonico": "AMOR-VW-GOL-DEL",
+        "nombre": "Amortiguador delantero",
+        "descripcion": "Amortiguador hidraulico delantero, unidad.",
+        "sistema": "Suspension",
+        "codigosEquivalentes": [
+            "5U0413031"
+        ],
+        "aplicaciones": [
+            {
+                "marca": "Volkswagen",
+                "modelo": "Gol",
+                "anioDesde": 2009,
+                "anioHasta": 2019,
+                "motor": null
+            }
+        ]
+    },
+    {
+        "id": "e38e926a-f9ad-49cd-9e85-0e67ac8d3c2a",
+        "codigoCanonico": "BATE-12V-60AH",
+        "nombre": "Bateria 12V 60Ah",
+        "descripcion": "Bateria de arranque libre de mantenimiento.",
+        "sistema": "Electrico",
+        "codigosEquivalentes": [],
+        "aplicaciones": [
+            {
+                "marca": "Volkswagen",
+                "modelo": "Gol",
+                "anioDesde": 2009,
+                "anioHasta": 2019,
+                "motor": null
+            },
+            {
+                "marca": "Peugeot",
+                "modelo": "208",
+                "anioDesde": 2013,
+                "anioHasta": 2023,
+                "motor": null
+            },
+            {
+                "marca": "Toyota",
+                "modelo": "Corolla",
+                "anioDesde": 2014,
+                "anioHasta": 2019,
+                "motor": null
+            }
+        ]
+    },
+    {
+        "id": "4b51d468-f3dc-4c5f-a776-25a439e1d87d",
+        "codigoCanonico": "BOMB-AGUA-VW-16",
+        "nombre": "Bomba de agua",
+        "descripcion": "Bomba de refrigerante con junta.",
+        "sistema": "Refrigeracion",
+        "codigosEquivalentes": [],
+        "aplicaciones": [
+            {
+                "marca": "Volkswagen",
+                "modelo": "Gol",
+                "anioDesde": 2009,
+                "anioHasta": 2019,
+                "motor": "1.6"
+            }
+        ]
+    },
+    {
+        "id": "d9921e09-8ea0-436d-9853-a661f867ce76",
+        "codigoCanonico": "BUJI-VW-GOL-16",
+        "nombre": "Juego de bujias",
+        "descripcion": "Cuatro bujias de encendido.",
+        "sistema": "Motor",
+        "codigosEquivalentes": [
+            "101000063AA"
+        ],
+        "aplicaciones": [
+            {
+                "marca": "Volkswagen",
+                "modelo": "Gol",
+                "anioDesde": 2009,
+                "anioHasta": 2019,
+                "motor": "1.6"
+            }
+        ]
+    },
+    {
+        "id": "6a7d1904-c68b-4f55-b9ce-3ba6ba87595d",
+        "codigoCanonico": "DISC-VW-GOL-256",
+        "nombre": "Discos de freno delanteros 256mm",
+        "descripcion": "Par de discos ventilados de 256 mm.",
+        "sistema": "Frenos",
+        "codigosEquivalentes": [
+            "5U0615301"
+        ],
+        "aplicaciones": [
+            {
+                "marca": "Volkswagen",
+                "modelo": "Gol",
+                "anioDesde": 2009,
+                "anioHasta": 2019,
+                "motor": null
+            }
+        ]
+    },
+    {
+        "id": "5a56623b-a309-4156-b86f-afb6736413ca",
+        "codigoCanonico": "FILT-ACE-VW-16",
+        "nombre": "Filtro de aceite motor 1.6",
+        "descripcion": "Filtro roscado para motores VW 1.6 8v.",
+        "sistema": "Motor",
+        "codigosEquivalentes": [
+            "030115561AN",
+            "W712/52"
+        ],
+        "aplicaciones": [
+            {
+                "marca": "Volkswagen",
+                "modelo": "Gol",
+                "anioDesde": 2009,
+                "anioHasta": 2019,
+                "motor": "1.6"
+            },
+            {
+                "marca": "Volkswagen",
+                "modelo": "Voyage",
+                "anioDesde": 2009,
+                "anioHasta": 2019,
+                "motor": "1.6"
+            }
+        ]
+    },
+    {
+        "id": "67b7bebe-c414-4771-8a8c-b6fd878e4554",
+        "codigoCanonico": "PAST-VW-GOL-DEL",
+        "nombre": "Pastillas de freno delanteras",
+        "descripcion": "Juego de 4 pastillas para eje delantero.",
+        "sistema": "Frenos",
+        "codigosEquivalentes": [
+            "5U0698151",
+            "FDB1636"
+        ],
+        "aplicaciones": [
+            {
+                "marca": "Volkswagen",
+                "modelo": "Gol",
+                "anioDesde": 2009,
+                "anioHasta": 2019,
+                "motor": null
+            },
+            {
+                "marca": "Volkswagen",
+                "modelo": "Voyage",
+                "anioDesde": 2009,
+                "anioHasta": 2019,
+                "motor": null
+            }
+        ]
+    }
+]

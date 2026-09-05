@@ -1,0 +1,191 @@
+@page "/busquedas"
+@rendermode InteractiveServer
+@using RepMatch.Aplicacion.Servicios
+@inject ServicioBusquedas ServicioBusquedas
+@inject ServicioClientes ServicioClientes
+@inject ICatalogoRepuestos CatalogoRepuestos
+
+<PageTitle>Busquedas - RepMatch</PageTitle>
+
+<h1>Busquedas</h1>
+<p class="subtitulo">
+    El cliente describe el problema en sus palabras. Hoy la aplicacion resuelve los repuestos
+    candidatos por compatibilidad con el vehiculo; en la Segunda Parte ese paso lo hace el
+    componente de IA a partir de este mismo texto.
+</p>
+
+<div class="tarjeta">
+    <h2 style="margin-top:0">Nueva busqueda</h2>
+
+    <div style="display:grid;gap:0.85rem">
+        <div>
+            <label for="cliente">Cliente</label>
+            <select id="cliente" @bind="clienteSeleccionado">
+                <option value="">Elegi un cliente</option>
+                @foreach (var cliente in clientes)
+                {
+                    <option value="@cliente.Id">@cliente.Nombre</option>
+                }
+            </select>
+        </div>
+
+        <div class="campos">
+            <div>
+                <label for="marca">Marca</label>
+                <input id="marca" @bind="marca" />
+            </div>
+            <div>
+                <label for="modelo">Modelo</label>
+                <input id="modelo" @bind="modelo" />
+            </div>
+            <div>
+                <label for="anio">Anio</label>
+                <input id="anio" type="number" @bind="anio" />
+            </div>
+            <div>
+                <label for="motor">Motor</label>
+                <input id="motor" @bind="motor" />
+            </div>
+        </div>
+
+        <div>
+            <label for="texto">Que le pasa al vehiculo</label>
+            <textarea id="texto" rows="3" @bind="texto"
+                      placeholder="Cuando freno vibra el volante y se escucha un chillido"></textarea>
+        </div>
+    </div>
+
+    <p style="margin-top:1rem">
+        <button @onclick="CrearAsync" disabled="@guardando">
+            @(guardando ? "Registrando..." : "Registrar busqueda")
+        </button>
+        <span style="margin-left:0.75rem;color:var(--tinta-suave);font-size:0.85rem">
+            catalogo resuelto en modo <strong>@CatalogoRepuestos.Modo</strong>
+        </span>
+    </p>
+
+    @if (errores.Count > 0)
+    {
+        <div class="aviso error">
+            @foreach (var e in errores)
+            {
+                <div>@e</div>
+            }
+        </div>
+    }
+</div>
+
+<h2>Busquedas recientes</h2>
+
+<div class="tarjeta">
+    @if (busquedas.Count == 0)
+    {
+        <p class="vacio">Todavia no hay busquedas registradas.</p>
+    }
+    else
+    {
+        <table>
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Vehiculo</th>
+                    <th>Problema descripto</th>
+                    <th>Estado</th>
+                    <th>Codigos objetivo</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var busqueda in busquedas)
+                {
+                    <tr>
+                        <td class="mono">@busqueda.FechaCreacion.ToLocalTime().ToString("dd/MM HH:mm")</td>
+                        <td>@busqueda.Vehiculo</td>
+                        <td>@busqueda.TextoLibre</td>
+                        <td><span class="etiqueta">@busqueda.Estado</span></td>
+                        <td class="mono" style="font-size:0.8em">
+                            @if (busqueda.CodigosObjetivo.Count == 0)
+                            {
+                                <span style="color:var(--tinta-suave)">-</span>
+                            }
+                            else
+                            {
+                                @string.Join(", ", busqueda.CodigosObjetivo)
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@code {
+    private IReadOnlyList<ClienteDto> clientes = [];
+    private IReadOnlyList<BusquedaDto> busquedas = [];
+
+    private string clienteSeleccionado = "";
+    private string marca = "Volkswagen";
+    private string modelo = "Gol";
+    private int anio = 2015;
+    private string motor = "1.6";
+    private string texto = "Cuando freno vibra el volante y se escucha un chillido";
+
+    private bool guardando;
+    private List<string> errores = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        clientes = await ServicioClientes.ListarAsync();
+        clienteSeleccionado = clientes.Count > 0 ? clientes[0].Id.ToString() : "";
+        await RecargarAsync();
+    }
+
+    private async Task RecargarAsync() =>
+        busquedas = await ServicioBusquedas.ListarRecientesAsync();
+
+    private async Task CrearAsync()
+    {
+        guardando = true;
+        errores = [];
+
+        try
+        {
+            if (!Guid.TryParse(clienteSeleccionado, out var clienteId))
+            {
+                errores = ["Elegi un cliente."];
+                return;
+            }
+
+            var dto = new CrearBusquedaDto
+            {
+                ClienteId = clienteId,
+                Vehiculo = new VehiculoDto
+                {
+                    Marca = marca,
+                    Modelo = modelo,
+                    Anio = anio,
+                    Motor = string.IsNullOrWhiteSpace(motor) ? null : motor
+                },
+                TextoLibre = texto
+            };
+
+            var resultado = await ServicioBusquedas.CrearAsync(dto);
+
+            if (resultado.EsFallido)
+            {
+                errores = [.. resultado.Errores];
+                return;
+            }
+
+            await RecargarAsync();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            errores = [$"No se pudo consultar el catalogo remoto: {ex.Message}"];
+        }
+        finally
+        {
+            guardando = false;
+        }
+    }
+}

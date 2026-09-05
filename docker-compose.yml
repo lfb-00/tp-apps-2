@@ -1,0 +1,83 @@
+# Entorno de laboratorio del TP Inicial.
+#
+# Levanta los tres nodos del diagrama de despliegue: la base de datos, el host remoto del
+# componente de catalogo, y la aplicacion web. La Web arranca en modo Remoto para que el
+# ejercicio de acceso remoto entre componentes quede demostrado apenas se levanta el entorno.
+#
+#   docker compose up --build
+#   -> Web        http://localhost:8080
+#      Catalogo   http://localhost:8081/salud
+#
+# Para ver el modo Local containerizado:
+#   docker compose run --rm -e Catalogo__Modo=Local -p 8080:8080 web
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: repmatch-postgres
+    environment:
+      POSTGRES_DB: repmatch
+      POSTGRES_USER: repmatch
+      POSTGRES_PASSWORD: repmatch
+    ports:
+      - "5432:5432"
+    volumes:
+      - datos-postgres:/var/lib/postgresql/data
+    healthcheck:
+      # Los servicios .NET esperan a que la base acepte conexiones de verdad,
+      # no solo a que el contenedor exista.
+      test: ["CMD-SHELL", "pg_isready -U repmatch -d repmatch"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [repmatch]
+
+  catalogo-api:
+    build:
+      context: .
+      dockerfile: src/RepMatch.Catalogo.Api/Dockerfile
+    container_name: repmatch-catalogo-api
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      Persistencia__Proveedor: Postgres
+      ConnectionStrings__RepMatch: "Host=postgres;Port=5432;Database=repmatch;Username=repmatch;Password=repmatch"
+    ports:
+      - "8081:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/salud || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 20s
+    networks: [repmatch]
+
+  web:
+    build:
+      context: .
+      dockerfile: src/RepMatch.Web/Dockerfile
+    container_name: repmatch-web
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      Persistencia__Proveedor: Postgres
+      ConnectionStrings__RepMatch: "Host=postgres;Port=5432;Database=repmatch;Username=repmatch;Password=repmatch"
+      # Acceso REMOTO al componente de catalogo: resuelve por HTTP contra el otro contenedor.
+      Catalogo__Modo: Remoto
+      Catalogo__UrlBaseRemota: "http://catalogo-api:8080"
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      catalogo-api:
+        condition: service_started
+    networks: [repmatch]
+
+volumes:
+  datos-postgres:
+
+networks:
+  repmatch:
+    driver: bridge

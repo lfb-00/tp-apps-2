@@ -1,0 +1,40 @@
+### Peticiones de ejemplo contra el componente de catalogo hospedado como servicio REST.
+### Es el mismo contrato que consume RepMatch.Clientes.Rest.CatalogoRemoto.
+
+@host = http://localhost:5081
+
+### Salud del servicio
+GET {{host}}/salud
+
+### Contrato OpenAPI
+GET {{host}}/openapi/v1.json
+
+### Catalogo completo
+GET {{host}}/api/repuestos
+
+### Repuestos compatibles con un vehiculo
+GET {{host}}/api/repuestos/compatibles?marca=Volkswagen&modelo=Gol&anio=2015&motor=1.6
+
+### Filtrando por sistema
+GET {{host}}/api/repuestos/compatibles?marca=Peugeot&modelo=208&anio=2019&sistema=Frenos
+
+### Un repuesto por su codigo canonico
+GET {{host}}/api/repuestos/PAST-VW-GOL-DEL
+
+### Codigo inexistente (404)
+GET {{host}}/api/repuestos/NO-EXISTE-999
+
+### Clientes
+GET {{host}}/api/clientes
+
+### Alta de cliente
+POST {{host}}/api/clientes
+Content-Type: application/json
+
+{
+  "nombre": "Ana Diaz",
+  "email": "ana.diaz@ejemplo.com"
+}
+
+### Busquedas recientes
+GET {{host}}/api/busquedas

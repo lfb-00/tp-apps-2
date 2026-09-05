@@ -1,0 +1,229 @@
+@page "/acceso"
+@rendermode InteractiveServer
+@using RepMatch.Aplicacion.Catalogo
+@using RepMatch.Clientes.Rest
+@using RepMatch.Common.Resultados
+@inject CatalogoLocal CatalogoLocal
+@inject CatalogoRemoto CatalogoRemoto
+@inject OpcionesCatalogo Opciones
+@inject ILogger<AccesoComponentes> Log
+
+<PageTitle>Acceso local vs remoto - RepMatch</PageTitle>
+
+<h1>Acceso local vs. remoto al componente de catalogo</h1>
+<p class="subtitulo">
+    La misma operacion, el mismo contrato <code>ICatalogoRepuestos</code> y el mismo DTO de
+    respuesta, resueltos por dos caminos distintos: invocacion directa en proceso contra la capa
+    de datos, o invocacion remota por HTTP contra <code>RepMatch.Catalogo.Api</code>.
+</p>
+
+<div class="aviso">
+    La aplicacion esta configurada en modo <strong>@Opciones.Modo</strong>
+    (clave <code>Catalogo:Modo</code>), que es el que usa el resto de las pantallas.
+    Esta pagina ejecuta los <em>dos</em> caminos a proposito, para poder compararlos.
+    El endpoint remoto es <code>@Opciones.UrlBaseRemota</code>.
+</div>
+
+<div class="tarjeta">
+    <div class="campos">
+        <div>
+            <label for="marca">Marca</label>
+            <input id="marca" @bind="marca" />
+        </div>
+        <div>
+            <label for="modelo">Modelo</label>
+            <input id="modelo" @bind="modelo" />
+        </div>
+        <div>
+            <label for="anio">Anio</label>
+            <input id="anio" type="number" @bind="anio" />
+        </div>
+        <div>
+            <label for="motor">Motor (opcional)</label>
+            <input id="motor" @bind="motor" />
+        </div>
+    </div>
+
+    <p style="margin-top:1rem">
+        <button @onclick="EjecutarAmbosAsync" disabled="@ejecutando">
+            @(ejecutando ? "Ejecutando..." : "Ejecutar por los dos caminos")
+        </button>
+    </p>
+</div>
+
+@if (local is not null || remoto is not null || errorRemoto is not null)
+{
+    <div class="grilla">
+        <div class="tarjeta">
+            <span class="modo modo-local">Local &mdash; invocacion directa</span>
+            @if (local is not null)
+            {
+                <p class="medicion">
+                    <strong>@local.MilisegundosTranscurridos.ToString("N1")</strong> ms
+                </p>
+                <p><strong>@local.Valor.Count</strong> repuestos compatibles</p>
+                <p class="mono" style="color:var(--tinta-suave)">
+                    referencia de proyecto &rarr; CatalogoLocal &rarr; RepuestoRepository &rarr; EF Core
+                </p>
+            }
+        </div>
+
+        <div class="tarjeta @(errorRemoto is not null ? "error" : "")">
+            <span class="modo modo-remoto">Remoto &mdash; HTTP</span>
+            @if (errorRemoto is not null)
+            {
+                <p><strong>No se pudo alcanzar Catalogo.Api.</strong></p>
+                <p class="mono">@errorRemoto</p>
+                <p style="color:var(--tinta-suave)">
+                    Levantalo con <code>dotnet run --project src/RepMatch.Catalogo.Api</code>.
+                </p>
+            }
+            else if (remoto is not null)
+            {
+                <p class="medicion">
+                    <strong>@remoto.MilisegundosTranscurridos.ToString("N1")</strong> ms
+                </p>
+                <p><strong>@remoto.Valor.Count</strong> repuestos compatibles</p>
+                <p class="mono" style="color:var(--tinta-suave)">
+                    HttpClient &rarr; GET /api/repuestos/compatibles &rarr; JSON
+                </p>
+            }
+        </div>
+    </div>
+
+    @if (local is not null && remoto is not null)
+    {
+        <div class="tarjeta">
+            <h2 style="margin-top:0">Comparacion</h2>
+            <table>
+                <thead>
+                    <tr><th>Aspecto</th><th>Local</th><th>Remoto</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Latencia</td>
+                        <td class="mono">@local.MilisegundosTranscurridos.ToString("N1") ms</td>
+                        <td class="mono">@remoto.MilisegundosTranscurridos.ToString("N1") ms</td>
+                    </tr>
+                    <tr>
+                        <td>Repuestos devueltos</td>
+                        <td>@local.Valor.Count</td>
+                        <td>@remoto.Valor.Count</td>
+                    </tr>
+                    <tr>
+                        <td>Resultados identicos</td>
+                        <td colspan="2">
+                            @if (ResultadosIguales())
+                            {
+                                <span class="etiqueta" style="color:var(--local)">
+                                    Si &mdash; los dos caminos son intercambiables
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="etiqueta" style="color:var(--error)">No</span>
+                            }
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Sobrecosto del remoto</td>
+                        <td colspan="2" class="mono">
+                            +@Sobrecosto() ms (serializacion JSON + TCP + pipeline HTTP del segundo proceso)
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="tarjeta">
+            <h2 style="margin-top:0">Repuestos devueltos</h2>
+            <table>
+                <thead>
+                    <tr><th>Codigo</th><th>Nombre</th><th>Sistema</th><th>Equivalencias</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var repuesto in local.Valor)
+                    {
+                        <tr>
+                            <td class="mono">@repuesto.CodigoCanonico</td>
+                            <td>@repuesto.Nombre</td>
+                            <td><span class="etiqueta">@repuesto.Sistema</span></td>
+                            <td class="mono">@Equivalencias(repuesto)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+@code {
+    private string marca = "Volkswagen";
+    private string modelo = "Gol";
+    private int anio = 2015;
+    private string motor = "1.6";
+
+    private bool ejecutando;
+    private ResultadoMedido<IReadOnlyList<RepuestoDto>>? local;
+    private ResultadoMedido<IReadOnlyList<RepuestoDto>>? remoto;
+    private string? errorRemoto;
+
+    private async Task EjecutarAmbosAsync()
+    {
+        ejecutando = true;
+        local = null;
+        remoto = null;
+        errorRemoto = null;
+
+        var vehiculo = new VehiculoDto
+        {
+            Marca = marca,
+            Modelo = modelo,
+            Anio = anio,
+            Motor = string.IsNullOrWhiteSpace(motor) ? null : motor
+        };
+
+        try
+        {
+            local = await Cronometro.MedirAsync(CatalogoLocal.Modo,
+                ct => CatalogoLocal.BuscarCompatiblesAsync(vehiculo, null, ct));
+
+            Log.LogInformation("Evidencia acceso {Medicion} vehiculo={Vehiculo} resultados={Cantidad}",
+                local, vehiculo, local.Valor.Count);
+
+            try
+            {
+                remoto = await Cronometro.MedirAsync(CatalogoRemoto.Modo,
+                    ct => CatalogoRemoto.BuscarCompatiblesAsync(vehiculo, null, ct));
+
+                Log.LogInformation("Evidencia acceso {Medicion} vehiculo={Vehiculo} resultados={Cantidad}",
+                    remoto, vehiculo, remoto.Valor.Count);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+            {
+                errorRemoto = ex.Message;
+                Log.LogWarning(ex, "El camino remoto no respondio");
+            }
+        }
+        finally
+        {
+            ejecutando = false;
+        }
+    }
+
+    private string Sobrecosto() =>
+        local is null || remoto is null
+            ? "-"
+            : (remoto.MilisegundosTranscurridos - local.MilisegundosTranscurridos).ToString("N1");
+
+    private static string Equivalencias(RepuestoDto repuesto) =>
+        repuesto.CodigosEquivalentes.Count == 0
+            ? "-"
+            : string.Join(", ", repuesto.CodigosEquivalentes);
+
+    private bool ResultadosIguales() =>
+        local is not null
+        && remoto is not null
+        && local.Valor.Select(r => r.CodigoCanonico).OrderBy(c => c)
+            .SequenceEqual(remoto.Valor.Select(r => r.CodigoCanonico).OrderBy(c => c));
+}

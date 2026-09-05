@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/RepMatch.Aplicacion/RepMatch.Aplicacion.csproj" />
+    <Project Path="src/RepMatch.Catalogo.Api/RepMatch.Catalogo.Api.csproj" />
+    <Project Path="src/RepMatch.Clientes.Rest/RepMatch.Clientes.Rest.csproj" />
+    <Project Path="src/RepMatch.Common/RepMatch.Common.csproj" />
+    <Project Path="src/RepMatch.Contracts/RepMatch.Contracts.csproj" />
+    <Project Path="src/RepMatch.Domain/RepMatch.Domain.csproj" />
+    <Project Path="src/RepMatch.Persistence/RepMatch.Persistence.csproj" />
+    <Project Path="src/RepMatch.Web/RepMatch.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/RepMatch.Tests/RepMatch.Tests.csproj" />
+  </Folder>
+</Solution>

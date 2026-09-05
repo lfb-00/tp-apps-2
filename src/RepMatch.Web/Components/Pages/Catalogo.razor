@@ -1,0 +1,181 @@
+@page "/catalogo"
+@rendermode InteractiveServer
+@using RepMatch.Common.Resultados
+@inject ICatalogoRepuestos CatalogoRepuestos
+@inject ILogger<Catalogo> Log
+
+<PageTitle>Catalogo - RepMatch</PageTitle>
+
+<h1>Catalogo de repuestos</h1>
+<p class="subtitulo">
+    Consulta la compatibilidad contra el catalogo propio. Usa el contrato
+    <code>ICatalogoRepuestos</code> sin saber si esta resuelto local o remotamente: lo decide la
+    configuracion.
+</p>
+
+<div class="tarjeta">
+    <div class="campos">
+        <div>
+            <label for="marca">Marca</label>
+            <input id="marca" @bind="marca" />
+        </div>
+        <div>
+            <label for="modelo">Modelo</label>
+            <input id="modelo" @bind="modelo" />
+        </div>
+        <div>
+            <label for="anio">Anio</label>
+            <input id="anio" type="number" @bind="anio" />
+        </div>
+        <div>
+            <label for="motor">Motor (opcional)</label>
+            <input id="motor" @bind="motor" />
+        </div>
+        <div>
+            <label for="sistema">Sistema</label>
+            <select id="sistema" @bind="sistema">
+                <option value="">Todos</option>
+                <option value="Frenos">Frenos</option>
+                <option value="Motor">Motor</option>
+                <option value="Suspension">Suspension</option>
+                <option value="Electrico">Electrico</option>
+                <option value="Refrigeracion">Refrigeracion</option>
+                <option value="Transmision">Transmision</option>
+                <option value="Direccion">Direccion</option>
+            </select>
+        </div>
+    </div>
+
+    <p style="margin-top:1rem">
+        <button @onclick="BuscarAsync" disabled="@buscando">
+            @(buscando ? "Buscando..." : "Buscar compatibles")
+        </button>
+        <button class="secundario" @onclick="ListarTodoAsync" disabled="@buscando">
+            Ver catalogo completo
+        </button>
+    </p>
+</div>
+
+@if (error is not null)
+{
+    <div class="aviso error">@error</div>
+}
+
+@if (medicion is not null)
+{
+    <div class="aviso">
+        <span class="modo modo-@medicion.Origen.ToLowerInvariant()">@medicion.Origen</span>
+        &nbsp;@medicion.Valor.Count resultados en
+        <strong class="mono">@medicion.MilisegundosTranscurridos.ToString("N1") ms</strong>
+    </div>
+
+    @if (medicion.Valor.Count == 0)
+    {
+        <div class="tarjeta">
+            <p class="vacio">
+                No hay repuestos catalogados para ese vehiculo. Proba con Volkswagen Gol 2015,
+                Peugeot 208 2019 o Toyota Corolla 2018.
+            </p>
+        </div>
+    }
+    else
+    {
+        <div class="tarjeta">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Codigo</th>
+                        <th>Nombre</th>
+                        <th>Sistema</th>
+                        <th>Equivalencias</th>
+                        <th>Aplicaciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var repuesto in medicion.Valor)
+                    {
+                        <tr>
+                            <td class="mono">@repuesto.CodigoCanonico</td>
+                            <td>
+                                @repuesto.Nombre
+                                @if (repuesto.Descripcion is not null)
+                                {
+                                    <br />
+                                    <small style="color:var(--tinta-suave)">@repuesto.Descripcion</small>
+                                }
+                            </td>
+                            <td><span class="etiqueta">@repuesto.Sistema</span></td>
+                            <td class="mono">@Equivalencias(repuesto)</td>
+                            <td>
+                                @foreach (var aplicacion in repuesto.Aplicaciones)
+                                {
+                                    <div class="mono" style="font-size:0.8em">
+                                        @aplicacion.Marca @aplicacion.Modelo
+                                        @aplicacion.AnioDesde&ndash;@aplicacion.AnioHasta
+                                        @(aplicacion.Motor is null ? "" : $"[{aplicacion.Motor}]")
+                                    </div>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+@code {
+    private string marca = "Volkswagen";
+    private string modelo = "Gol";
+    private int anio = 2015;
+    private string motor = "1.6";
+    private string sistema = "";
+
+    private bool buscando;
+    private string? error;
+    private ResultadoMedido<IReadOnlyList<RepuestoDto>>? medicion;
+
+    private async Task BuscarAsync()
+    {
+        var vehiculo = new VehiculoDto
+        {
+            Marca = marca,
+            Modelo = modelo,
+            Anio = anio,
+            Motor = string.IsNullOrWhiteSpace(motor) ? null : motor
+        };
+
+        await EjecutarAsync(ct => CatalogoRepuestos.BuscarCompatiblesAsync(
+            vehiculo, string.IsNullOrWhiteSpace(sistema) ? null : sistema, ct));
+    }
+
+    private Task ListarTodoAsync() =>
+        EjecutarAsync(ct => CatalogoRepuestos.ListarAsync(ct));
+
+    private async Task EjecutarAsync(Func<CancellationToken, Task<IReadOnlyList<RepuestoDto>>> operacion)
+    {
+        buscando = true;
+        error = null;
+
+        try
+        {
+            medicion = await Cronometro.MedirAsync(CatalogoRepuestos.Modo, operacion);
+            Log.LogInformation("Consulta de catalogo {Medicion}", medicion);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            medicion = null;
+            error = $"No se pudo consultar el catalogo remoto: {ex.Message}";
+            Log.LogWarning(ex, "Fallo la consulta de catalogo");
+        }
+        finally
+        {
+            buscando = false;
+        }
+    }
+
+    private static string Equivalencias(RepuestoDto repuesto) =>
+        repuesto.CodigosEquivalentes.Count == 0
+            ? "-"
+            : string.Join(", ", repuesto.CodigosEquivalentes);
+}

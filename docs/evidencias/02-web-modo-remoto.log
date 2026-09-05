@@ -1,0 +1,30 @@
+Usando la configuración de inicio de src\RepMatch.Web\Properties\launchSettings.json...
+[10:27:10 INF] [Web] [] Base de datos lista (proveedor Microsoft.EntityFrameworkCore.InMemory).
+[10:27:10 INF] [Web] [] Web iniciada. Modo de acceso al catalogo: Remoto (http://localhost:5081)
+[10:27:10 INF] [Web] [] Now listening on: http://localhost:5080
+[10:27:10 INF] [Web] [] Application started. Press Ctrl+C to shut down.
+[10:27:10 INF] [Web] [] Hosting environment: Development
+[10:27:10 INF] [Web] [] Content root path: C:\Users\d78650\src\tp-apps-2\src\RepMatch.Web
+[10:27:10 INF] [Web] [f17b287d9644] HTTP GET /salud responded 200 in 42.7022 ms
+[10:27:10 INF] [Web] [a3a59e6ba73e] Start processing HTTP request GET http://localhost:5081/api/repuestos/compatibles?*
+[10:27:10 INF] [Web] [a3a59e6ba73e] Sending HTTP request GET http://localhost:5081/api/repuestos/compatibles?*
+[10:27:11 INF] [Web] [a3a59e6ba73e] Received HTTP response headers after 388.4201ms - 200
+[10:27:11 INF] [Web] [a3a59e6ba73e] End processing HTTP request after 400.8451ms - 200
+[10:27:11 INF] [Web] [a3a59e6ba73e] Catalogo[Remoto] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[10:27:11 INF] [Web] [a3a59e6ba73e] Evidencia acceso origen=Remoto duracion=442,0ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
+[10:27:11 INF] [Web] [d5b8d4a2b915] HTTP POST /_blazor/negotiate responded 200 in 10.4873 ms
+[10:27:11 INF] [Web] [a3a59e6ba73e] HTTP GET /evidencia/catalogo responded 200 in 471.2375 ms
+[10:27:11 INF] [Web] [5d7dce6bcbbf] Start processing HTTP request GET http://localhost:5081/api/repuestos/compatibles?*
+[10:27:11 INF] [Web] [5d7dce6bcbbf] Sending HTTP request GET http://localhost:5081/api/repuestos/compatibles?*
+[10:27:11 INF] [Web] [5d7dce6bcbbf] Received HTTP response headers after 76.146ms - 200
+[10:27:11 INF] [Web] [5d7dce6bcbbf] End processing HTTP request after 78.639ms - 200
+[10:27:11 INF] [Web] [5d7dce6bcbbf] Catalogo[Remoto] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[10:27:11 INF] [Web] [5d7dce6bcbbf] Evidencia acceso origen=Remoto duracion=79,7ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
+[10:27:11 INF] [Web] [5d7dce6bcbbf] HTTP GET /evidencia/catalogo responded 200 in 81.1308 ms
+[10:27:11 INF] [Web] [76634adcae4e] HTTP GET /busquedas responded 200 in 468.8726 ms
+[10:27:11 INF] [Web] [f37a9b741249] HTTP GET /_blazor responded 101 in 572.8963 ms
+[10:27:11 INF] [Web] [bfec2a57eae8] HTTP GET /RepMatch.Web.styles.css responded 304 in 5.5253 ms
+[10:27:11 INF] [Web] [6275287be52e] HTTP POST /_blazor/disconnect responded 200 in 19.3361 ms
+[10:27:11 INF] [Web] [35a096433e00] HTTP GET /_blazor/initializers responded 200 in 1.6745 ms
+[10:27:11 INF] [Web] [c4e4b035f980] HTTP GET /favicon.ico responded 404 in 0.2862 ms
+[10:27:11 INF] [Web] [2cbe4e791f65] HTTP POST /_blazor/negotiate responded 200 in 0.4071 ms

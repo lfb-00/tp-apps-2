@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RepMatch.Domain\RepMatch.Domain.csproj" />
+    <ProjectReference Include="..\RepMatch.Common\RepMatch.Common.csproj" />
+    <ProjectReference Include="..\RepMatch.Contracts\RepMatch.Contracts.csproj" />
+    <ProjectReference Include="..\RepMatch.Persistence\RepMatch.Persistence.csproj" />
+    <ProjectReference Include="..\RepMatch.Aplicacion\RepMatch.Aplicacion.csproj" />
+    <ProjectReference Include="..\RepMatch.Clientes.Rest\RepMatch.Clientes.Rest.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+  </PropertyGroup>
+
+</Project>

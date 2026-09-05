@@ -1,0 +1,40 @@
+@inherits LayoutComponentBase
+@inject OpcionesCatalogo Opciones
+
+<div class="app">
+    <header class="barra">
+        <a class="marca" href="/">
+            <span class="logo">RM</span>
+            <span>
+                <strong>RepMatch</strong>
+                <small>Comparador de repuestos</small>
+            </span>
+        </a>
+
+        <nav>
+            <NavLink href="/" Match="NavLinkMatch.All">Inicio</NavLink>
+            <NavLink href="/catalogo">Catalogo</NavLink>
+            <NavLink href="/busquedas">Busquedas</NavLink>
+            <NavLink href="/clientes">Clientes</NavLink>
+            <NavLink href="/acceso">Local vs Remoto</NavLink>
+        </nav>
+
+        <span class="modo modo-@Opciones.Modo.ToString().ToLowerInvariant()">
+            catalogo: @Opciones.Modo
+        </span>
+    </header>
+
+    <main>
+        @Body
+    </main>
+
+    <footer>
+        UADE &mdash; Desarrollo de Aplicaciones II &mdash; TP Inicial
+    </footer>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    Ocurrio un error inesperado.
+    <a href="." class="reload">Recargar</a>
+    <span class="dismiss">&#128473;</span>
+</div>

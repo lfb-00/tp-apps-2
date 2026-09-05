@@ -1,0 +1,15 @@
+Usando la configuración de inicio de src\RepMatch.Catalogo.Api\Properties\launchSettings.json...
+[10:26:55 INF] [Catalogo.Api] [] Base de datos lista (proveedor Microsoft.EntityFrameworkCore.InMemory).
+[10:26:56 INF] [Catalogo.Api] [] Catalogo.Api escuchando
+[10:26:56 INF] [Catalogo.Api] [] Now listening on: http://localhost:5081
+[10:26:56 INF] [Catalogo.Api] [] Application started. Press Ctrl+C to shut down.
+[10:26:56 INF] [Catalogo.Api] [] Hosting environment: Development
+[10:26:56 INF] [Catalogo.Api] [] Content root path: C:\Users\d78650\src\tp-apps-2\src\RepMatch.Catalogo.Api
+[10:26:56 INF] [Catalogo.Api] [e710f3ff806f] HTTP GET /salud responded 200 in 41.7402 ms
+[10:27:11 INF] [Catalogo.Api] [a3a59e6ba73e] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[10:27:11 INF] [Catalogo.Api] [a3a59e6ba73e] HTTP GET /api/repuestos/compatibles responded 200 in 307.1489 ms
+[10:27:11 INF] [Catalogo.Api] [5d7dce6bcbbf] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[10:27:11 INF] [Catalogo.Api] [5d7dce6bcbbf] HTTP GET /api/repuestos/compatibles responded 200 in 71.2007 ms
+[10:27:12 INF] [Catalogo.Api] [912bd9cd3741] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[10:27:12 INF] [Catalogo.Api] [912bd9cd3741] HTTP GET /api/repuestos/compatibles responded 200 in 12.0778 ms
+[10:27:13 INF] [Catalogo.Api] [4f981a29d1f3] HTTP GET /openapi/v1.json responded 200 in 312.2113 ms

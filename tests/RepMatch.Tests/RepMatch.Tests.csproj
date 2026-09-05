@@ -1,0 +1,32 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.11" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\RepMatch.Domain\RepMatch.Domain.csproj" />
+    <ProjectReference Include="..\..\src\RepMatch.Common\RepMatch.Common.csproj" />
+    <ProjectReference Include="..\..\src\RepMatch.Contracts\RepMatch.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\RepMatch.Persistence\RepMatch.Persistence.csproj" />
+    <ProjectReference Include="..\..\src\RepMatch.Catalogo.Api\RepMatch.Catalogo.Api.csproj" />
+    <ProjectReference Include="..\..\src\RepMatch.Aplicacion\RepMatch.Aplicacion.csproj" />
+    <ProjectReference Include="..\..\src\RepMatch.Clientes.Rest\RepMatch.Clientes.Rest.csproj" />
+  </ItemGroup>
+
+</Project>
