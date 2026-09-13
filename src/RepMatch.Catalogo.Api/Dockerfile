@@ -20,10 +20,22 @@ RUN dotnet publish src/RepMatch.Catalogo.Api/RepMatch.Catalogo.Api.csproj \
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
-COPY --from=build /app ./
+
+# Las imagenes de runtime de .NET no traen curl ni wget (Microsoft los saco por tamanio y CVEs),
+# asi que sin esto el HEALTHCHECK no tendria con que hacer la peticion.
+USER root
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends curl \
+ && rm -rf /var/lib/apt/lists/*
+
+# --chown: la app corre como usuario 'app' y Serilog necesita poder crear logs/ aca dentro.
+COPY --from=build --chown=app:app /app ./
 
 EXPOSE 8080
 ENV ASPNETCORE_HTTP_PORTS=8080
+
+HEALTHCHECK --interval=10s --timeout=3s --start-period=25s --retries=6 \
+  CMD curl -fsS http://localhost:8080/salud || exit 1
 
 # Usuario sin privilegios: la imagen de ASP.NET ya trae definido "app".
 USER app

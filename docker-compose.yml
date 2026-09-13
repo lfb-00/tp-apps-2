@@ -1,15 +1,22 @@
-# Entorno de laboratorio del TP Inicial.
+# Entorno de laboratorio de RepMatch — TP Inicial.
 #
 # Levanta los tres nodos del diagrama de despliegue: la base de datos, el host remoto del
-# componente de catalogo, y la aplicacion web. La Web arranca en modo Remoto para que el
+# componente de catalogo y la aplicacion web. La Web arranca en modo Remoto para que el
 # ejercicio de acceso remoto entre componentes quede demostrado apenas se levanta el entorno.
 #
-#   docker compose up --build
-#   -> Web        http://localhost:8080
-#      Catalogo   http://localhost:8081/salud
+#   docker compose up --build --wait     -> espera a que los tres esten sanos
+#     Web       http://localhost:8080
+#     Catalogo  http://localhost:8081/salud
 #
-# Para ver el modo Local containerizado:
-#   docker compose run --rm -e Catalogo__Modo=Local -p 8080:8080 web
+#   docker compose --profile test run --rm tests        -> corre las 54 pruebas
+#   docker compose --profile local up --build web-local -> la misma Web en modo Local
+#
+# Los puertos del host se pueden cambiar con un archivo .env (ver .env.example) para
+# evitar choques con lo que cada uno tenga corriendo.
+
+x-conexion-postgres: &conexion-postgres
+  Persistencia__Proveedor: Postgres
+  ConnectionStrings__RepMatch: "Host=postgres;Port=5432;Database=repmatch;Username=repmatch;Password=repmatch"
 
 services:
   postgres:
@@ -20,7 +27,7 @@ services:
       POSTGRES_USER: repmatch
       POSTGRES_PASSWORD: repmatch
     ports:
-      - "5432:5432"
+      - "${PUERTO_POSTGRES:-5432}:5432"
     volumes:
       - datos-postgres:/var/lib/postgresql/data
     healthcheck:
@@ -36,43 +43,70 @@ services:
     build:
       context: .
       dockerfile: src/RepMatch.Catalogo.Api/Dockerfile
+    image: repmatch/catalogo-api:tp-inicial
     container_name: repmatch-catalogo-api
     environment:
+      <<: *conexion-postgres
+      # Development habilita /openapi/v1.json, que es parte del entregable.
       ASPNETCORE_ENVIRONMENT: Development
-      Persistencia__Proveedor: Postgres
-      ConnectionStrings__RepMatch: "Host=postgres;Port=5432;Database=repmatch;Username=repmatch;Password=repmatch"
     ports:
-      - "8081:8080"
+      - "${PUERTO_CATALOGO:-8081}:8080"
     depends_on:
       postgres:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/salud || exit 1"]
-      interval: 10s
-      timeout: 3s
-      retries: 6
-      start_period: 20s
     networks: [repmatch]
 
   web:
     build:
       context: .
       dockerfile: src/RepMatch.Web/Dockerfile
+    image: repmatch/web:tp-inicial
     container_name: repmatch-web
     environment:
+      <<: *conexion-postgres
       ASPNETCORE_ENVIRONMENT: Development
-      Persistencia__Proveedor: Postgres
-      ConnectionStrings__RepMatch: "Host=postgres;Port=5432;Database=repmatch;Username=repmatch;Password=repmatch"
       # Acceso REMOTO al componente de catalogo: resuelve por HTTP contra el otro contenedor.
       Catalogo__Modo: Remoto
       Catalogo__UrlBaseRemota: "http://catalogo-api:8080"
     ports:
-      - "8080:8080"
+      - "${PUERTO_WEB:-8080}:8080"
     depends_on:
       postgres:
         condition: service_healthy
       catalogo-api:
-        condition: service_started
+        condition: service_healthy
+    networks: [repmatch]
+
+  # --- Perfiles opcionales -------------------------------------------------------------
+
+  # La misma imagen de la Web, pero resolviendo el catalogo en proceso. Sirve para comparar
+  # los dos modos dentro de contenedores durante la defensa.
+  web-local:
+    profiles: [local]
+    image: repmatch/web:tp-inicial
+    build:
+      context: .
+      dockerfile: src/RepMatch.Web/Dockerfile
+    container_name: repmatch-web-local
+    environment:
+      <<: *conexion-postgres
+      ASPNETCORE_ENVIRONMENT: Development
+      Catalogo__Modo: Local
+    ports:
+      - "${PUERTO_WEB_LOCAL:-8090}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [repmatch]
+
+  # Corre las 54 pruebas sin necesidad de tener el SDK de .NET instalado.
+  # No depende de postgres: usan el proveedor InMemory.
+  tests:
+    profiles: [test]
+    build:
+      context: .
+      dockerfile: tests/RepMatch.Tests/Dockerfile
+    image: repmatch/tests:tp-inicial
     networks: [repmatch]
 
 volumes:
