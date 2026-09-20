@@ -41,7 +41,7 @@ La consigna pide un mínimo de tres componentes reutilizables independientes. Se
 | 2 | `RepMatch.Persistence` | **Acceso a datos** | `DbContext`, mapeos, repositorios y unidad de trabajo sobre EF Core |
 | 3 | `RepMatch.Common` | **Utilidad** | Validación, logging, configuración externalizada, `ResultadoOperacion<T>`, medición de latencia y correlación |
 | 4 | `RepMatch.Contracts` | Contratos | DTOs, `ICatalogoRepuestos` y `OpcionesCatalogo` |
-| 5 | `RepMatch.Aplicacion` | Lógica de negocio | `ServicioClientes`, `ServicioBusquedas`, mapeadores, validadores y `CatalogoLocal` |
+| 5 | `RepMatch.Aplicacion` | Lógica de negocio | `FachadaBusqueda`, `ServicioClientes`, `ServicioBusquedas`, mapeadores, validadores y `CatalogoLocal` |
 | 6 | `RepMatch.Clientes.Rest` | Adaptador remoto | `CatalogoRemoto` y propagación de correlación |
 
 Más dos hosts ejecutables: `RepMatch.Web` (presentación) y `RepMatch.Catalogo.Api` (host REST del
@@ -72,10 +72,11 @@ materializan así:
 │  PRESENTACIÓN    RepMatch.Web (Blazor Server)        │
 │                  Componentes Razor · FabricaCatalogo  │
 └───────────────────────┬──────────────────────────────┘
-                        │  depende solo de ICatalogoRepuestos
+                        │  entra por FachadaBusqueda y ServicioClientes
 ┌───────────────────────▼──────────────────────────────┐
 │  LÓGICA DE       RepMatch.Aplicacion                 │
-│  NEGOCIO         ServicioClientes · ServicioBusquedas │
+│  NEGOCIO         FachadaBusqueda (Facade)            │
+│                  ServicioClientes · ServicioBusquedas │
 │                  CatalogoLocal · Validadores          │
 └───────────────────────┬──────────────────────────────┘
                         │  usa las interfaces declaradas en Domain
@@ -91,8 +92,10 @@ materializan así:
 
 Reglas que se respetan y que son verificables leyendo los `.csproj`:
 
-- La presentación **nunca** referencia un repositorio: habla con `ServicioClientes` y
-  `ServicioBusquedas`.
+- La presentación **nunca** referencia un repositorio: habla con `FachadaBusqueda` y
+  `ServicioClientes`. El caso de uso de búsqueda tiene una única puerta de entrada (patrón
+  **Facade**, sección 6.7): los pasos de `ServicioBusquedas` que mutan estado son `internal` y sólo
+  la fachada los invoca.
 - La capa de datos **no contiene reglas de negocio**. `RepuestoRepository.BuscarCompatiblesAsync`
   filtra en la base por marca, modelo y rango de años —lo que el motor puede resolver con índice— y
   delega la regla fina de motorización a `Repuesto.EsCompatibleCon`, que vive en el dominio. Así la
@@ -144,7 +147,7 @@ servicios.AddScoped<ICatalogoRepuestos>(sp => opciones.Modo switch
 ```
 
 Se cambia con `Catalogo:Modo` en `appsettings.json` o con la variable de entorno `Catalogo__Modo`.
-**Sin recompilar**, y sin que ningún consumidor —ni los componentes Razor, ni `ServicioBusquedas`—
+**Sin recompilar**, y sin que ningún consumidor —ni los componentes Razor, ni `FachadaBusqueda`—
 se entere de cuál quedó enchufada.
 
 ### Por qué esto no es una complicación gratuita
@@ -220,7 +223,7 @@ implementaciones devuelvan **exactamente lo mismo** para cinco vehículos distin
 completo campo por campo, para códigos existentes e inexistentes y para el filtro por sistema.
 
 ```
-Correctas! - Con error: 0, Superado: 54, Omitido: 0, Total: 54
+Correctas! - Con error: 0, Superado: 62, Omitido: 0, Total: 62
 ```
 
 Si algún día las dos implementaciones divergen, esto falla antes que la demo.
@@ -282,6 +285,23 @@ La plantilla de `webapi` arrastraba `Microsoft.OpenApi` 2.0.0, afectado por **CV
 circulares, CVSS 7.5). Se fijó la versión **2.12.2**, posterior al parche 2.7.5, y se alineó
 `Microsoft.AspNetCore.OpenApi` en 10.0.11. La solución compila **sin advertencias**.
 
+### 6.7 Facade: una sola puerta de entrada al caso de uso de búsqueda
+
+Crear una búsqueda no es una operación: es una secuencia —admitir la solicitud, resolver los códigos
+objetivo, registrar— que en la Segunda Parte suma el diagnóstico por IA, la verificación de
+compatibilidad por SOAP y la agregación de ofertas. Si la capa de presentación conociera a esos
+colaboradores, cada uno que se agrega obligaría a tocar los componentes Razor y el controlador REST.
+
+`FachadaBusqueda.ResolverBusquedaAsync` es la única operación que la presentación invoca. La fachada
+no contiene reglas de negocio: las de admisión están en los validadores y en `ServicioBusquedas`, las
+del agregado en `Busqueda`. Sólo fija el orden de los pasos, corta el flujo cuando uno falla y traduce
+una caída del catálogo remoto (timeout, DNS, 5xx) a un `ResultadoOperacion` legible, de modo que la
+pantalla ya no necesita `try/catch`. Los pasos intermedios del servicio (`ValidarAsync`,
+`RegistrarAsync`) son `internal`: desde fuera de `RepMatch.Aplicacion` no hay otra forma de crear una
+búsqueda que pasar por la fachada. Cada punto de extensión de la Segunda Parte está marcado en el
+código como `PUNTO DE EXTENSION`, con el issue que lo implementa. El detalle está en
+[`docs/diagramas/componentes.md`](diagramas/componentes.md#fachada-del-caso-de-uso-de-búsqueda-facade).
+
 ---
 
 ## 7. Cómo esta arquitectura recibe las entregas siguientes
@@ -289,17 +309,18 @@ circulares, CVSS 7.5). Se fijó la versión **2.12.2**, posterior al parche 2.7.
 | Entrega | Qué agrega | Dónde se enchufa | Qué NO hay que tocar |
 |---|---|---|---|
 | **Primera** | Patrones formalizados, servicios de negocio, eventos de dominio internos | `EntidadBase.EventosDominio` ya acumula eventos; falta el despachador | Dominio, contratos |
-| **Segunda** | SOAP `ConsultaCompatibilidad` (CoreWCF + WSDL) | Tercera implementación de `ICatalogoRepuestos` | Presentación, lógica de negocio |
+| **Segunda** | SOAP `ConsultaCompatibilidad` (CoreWCF + WSDL) | Tercera implementación de `ICatalogoRepuestos`, elegida por la fábrica; entra por el paso 2 de `FachadaBusqueda` | Presentación, lógica de negocio |
 | **Segunda** | REST documentados con OpenAPI | Ya publicado en `/openapi/v1.json` | — |
 | **Segunda** | RabbitMQ, productores y consumidores | `BusquedaCreada` ya existe como evento de dominio | Entidades |
-| **Segunda** | Adaptadores a eBay y VTEX | Nueva interfaz `IFuenteOfertas`, consumida por `search-api` | Catálogo, dominio |
-| **Segunda** | Componente de IA (texto libre → repuestos) | Reemplaza el paso de `ServicioBusquedas.CrearAsync` que hoy asigna códigos por compatibilidad | Contrato público del servicio |
+| **Segunda** | Adaptadores a eBay y VTEX | Nueva interfaz `IFuenteOfertas`, consumida por `search-api`; se dispara desde el paso 4 de `FachadaBusqueda` | Catálogo, dominio |
+| **Segunda** | Componente de IA (texto libre → repuestos) | Paso 2 de `FachadaBusqueda.ResolverBusquedaAsync`, hoy resuelto por compatibilidad contra el catálogo | Presentación, firma de la fachada |
 | **Integrador** | Métricas de IA, pruebas de carga, despliegue | — | — |
 
-El punto de extensión de la IA ya está aislado: hoy `ServicioBusquedas.CrearAsync` llena
-`CodigosObjetivo` consultando el catálogo por compatibilidad; mañana los llena el servicio de
+El punto de extensión de la IA ya está aislado: hoy el paso 2 de `FachadaBusqueda.ResolverBusquedaAsync`
+llena `CodigosObjetivo` consultando el catálogo por compatibilidad; mañana los llena el servicio de
 diagnóstico a partir de `Busqueda.TextoLibre` —que ya se persiste, aunque todavía no se procese—.
-La firma pública del servicio no cambia.
+`ServicioBusquedas.RegistrarAsync` recibe la lista sin saber de dónde salió, y la firma de la fachada
+no cambia.
 
 ---
 

@@ -1,17 +1,24 @@
 using Microsoft.AspNetCore.Mvc;
+using RepMatch.Aplicacion.Fachadas;
 using RepMatch.Aplicacion.Servicios;
 using RepMatch.Contracts.Dtos;
 
 namespace RepMatch.Catalogo.Api.Controllers;
 
 /// <summary>
-/// Busquedas (el "Pedido" de la consigna). En la Segunda Parte este controlador pasa a publicar
-/// el evento BusquedaCreada en RabbitMQ en vez de resolver la compatibilidad en linea.
+/// Busquedas (el "Pedido" de la consigna). Las consultas van directo al servicio; la creacion
+/// entra por <see cref="FachadaBusqueda"/>, igual que desde la Web, para que los dos hosts
+/// ejecuten exactamente la misma orquestacion del caso de uso.
+///
+/// En la Segunda Parte este controlador pasa a publicar el evento BusquedaCreada en RabbitMQ en
+/// vez de resolver la compatibilidad en linea.
 /// </summary>
 [ApiController]
 [Route("api/busquedas")]
 [Produces("application/json")]
-public sealed class BusquedasController(ServicioBusquedas servicio) : ControllerBase
+public sealed class BusquedasController(
+    ServicioBusquedas servicio,
+    FachadaBusqueda fachada) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType<IReadOnlyList<BusquedaDto>>(StatusCodes.Status200OK)]
@@ -43,7 +50,7 @@ public sealed class BusquedasController(ServicioBusquedas servicio) : Controller
     public async Task<ActionResult<BusquedaDto>> Crear(
         [FromBody] CrearBusquedaDto dto, CancellationToken ct)
     {
-        var resultado = await servicio.CrearAsync(dto, ct);
+        var resultado = await fachada.ResolverBusquedaAsync(dto, ct);
 
         if (resultado.EsFallido)
             return BadRequest(new ProblemDetails

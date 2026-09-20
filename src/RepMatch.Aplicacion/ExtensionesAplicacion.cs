@@ -1,5 +1,6 @@
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
+using RepMatch.Aplicacion.Fachadas;
 using RepMatch.Aplicacion.Servicios;
 using RepMatch.Aplicacion.Validadores;
 using RepMatch.Contracts.Dtos;
@@ -23,6 +24,9 @@ public static class ExtensionesAplicacion
 
         servicios.AddScoped<ServicioClientes>();
         servicios.AddScoped<ServicioBusquedas>();
+
+        // Puerta de entrada de la presentacion al caso de uso de busqueda (patron Facade).
+        servicios.AddScoped<FachadaBusqueda>();
 
         return servicios;
     }

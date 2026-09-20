@@ -26,7 +26,7 @@ docker compose up --build --wait
 Abrí **http://localhost:8080/acceso**: esa página ejecuta la misma consulta por los dos caminos
 —invocación directa en proceso e invocación remota HTTP— y muestra ambas latencias juntas.
 
-Las 54 pruebas, también sin instalar nada:
+Las 62 pruebas, también sin instalar nada:
 
 ```bash
 docker compose --profile test run --rm tests
@@ -107,11 +107,11 @@ src/
   RepMatch.Common/          componente de utilidad     · validación, logging, configuración
   RepMatch.Contracts/       DTOs e ICatalogoRepuestos
   RepMatch.Persistence/     componente de acceso a datos · EF Core
-  RepMatch.Aplicacion/      lógica de negocio          · incluye CatalogoLocal
+  RepMatch.Aplicacion/      lógica de negocio          · FachadaBusqueda, CatalogoLocal
   RepMatch.Clientes.Rest/   adaptador remoto           · incluye CatalogoRemoto
   RepMatch.Catalogo.Api/    host REST del catálogo
   RepMatch.Web/             presentación (Blazor Server)
-tests/RepMatch.Tests/       54 pruebas
+tests/RepMatch.Tests/       62 pruebas
 docs/                        diagramas, informe y evidencias
 scripts/evidencias.sh        genera las evidencias del entregable
 ```

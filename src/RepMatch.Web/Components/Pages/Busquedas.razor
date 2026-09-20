@@ -1,9 +1,7 @@
 @page "/busquedas"
 @rendermode InteractiveServer
-@using RepMatch.Aplicacion.Servicios
-@inject ServicioBusquedas ServicioBusquedas
-@inject ServicioClientes ServicioClientes
-@inject ICatalogoRepuestos CatalogoRepuestos
+@using RepMatch.Aplicacion.Fachadas
+@inject FachadaBusqueda Fachada
 
 <PageTitle>Busquedas - RepMatch</PageTitle>
 
@@ -11,7 +9,9 @@
 <p class="subtitulo">
     El cliente describe el problema en sus palabras. Hoy la aplicacion resuelve los repuestos
     candidatos por compatibilidad con el vehiculo; en la Segunda Parte ese paso lo hace el
-    componente de IA a partir de este mismo texto.
+    componente de IA a partir de este mismo texto. La pantalla habla unicamente con
+    <code>FachadaBusqueda</code>, la puerta de entrada al caso de uso: no conoce los servicios,
+    el catalogo ni los repositorios que la fachada orquesta por detras.
 </p>
 
 <div class="tarjeta">
@@ -60,7 +60,7 @@
             @(guardando ? "Registrando..." : "Registrar busqueda")
         </button>
         <span style="margin-left:0.75rem;color:var(--tinta-suave);font-size:0.85rem">
-            catalogo resuelto en modo <strong>@CatalogoRepuestos.Modo</strong>
+            catalogo resuelto en modo <strong>@Fachada.ModoCatalogo</strong>
         </span>
     </p>
 
@@ -135,13 +135,13 @@
 
     protected override async Task OnInitializedAsync()
     {
-        clientes = await ServicioClientes.ListarAsync();
+        clientes = await Fachada.ListarClientesAsync();
         clienteSeleccionado = clientes.Count > 0 ? clientes[0].Id.ToString() : "";
         await RecargarAsync();
     }
 
     private async Task RecargarAsync() =>
-        busquedas = await ServicioBusquedas.ListarRecientesAsync();
+        busquedas = await Fachada.ListarRecientesAsync();
 
     private async Task CrearAsync()
     {
@@ -169,7 +169,9 @@
                 TextoLibre = texto
             };
 
-            var resultado = await ServicioBusquedas.CrearAsync(dto);
+            // Una sola llamada: la fachada valida, consulta el catalogo, registra y traduce las
+            // fallas del salto remoto a errores legibles. Por eso aca no hace falta try/catch.
+            var resultado = await Fachada.ResolverBusquedaAsync(dto);
 
             if (resultado.EsFallido)
             {
@@ -178,10 +180,6 @@
             }
 
             await RecargarAsync();
-        }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
-        {
-            errores = [$"No se pudo consultar el catalogo remoto: {ex.Message}"];
         }
         finally
         {
