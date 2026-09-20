@@ -9,6 +9,8 @@
   <ItemGroup>
     <ProjectReference Include="..\RepMatch.Domain\RepMatch.Domain.csproj" />
     <ProjectReference Include="..\RepMatch.Common\RepMatch.Common.csproj" />
+    <!-- Solo por IDespachadorEventos: la unidad de trabajo publica los eventos de dominio al confirmar. -->
+    <ProjectReference Include="..\RepMatch.Aplicacion\RepMatch.Aplicacion.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

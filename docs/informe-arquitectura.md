@@ -41,7 +41,7 @@ La consigna pide un mínimo de tres componentes reutilizables independientes. Se
 | 2 | `RepMatch.Persistence` | **Acceso a datos** | `DbContext`, mapeos, repositorios y unidad de trabajo sobre EF Core |
 | 3 | `RepMatch.Common` | **Utilidad** | Validación, logging, configuración externalizada, `ResultadoOperacion<T>`, medición de latencia y correlación |
 | 4 | `RepMatch.Contracts` | Contratos | DTOs, `ICatalogoRepuestos` y `OpcionesCatalogo` |
-| 5 | `RepMatch.Aplicacion` | Lógica de negocio | `ServicioClientes`, `ServicioBusquedas`, mapeadores, validadores y `CatalogoLocal` |
+| 5 | `RepMatch.Aplicacion` | Lógica de negocio | `ServicioClientes`, `ServicioBusquedas`, mapeadores, validadores, `CatalogoLocal` y el despachador de eventos de dominio (`IDespachadorEventos`, `IManejadorEvento<T>`) |
 | 6 | `RepMatch.Clientes.Rest` | Adaptador remoto | `CatalogoRemoto` y propagación de correlación |
 
 Más dos hosts ejecutables: `RepMatch.Web` (presentación) y `RepMatch.Catalogo.Api` (host REST del
@@ -99,6 +99,13 @@ Reglas que se respetan y que son verificables leyendo los `.csproj`:
   consulta es eficiente sin duplicar la lógica.
 - La inversión de dependencias es real: `IRepuestoRepository` está declarada en `Domain` e
   implementada en `Persistence`, no al revés.
+- Los módulos se integran por **eventos de dominio** (patrón Observer): las entidades acumulan
+  eventos en `EntidadBase.EventosDominio` sin conocer a nadie; `UnitOfWork.ConfirmarAsync` los
+  recolecta **después** de confirmar la transacción y los entrega a `IDespachadorEventos`, que
+  resuelve del contenedor todos los `IManejadorEvento<T>` registrados. Cada evento se publica una
+  sola vez por confirmación, un manejador que falla se registra en el log sin afectar a los demás,
+  y sumar un observador es registrar otra implementación. El detalle está en
+  [`docs/diagramas/componentes.md`](diagramas/componentes.md#eventos-de-dominio-observer).
 
 ---
 
@@ -220,7 +227,7 @@ implementaciones devuelvan **exactamente lo mismo** para cinco vehículos distin
 completo campo por campo, para códigos existentes e inexistentes y para el filtro por sistema.
 
 ```
-Correctas! - Con error: 0, Superado: 54, Omitido: 0, Total: 54
+Correctas! - Con error: 0, Superado: 64, Omitido: 0, Total: 64
 ```
 
 Si algún día las dos implementaciones divergen, esto falla antes que la demo.
@@ -288,10 +295,10 @@ circulares, CVSS 7.5). Se fijó la versión **2.12.2**, posterior al parche 2.7.
 
 | Entrega | Qué agrega | Dónde se enchufa | Qué NO hay que tocar |
 |---|---|---|---|
-| **Primera** | Patrones formalizados, servicios de negocio, eventos de dominio internos | `EntidadBase.EventosDominio` ya acumula eventos; falta el despachador | Dominio, contratos |
+| **Primera** | Patrones formalizados, servicios de negocio, eventos de dominio internos | `UnitOfWork` ya despacha los eventos acumulados vía `IDespachadorEventos`; los observadores se suman registrando `IManejadorEvento<T>` | Dominio, contratos |
 | **Segunda** | SOAP `ConsultaCompatibilidad` (CoreWCF + WSDL) | Tercera implementación de `ICatalogoRepuestos` | Presentación, lógica de negocio |
 | **Segunda** | REST documentados con OpenAPI | Ya publicado en `/openapi/v1.json` | — |
-| **Segunda** | RabbitMQ, productores y consumidores | `BusquedaCreada` ya existe como evento de dominio | Entidades |
+| **Segunda** | RabbitMQ, productores y consumidores | Nueva implementación de `IDespachadorEventos` que publica en la cola en vez de invocar manejadores en proceso | Entidades, manejadores, `UnitOfWork` |
 | **Segunda** | Adaptadores a eBay y VTEX | Nueva interfaz `IFuenteOfertas`, consumida por `search-api` | Catálogo, dominio |
 | **Segunda** | Componente de IA (texto libre → repuestos) | Reemplaza el paso de `ServicioBusquedas.CrearAsync` que hoy asigna códigos por compatibilidad | Contrato público del servicio |
 | **Integrador** | Métricas de IA, pruebas de carga, despliegue | — | — |
