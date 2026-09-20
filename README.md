@@ -26,7 +26,7 @@ docker compose up --build --wait
 Abrí **http://localhost:8080/acceso**: esa página ejecuta la misma consulta por los dos caminos
 —invocación directa en proceso e invocación remota HTTP— y muestra ambas latencias juntas.
 
-Las 54 pruebas, también sin instalar nada:
+Las 64 pruebas, también sin instalar nada:
 
 ```bash
 docker compose --profile test run --rm tests
@@ -107,11 +107,11 @@ src/
   RepMatch.Common/          componente de utilidad     · validación, logging, configuración
   RepMatch.Contracts/       DTOs e ICatalogoRepuestos
   RepMatch.Persistence/     componente de acceso a datos · EF Core
-  RepMatch.Aplicacion/      lógica de negocio          · incluye CatalogoLocal
+  RepMatch.Aplicacion/      lógica de negocio          · incluye CatalogoLocal y el despachador de eventos
   RepMatch.Clientes.Rest/   adaptador remoto           · incluye CatalogoRemoto
   RepMatch.Catalogo.Api/    host REST del catálogo
   RepMatch.Web/             presentación (Blazor Server)
-tests/RepMatch.Tests/       54 pruebas
+tests/RepMatch.Tests/       64 pruebas
 docs/                        diagramas, informe y evidencias
 scripts/evidencias.sh        genera las evidencias del entregable
 ```
@@ -133,6 +133,20 @@ Catalogo__Modo=Remoto  dotnet run --project src/RepMatch.Web
 |---|---|---|
 | Mecanismo | referencia de proyecto, en proceso | HTTP + JSON contra `Catalogo.Api` |
 | Latencia (en caliente) | ~1,9 ms | ~12,6 ms |
+
+## Eventos de dominio (Observer)
+
+Las entidades sólo **acumulan** eventos (`Busqueda` registra `BusquedaCreada` al crearse) y no
+conocen a nadie que los escuche. `UnitOfWork.ConfirmarAsync` los recolecta **después** de confirmar
+la transacción, vacía los buzones y los entrega a `IDespachadorEventos`, que resuelve del contenedor
+todos los `IManejadorEvento<T>` registrados para ese evento. Un manejador que falla se registra en el
+log y no afecta ni a los demás ni a la transacción ya confirmada.
+
+Para sumar un observador alcanza con registrar otra implementación de `IManejadorEvento<T>`; el
+ejemplo incluido, `ManejadorLogBusquedaCreada`, deja cada búsqueda creada en el log con su
+`CorrelationId`. En la Segunda Parte el despachador in-process se reemplaza por uno que publica en
+RabbitMQ sin tocar las entidades ni los manejadores. Detalle en
+[docs/diagramas/componentes.md](docs/diagramas/componentes.md#eventos-de-dominio-observer).
 
 ## Base de datos
 

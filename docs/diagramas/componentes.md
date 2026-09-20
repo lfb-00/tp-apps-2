@@ -9,10 +9,10 @@ en NuGet.
 | Componente | Tipo según la consigna | Contenido | Depende de |
 |---|---|---|---|
 | `RepMatch.Domain` | **Dominio** | Entidades, value objects, eventos e interfaces de repositorio | *nada* |
-| `RepMatch.Persistence` | **Acceso a datos** | `DbContext`, mapeos, repositorios, unidad de trabajo | Domain, Common |
+| `RepMatch.Persistence` | **Acceso a datos** | `DbContext`, mapeos, repositorios, unidad de trabajo (que además despacha los eventos de dominio) | Domain, Common, Aplicacion (sólo `IDespachadorEventos`) |
 | `RepMatch.Common` | **Utilidad** | Validación, logging, configuración, `ResultadoOperacion<T>`, medición de latencia, correlación | *nada del proyecto* |
 | `RepMatch.Contracts` | Contratos | DTOs, `ICatalogoRepuestos`, `OpcionesCatalogo` | *nada del proyecto* |
-| `RepMatch.Aplicacion` | Lógica de negocio | Servicios, mapeadores, validadores, `CatalogoLocal` | Domain, Common, Contracts |
+| `RepMatch.Aplicacion` | Lógica de negocio | Servicios, mapeadores, validadores, `CatalogoLocal`, despachador y manejadores de eventos de dominio | Domain, Common, Contracts |
 | `RepMatch.Clientes.Rest` | Adaptador remoto | `CatalogoRemoto`, propagación de correlación | Common, Contracts |
 
 ## Diagrama
@@ -29,7 +29,7 @@ flowchart TB
     end
 
     subgraph comp["📦 Componentes reutilizables"]
-        APP["RepMatch.Aplicacion<br/>ServicioClientes · ServicioBusquedas<br/><b>CatalogoLocal</b>"]
+        APP["RepMatch.Aplicacion<br/>ServicioClientes · ServicioBusquedas<br/><b>CatalogoLocal</b><br/><b>«interface» IDespachadorEventos</b> · IManejadorEvento&lt;T&gt;"]
         REST["RepMatch.Clientes.Rest<br/><b>CatalogoRemoto</b>"]
         CON["RepMatch.Contracts<br/><b>«interface» ICatalogoRepuestos</b><br/>DTOs · OpcionesCatalogo"]
         PER["RepMatch.Persistence<br/>RepMatchDbContext · Repositorios · UnitOfWork"]
@@ -56,6 +56,7 @@ flowchart TB
     PER -- implementa --> DOM
     PER --> COM
     PER --> BD
+    PER -. "publica eventos vía<br/>IDespachadorEventos" .-> APP
 
     APP -. "usa las interfaces de" .-> DOM
 
@@ -104,6 +105,36 @@ La flecha que va de `Persistence` a `Domain` dice **implementa**, no "usa": las 
 en el dominio, y la capa de datos las implementa. Por eso `Domain` no depende de nada y puede
 testearse sin base de datos ni contenedores.
 
+## Eventos de dominio (Observer)
+
+Las entidades sólo **acumulan** eventos en `EntidadBase.EventosDominio` (`Busqueda` registra
+`BusquedaCreada` al nacer); no conocen a nadie que los escuche. El circuito se cierra fuera del
+dominio:
+
+```
+ServicioBusquedas.CrearAsync
+  └─ UnitOfWork.ConfirmarAsync          (Persistence)
+       ├─ SaveChangesAsync              ← la transacción se confirma primero
+       ├─ recolecta EventosDominio de las entidades rastreadas y vacía los buzones
+       └─ IDespachadorEventos.DespacharAsync   (Aplicacion)
+            └─ por cada evento, resuelve del contenedor todos los IManejadorEvento<TEvento>
+                 └─ ManejadorLogBusquedaCreada  (deja la búsqueda en el log, con su CorrelationId)
+```
+
+Reglas del despachador in-process (`DespachadorEventosEnProceso`):
+
+- Se publica **después** de confirmar, así nunca se notifica algo que la base terminó revirtiendo.
+- Los buzones se vacían antes de despachar: cada evento se publica **una sola vez** por
+  confirmación, aunque un manejador vuelva a confirmar.
+- Un manejador que falla **se registra en el log y se sigue** con el resto: la transacción ya está
+  confirmada y no hay nada que revertir.
+- Sumar un observador es registrar otro `IManejadorEvento<T>` en el contenedor. Nada más cambia.
+
+`Persistence` referencia a `Aplicacion` únicamente por `IDespachadorEventos`. Es la dirección
+habitual de la arquitectura limpia (infraestructura → aplicación → dominio) y no hay ciclo:
+`Aplicacion` sigue sin conocer a `Persistence`. En la Segunda Parte el despachador in-process se
+reemplaza por uno que publica en RabbitMQ, sin tocar ni las entidades ni los manejadores.
+
 ## Patrones aplicados (anticipo de la Primera Parte)
 
 | Patrón | Dónde | Para qué |
@@ -113,4 +144,4 @@ testearse sin base de datos ni contenedores.
 | **Repository** | `I*Repository` en Domain, implementados en Persistence | Aislar el dominio del motor de datos |
 | **Unit of Work** | `IUnitOfWork` / `UnitOfWork` | Confirmar cambios como una transacción |
 | **Adapter** | `CatalogoRemoto` | Adaptar un contrato HTTP a la interfaz del dominio |
-| **Observer** *(sembrado)* | `EntidadBase.EventosDominio` | Base para los eventos de dominio y, luego, la mensajería |
+| **Observer** | `EntidadBase.EventosDominio` → `UnitOfWork` → `IDespachadorEventos` → `IManejadorEvento<T>` | Notificar `BusquedaCreada` a los manejadores registrados sin que las entidades conozcan a nadie; base de la mensajería de la Segunda Parte |

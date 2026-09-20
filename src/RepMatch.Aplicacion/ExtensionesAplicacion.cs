@@ -1,8 +1,11 @@
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
+using RepMatch.Aplicacion.Eventos;
+using RepMatch.Aplicacion.Eventos.Manejadores;
 using RepMatch.Aplicacion.Servicios;
 using RepMatch.Aplicacion.Validadores;
 using RepMatch.Contracts.Dtos;
+using RepMatch.Domain.Eventos;
 
 namespace RepMatch.Aplicacion;
 
@@ -23,6 +26,12 @@ public static class ExtensionesAplicacion
 
         servicios.AddScoped<ServicioClientes>();
         servicios.AddScoped<ServicioBusquedas>();
+
+        // Observer: el despachador que UnitOfWork invoca tras confirmar, y sus manejadores. Para
+        // sumar un observador alcanza con registrar otro IManejadorEvento<T>; en la Segunda Parte
+        // el despachador in-process se cambia por el que publica en RabbitMQ.
+        servicios.AddScoped<IDespachadorEventos, DespachadorEventosEnProceso>();
+        servicios.AddScoped<IManejadorEvento<BusquedaCreada>, ManejadorLogBusquedaCreada>();
 
         return servicios;
     }
