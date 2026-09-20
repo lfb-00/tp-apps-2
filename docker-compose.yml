@@ -8,7 +8,7 @@
 #     Web       http://localhost:8080
 #     Catalogo  http://localhost:8081/salud
 #
-#   docker compose --profile test run --rm tests        -> corre las 54 pruebas
+#   docker compose --profile test run --rm tests        -> corre las 62 pruebas
 #   docker compose --profile local up --build web-local -> la misma Web en modo Local
 #
 # Los puertos del host se pueden cambiar con un archivo .env (ver .env.example) para
@@ -99,7 +99,7 @@ services:
         condition: service_healthy
     networks: [repmatch]
 
-  # Corre las 54 pruebas sin necesidad de tener el SDK de .NET instalado.
+  # Corre las 62 pruebas sin necesidad de tener el SDK de .NET instalado.
   # No depende de postgres: usan el proveedor InMemory.
   tests:
     profiles: [test]
