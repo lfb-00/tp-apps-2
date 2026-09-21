@@ -67,32 +67,22 @@ materializan así:
 
 ## 3. Arquitectura en capas
 
-```
-┌──────────────────────────────────────────────────────┐
-│  PRESENTACIÓN    RepMatch.Web (Blazor Server)        │
-│                  Componentes Razor · FabricaCatalogo  │
-└───────────────────────┬──────────────────────────────┘
-                        │  depende solo de ICatalogoRepuestos
-┌───────────────────────▼──────────────────────────────┐
-│  LÓGICA DE       RepMatch.Aplicacion                 │
-│  NEGOCIO         ServicioClientes · ServicioBusquedas │
-│                  CatalogoLocal · Validadores          │
-└───────────────────────┬──────────────────────────────┘
-                        │  usa las interfaces declaradas en Domain
-┌───────────────────────▼──────────────────────────────┐
-│  DATOS           RepMatch.Persistence                │
-│                  Repositorios · UnitOfWork · EF Core  │
-└───────────────────────┬──────────────────────────────┘
-                        ▼
-                 PostgreSQL / InMemory
+Cuatro capas con dependencias en un solo sentido —presentación → servicios → dominio → datos— más
+dos proyectos transversales. El diagrama formal, con la capa de servicios desglosada y la inversión
+de dependencias marcada, está en [`docs/diagramas/capas.md`](diagramas/capas.md).
 
-   transversales:  RepMatch.Domain · RepMatch.Common · RepMatch.Contracts
-```
+| # | Capa | Proyecto | Contenido |
+|---|---|---|---|
+| 1 | Presentación | `RepMatch.Web` · `RepMatch.Catalogo.Api` | Componentes Razor, controllers REST, `FabricaCatalogo` |
+| 2 | Servicios | `RepMatch.Aplicacion` | `FachadaBusqueda` · `ServicioClientes` · `ServicioBusquedas` · `CatalogoLocal` · despachador de eventos · validadores · mapeadores (`ServicioOfertas`, previsto en la Primera Parte) |
+| 3 | Dominio | `RepMatch.Domain` | Entidades, value objects, eventos e interfaces de repositorio |
+| 4 | Datos | `RepMatch.Persistence` | Repositorios · `UnitOfWork` · EF Core sobre PostgreSQL o InMemory |
+| ⟂ | Transversales | `RepMatch.Common` · `RepMatch.Contracts` | Utilidades y contratos, usados por todas las capas |
 
 Reglas que se respetan y que son verificables leyendo los `.csproj`:
 
-- La presentación **nunca** referencia un repositorio: habla con `ServicioClientes` y
-  `ServicioBusquedas`.
+- La presentación **nunca** referencia un repositorio: habla con `FachadaBusqueda`,
+  `ServicioClientes` y `ServicioBusquedas`.
 - La capa de datos **no contiene reglas de negocio**. `RepuestoRepository.BuscarCompatiblesAsync`
   filtra en la base por marca, modelo y rango de años —lo que el motor puede resolver con índice— y
   delega la regla fina de motorización a `Repuesto.EsCompatibleCon`, que vive en el dominio. Así la
@@ -339,7 +329,7 @@ demostrado apenas se levanta el entorno.
 |---|---|
 | Entorno configurado (.NET 10, contenedores) | `docker-compose.yml`, `src/*/Dockerfile` |
 | ≥3 componentes reutilizables independientes | 6 componentes — sección 2 |
-| Aplicación multicapa | Sección 3 |
+| Aplicación multicapa | Sección 3 y [`docs/diagramas/capas.md`](diagramas/capas.md) |
 | Gestión de dependencias (NuGet) | `RepMatch.slnx`, `*.csproj` |
 | Acceso local y remoto entre componentes | Sección 4 |
 | Diagrama de clases | [`docs/diagramas/clases.md`](diagramas/clases.md) |
