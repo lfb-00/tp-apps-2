@@ -100,15 +100,17 @@ flowchart TB
 ```
 
 <!--
-  Mantenimiento del diagrama:
+  Mantenimiento del diagrama (ojo: dentro de este comentario no puede aparecer la secuencia de dos
+  guiones seguidos de mayor, porque cierra el comentario y el resto queda visible en GitHub):
   - Cuando se cierre el issue #4, quitar la linea `class SO previsto` y la leyenda.
-  - El par IREP -.-> REPO / REPO --> IREP forma un ciclo a proposito: dagre invierte la flecha
-    "implementa" para el layout y asi la capa de datos queda debajo del dominio. Definir siempre la
-    arista punteada antes que la de "implementa" y no agregar aristas (ni invisibles) desde ENT hacia
-    REPO, porque cambian cual de las dos se invierte y la capa de datos sube por encima del dominio.
+  - Las dos aristas entre IREP y REPO (la punteada de la DI que baja y la continua de "implementa"
+    que sube) forman un ciclo a proposito: dagre invierte la de "implementa" para el layout y asi la
+    capa de datos queda debajo del dominio. Definir siempre la punteada antes que la de "implementa"
+    y no agregar aristas (ni invisibles) desde ENT hacia REPO, porque cambian cual de las dos se
+    invierte y la capa de datos sube por encima del dominio.
   - Las aristas `~~~` son invisibles y solo fijan el rango: UI ~~~ EVT mantiene al despachador dentro
     de la banda de servicios; BD ~~~ CON/COM deja a los transversales al pie.
--->      
+-->
 
 **Leyenda.** El único nodo con borde punteado, `ServicioOfertas`, está previsto para la Primera Parte
 ([#4](https://github.com/lfb-00/tp-apps-2/issues/4)) y todavía no existe en `src/`; el resto es
