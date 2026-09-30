@@ -10,6 +10,7 @@ public sealed record BusquedaDto
     public required string TextoLibre { get; init; }
     public required string Estado { get; init; }
     public required DateTimeOffset FechaCreacion { get; init; }
+    public string? MotivoFalla { get; init; }
     public IReadOnlyList<string> CodigosObjetivo { get; init; } = [];
     public IReadOnlyList<OfertaDto> Ofertas { get; init; } = [];
 }
@@ -36,8 +37,7 @@ public sealed record CrearBusquedaDto
     [Required]
     public required VehiculoDto Vehiculo { get; init; }
 
-    /// <summary>Descripcion del problema en lenguaje natural. En la Segunda Parte es la entrada
-    /// del componente de IA; en el TP Inicial solo se persiste.</summary>
+    /// <summary>Descripción del problema en las palabras del cliente. Se guarda con la búsqueda.</summary>
     [Required, StringLength(1000, MinimumLength = 5)]
     public required string TextoLibre { get; init; }
 }

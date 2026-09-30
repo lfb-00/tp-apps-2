@@ -1,5 +1,7 @@
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
+using RepMatch.Aplicacion.Eventos;
+using RepMatch.Aplicacion.Fachada;
 using RepMatch.Aplicacion.Servicios;
 using RepMatch.Aplicacion.Validadores;
 using RepMatch.Contracts.Dtos;
@@ -23,6 +25,10 @@ public static class ExtensionesAplicacion
 
         servicios.AddScoped<ServicioClientes>();
         servicios.AddScoped<ServicioBusquedas>();
+        servicios.AddScoped<FachadaAplicacion>();
+
+        servicios.AddScoped<IObservadorEventoDominio, ObservadorCompatibilidad>();
+        servicios.AddScoped<IDespachadorEventos, DespachadorEventos>();
 
         return servicios;
     }

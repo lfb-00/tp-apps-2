@@ -83,5 +83,4 @@ echo
 echo "Evidencias escritas en docs/evidencias/:"
 ls -1 "$SALIDA"
 echo
-echo "Para la evidencia visual, abri $WEB_URL/acceso y sacale una captura:"
-echo "esa pagina ejecuta los dos caminos y muestra ambas latencias juntas."
+echo "La comparacion local/remoto quedo en 06-medicion-local.json y 07-medicion-remota.json."

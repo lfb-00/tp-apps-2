@@ -10,11 +10,11 @@
     <link rel="stylesheet" href="@Assets["RepMatch.Web.styles.css"]" />
     <ImportMap />
     <title>RepMatch</title>
-    <HeadOutlet />
+    <HeadOutlet @rendermode="new InteractiveServerRenderMode(prerender: false)" />
 </head>
 
 <body>
-    <Routes />
+    <Routes @rendermode="new InteractiveServerRenderMode(prerender: false)" />
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
 </body>

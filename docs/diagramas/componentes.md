@@ -21,7 +21,8 @@ en NuGet.
 flowchart TB
     subgraph host_web["🖥️ Host: RepMatch.Web (Blazor Server)"]
         UI["Componentes Razor<br/><i>capa de presentación</i>"]
-        FAB["FabricaCatalogo<br/><i>patrón Factory</i>"]
+        FCAT["FabricaCatalogo<br/><i>patrón Factory</i>"]
+        FACH["FachadaAplicacion<br/><i>patrón Facade</i>"]
     end
 
     subgraph host_api["🖥️ Host: RepMatch.Catalogo.Api (REST)"]
@@ -29,7 +30,7 @@ flowchart TB
     end
 
     subgraph comp["📦 Componentes reutilizables"]
-        APP["RepMatch.Aplicacion<br/>ServicioClientes · ServicioBusquedas<br/><b>CatalogoLocal</b>"]
+        APP["RepMatch.Aplicacion<br/>ServicioClientes · ServicioBusquedas<br/>ObservadorCompatibilidad<br/><b>CatalogoLocal</b>"]
         REST["RepMatch.Clientes.Rest<br/><b>CatalogoRemoto</b>"]
         CON["RepMatch.Contracts<br/><b>«interface» ICatalogoRepuestos</b><br/>DTOs · OpcionesCatalogo"]
         PER["RepMatch.Persistence<br/>RepMatchDbContext · Repositorios · UnitOfWork"]
@@ -39,13 +40,14 @@ flowchart TB
 
     BD[("PostgreSQL<br/><i>o InMemory</i>")]
 
-    UI --> FAB
-    FAB -. "Catalogo:Modo = Local" .-> APP
-    FAB -. "Catalogo:Modo = Remoto" .-> REST
+    UI --> FACH
+    FACH --> APP
+    FACH --> CON
+    FCAT -. "Catalogo:Modo = Local" .-> APP
+    FCAT -. "Catalogo:Modo = Remoto" .-> REST
 
     APP -- implementa --> CON
     REST -- implementa --> CON
-    UI -- "depende solo de" --> CON
 
     REST == "HTTP · JSON" ==> CTRL
     CTRL --> APP
@@ -92,7 +94,7 @@ public interface ICatalogoRepuestos
 
 La selección se hace en `RepMatch.Web/Servicios/FabricaCatalogo.cs`, leyendo la clave
 `Catalogo:Modo` (o la variable de entorno `Catalogo__Modo`). **No hay recompilación de por medio**, y
-ningún consumidor —ni los componentes Razor, ni `ServicioBusquedas`— se entera de cuál está enchufada.
+ningún consumidor —ni `FachadaAplicacion`, ni `ObservadorCompatibilidad`— se entera de cuál está enchufada.
 
 En la Segunda Parte se agrega una tercera implementación, `CatalogoSoapClient` sobre CoreWCF, sin
 tocar ni la interfaz ni sus consumidores.
@@ -113,4 +115,5 @@ testearse sin base de datos ni contenedores.
 | **Repository** | `I*Repository` en Domain, implementados en Persistence | Aislar el dominio del motor de datos |
 | **Unit of Work** | `IUnitOfWork` / `UnitOfWork` | Confirmar cambios como una transacción |
 | **Adapter** | `CatalogoRemoto` | Adaptar un contrato HTTP a la interfaz del dominio |
-| **Observer** *(sembrado)* | `EntidadBase.EventosDominio` | Base para los eventos de dominio y, luego, la mensajería |
+| **Observer** | `DespachadorEventos` y `ObservadorCompatibilidad` | `BusquedaCreada` completa los códigos sin que `ServicioBusquedas` conozca el catálogo |
+| **Facade** | `FachadaAplicacion` | Única puerta de la presentación hacia clientes, búsquedas y catálogo |

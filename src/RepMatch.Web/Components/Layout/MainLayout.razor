@@ -1,5 +1,7 @@
 @inherits LayoutComponentBase
-@inject OpcionesCatalogo Opciones
+@implements IDisposable
+@inject SesionActual Sesion
+@inject NavigationManager Navegacion
 
 <div class="app">
     <header class="barra">
@@ -12,29 +14,67 @@
         </a>
 
         <nav>
-            <NavLink href="/" Match="NavLinkMatch.All">Inicio</NavLink>
-            <NavLink href="/catalogo">Catalogo</NavLink>
-            <NavLink href="/busquedas">Busquedas</NavLink>
-            <NavLink href="/clientes">Clientes</NavLink>
-            <NavLink href="/acceso">Local vs Remoto</NavLink>
+            <NavLink href="/" Match="NavLinkMatch.All">Buscar</NavLink>
+            <NavLink href="/catalogo">Catálogo</NavLink>
+            @if (Sesion.Cliente is not null)
+            {
+                <NavLink href="/clientes">Mi garage</NavLink>
+            }
         </nav>
 
-        <span class="modo modo-@Opciones.Modo.ToString().ToLowerInvariant()">
-            catalogo: @Opciones.Modo
-        </span>
+        @if (Sesion.Cliente is not null)
+        {
+            <div class="quien">
+                <span>@Sesion.Cliente.Nombre</span>
+                <button class="secundario" @onclick="SalirAsync">Salir</button>
+            </div>
+        }
     </header>
 
     <main>
-        @Body
+        @if (!sesionLista)
+        {
+            <p class="vacio">Cargando…</p>
+        }
+        else
+        {
+            @Body
+        }
     </main>
 
     <footer>
-        UADE &mdash; Desarrollo de Aplicaciones II &mdash; TP Inicial
+        RepMatch
     </footer>
 </div>
 
 <div id="blazor-error-ui" data-nosnippet>
-    Ocurrio un error inesperado.
+    Ocurrió un error inesperado.
     <a href="." class="reload">Recargar</a>
     <span class="dismiss">&#128473;</span>
 </div>
+
+@code {
+    private bool sesionLista;
+
+    protected override void OnInitialized() => Sesion.Cambio += AlCambiarSesion;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || sesionLista)
+            return;
+
+        await Sesion.RestaurarAsync();
+        sesionLista = true;
+        StateHasChanged();
+    }
+
+    private void AlCambiarSesion() => _ = InvokeAsync(StateHasChanged);
+
+    private async Task SalirAsync()
+    {
+        await Sesion.SalirAsync();
+        Navegacion.NavigateTo("/");
+    }
+
+    public void Dispose() => Sesion.Cambio -= AlCambiarSesion;
+}

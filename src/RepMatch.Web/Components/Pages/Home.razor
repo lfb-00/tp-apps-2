@@ -1,97 +1,301 @@
 @page "/"
-@inject OpcionesCatalogo Opciones
+@implements IDisposable
+@using RepMatch.Aplicacion.Fachada
+@inject FachadaAplicacion Fachada
+@inject SesionActual Sesion
 
 <PageTitle>RepMatch</PageTitle>
 
-<h1>RepMatch</h1>
-<p class="subtitulo">
-    Meta-buscador de repuestos automotrices: identificas tu vehiculo, contas que le pasa, y la
-    aplicacion compara las ofertas de varios sitios reales. No vende ni almacena stock propio:
-    normaliza, compara y deriva a la tienda de origen.
-</p>
+@if (Sesion.Cliente is null)
+{
+    <section class="entrada">
+        <h1>Buscá la pieza para tu auto</h1>
+        <p>Entrá con tu email. Vas a ver tus vehículos y tus consultas, no las de otra persona.</p>
+    </section>
 
-<div class="grilla">
-    <div class="tarjeta">
-        <h2 style="margin-top:0">Entrega actual</h2>
-        <p><strong>TP Inicial</strong> &mdash; arquitectura de componentes.</p>
-        <p style="color:var(--tinta-suave)">
-            Componentes reutilizables, aplicacion multicapa y acceso local vs. remoto entre
-            componentes. El diagnostico por IA, el servicio SOAP y la mensajeria llegan en las
-            entregas siguientes.
+    <div class="buscador">
+        <div class="campos">
+            <div>
+                <label for="email">Email</label>
+                <input id="email" @bind="email" placeholder="bruno@ejemplo.com" />
+            </div>
+            @if (crearCuenta)
+            {
+                <div>
+                    <label for="nombre">Tu nombre</label>
+                    <input id="nombre" @bind="nombre" placeholder="Bruno Lo Faro" />
+                </div>
+            }
+        </div>
+
+        @if (crearCuenta)
+        {
+            <p class="aviso" style="margin-top:1rem">No hay una cuenta con ese email. Creala y empezá con tu garage.</p>
+        }
+
+        @if (errores.Count > 0)
+        {
+            <div class="aviso error" style="margin-top:1rem">
+                @foreach (var error in errores)
+                {
+                    <div>@error</div>
+                }
+            </div>
+        }
+
+        <p style="margin:1rem 0 0">
+            <button @onclick="EntrarAsync" disabled="@entrando">
+                @(entrando ? "Entrando…" : crearCuenta ? "Crear cuenta" : "Entrar")
+            </button>
         </p>
     </div>
+}
+else
+{
+    <section class="entrada">
+        <h1>Qué le pasa a tu auto</h1>
+        <p>Elegí uno de tus vehículos y contá el problema. Te mostramos las piezas que le van.</p>
+    </section>
 
-    <div class="tarjeta">
-        <h2 style="margin-top:0">Modo de acceso al catalogo</h2>
-        <p>
-            <span class="modo modo-@Opciones.Modo.ToString().ToLowerInvariant()">@Opciones.Modo</span>
-        </p>
-        <p style="color:var(--tinta-suave)">
-            Se cambia con la clave <code>Catalogo:Modo</code> o la variable de entorno
-            <code>Catalogo__Modo</code>, sin recompilar.
-        </p>
-        <p><a href="/acceso">Comparar los dos caminos &rarr;</a></p>
-    </div>
-</div>
+    @if (vehiculos.Count == 0)
+    {
+        <div class="buscador">
+            <p>Todavía no cargaste ningún auto.</p>
+            <p><a class="boton" href="/clientes">Agregar un vehículo</a></p>
+        </div>
+    }
+    else
+    {
+        <div class="buscador">
+            <div>
+                <label for="vehiculo">Tu vehículo</label>
+                <select id="vehiculo" @bind="vehiculoSeleccionado">
+                    @foreach (var vehiculo in vehiculos)
+                    {
+                        <option value="@vehiculo.Id">@Etiqueta(vehiculo)</option>
+                    }
+                </select>
+            </div>
 
-<h2>Componentes de la solucion</h2>
+            <div style="margin-top:0.85rem">
+                <label for="texto">Qué le pasa</label>
+                <textarea id="texto" rows="3" @bind="texto"
+                          placeholder="Cuando freno vibra el volante y se escucha un chillido"></textarea>
+            </div>
 
-<div class="tarjeta">
-    <table>
-        <thead>
-            <tr><th>Componente</th><th>Rol</th><th>Depende de</th></tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td class="mono">RepMatch.Domain</td>
-                <td>Entidades, value objects e interfaces de repositorio</td>
-                <td>nada</td>
-            </tr>
-            <tr>
-                <td class="mono">RepMatch.Common</td>
-                <td>Validacion, logging, configuracion, resultados y medicion</td>
-                <td>nada del proyecto</td>
-            </tr>
-            <tr>
-                <td class="mono">RepMatch.Contracts</td>
-                <td>DTOs y el contrato <code>ICatalogoRepuestos</code></td>
-                <td>nada del proyecto</td>
-            </tr>
-            <tr>
-                <td class="mono">RepMatch.Persistence</td>
-                <td>Repositorios y unidad de trabajo sobre EF Core</td>
-                <td>Domain, Common</td>
-            </tr>
-            <tr>
-                <td class="mono">RepMatch.Aplicacion</td>
-                <td>Logica de negocio y catalogo local</td>
-                <td>Domain, Common, Contracts</td>
-            </tr>
-            <tr>
-                <td class="mono">RepMatch.Clientes.Rest</td>
-                <td>Catalogo remoto por HTTP</td>
-                <td>Common, Contracts</td>
-            </tr>
-        </tbody>
-    </table>
-</div>
+            <p style="margin:1rem 0 0">
+                <button @onclick="BuscarAsync" disabled="@buscando">
+                    @(buscando ? "Buscando…" : "Buscar piezas")
+                </button>
+            </p>
 
-<h2>Por donde empezar</h2>
+            @if (errores.Count > 0)
+            {
+                <div class="aviso error" style="margin-top:1rem">
+                    @foreach (var error in errores)
+                    {
+                        <div>@error</div>
+                    }
+                </div>
+            }
+        </div>
 
-<div class="grilla">
-    <div class="tarjeta">
-        <h2 style="margin-top:0;font-size:1rem">Catalogo</h2>
-        <p style="color:var(--tinta-suave)">Buscar repuestos compatibles con un vehiculo.</p>
-        <p><a href="/catalogo">Ir al catalogo &rarr;</a></p>
-    </div>
-    <div class="tarjeta">
-        <h2 style="margin-top:0;font-size:1rem">Busquedas</h2>
-        <p style="color:var(--tinta-suave)">Describir un problema y registrar la consulta.</p>
-        <p><a href="/busquedas">Ir a busquedas &rarr;</a></p>
-    </div>
-    <div class="tarjeta">
-        <h2 style="margin-top:0;font-size:1rem">Clientes</h2>
-        <p style="color:var(--tinta-suave)">Alta de clientes y de sus vehiculos.</p>
-        <p><a href="/clientes">Ir a clientes &rarr;</a></p>
-    </div>
-</div>
+        @if (resultado is not null)
+        {
+            <div class="resultado-meta">
+                <h2>@resultado.Busqueda.Vehiculo</h2>
+                <p>@resultado.Busqueda.TextoLibre</p>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(resultado.Busqueda.MotivoFalla))
+            {
+                <div class="aviso error">@resultado.Busqueda.MotivoFalla</div>
+            }
+            else if (resultado.Piezas.Count == 0)
+            {
+                <div class="tarjeta">
+                    <p class="vacio">No hay piezas del catálogo para ese vehículo.</p>
+                </div>
+            }
+            else
+            {
+                <p class="conteo">@resultado.Piezas.Count piezas que le van</p>
+                <div class="piezas">
+                    @foreach (var pieza in resultado.Piezas)
+                    {
+                        <article class="pieza">
+                            <TarjetaRepuesto Repuesto="pieza" Vehiculo="resultado.Busqueda.Vehiculo" />
+                        </article>
+                    }
+                </div>
+            }
+        }
+    }
+
+    @if (recientes.Count > 0)
+    {
+        <h2>Tus consultas</h2>
+        <ul class="recientes">
+            @foreach (var busqueda in recientes)
+            {
+                <li>
+                    <strong>@busqueda.Vehiculo</strong>
+                    <span>@busqueda.TextoLibre</span>
+                    @if (!string.IsNullOrWhiteSpace(busqueda.MotivoFalla))
+                    {
+                        <em>@busqueda.MotivoFalla</em>
+                    }
+                    else
+                    {
+                        <em>@busqueda.CodigosObjetivo.Count piezas</em>
+                    }
+                </li>
+            }
+        </ul>
+    }
+}
+
+@code {
+    private IReadOnlyList<BusquedaDto> recientes = [];
+    private ResultadoBusquedaDto? resultado;
+
+    private string email = "";
+    private string nombre = "";
+    private bool crearCuenta;
+    private bool entrando;
+
+    private string vehiculoSeleccionado = "";
+    private string texto = "";
+    private bool buscando;
+    private List<string> errores = [];
+
+    private IReadOnlyList<VehiculoClienteDto> vehiculos =>
+        Sesion.Cliente?.Vehiculos ?? [];
+
+    protected override void OnInitialized() => Sesion.Cambio += AlCambiarSesion;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Sesion.Cliente is null)
+            return;
+
+        vehiculoSeleccionado = vehiculos.Count > 0 ? vehiculos[0].Id.ToString() : "";
+        recientes = await Fachada.ListarBusquedasDelClienteAsync(Sesion.Cliente.Id);
+    }
+
+    private void AlCambiarSesion() => _ = InvokeAsync(async () =>
+    {
+        resultado = null;
+        errores = [];
+        if (Sesion.Cliente is null)
+        {
+            recientes = [];
+            vehiculoSeleccionado = "";
+        }
+        else
+        {
+            vehiculoSeleccionado = vehiculos.Count > 0 ? vehiculos[0].Id.ToString() : "";
+            recientes = await Fachada.ListarBusquedasDelClienteAsync(Sesion.Cliente.Id);
+        }
+
+        StateHasChanged();
+    });
+
+    public void Dispose() => Sesion.Cambio -= AlCambiarSesion;
+
+    private async Task EntrarAsync()
+    {
+        entrando = true;
+        errores = [];
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                errores = ["Ingresá tu email."];
+                return;
+            }
+
+            var existente = await Fachada.ObtenerClientePorEmailAsync(email);
+            if (existente is not null)
+            {
+                await Sesion.EntrarAsync(existente);
+                vehiculoSeleccionado = vehiculos.Count > 0 ? vehiculos[0].Id.ToString() : "";
+                recientes = await Fachada.ListarBusquedasDelClienteAsync(existente.Id);
+                crearCuenta = false;
+                return;
+            }
+
+            if (!crearCuenta)
+            {
+                crearCuenta = true;
+                return;
+            }
+
+            var creada = await Fachada.RegistrarClienteAsync(new CrearClienteDto
+            {
+                Nombre = nombre,
+                Email = email
+            });
+
+            if (creada.EsFallido)
+            {
+                errores = [.. creada.Errores];
+                return;
+            }
+
+            await Sesion.EntrarAsync(creada.Valor);
+            recientes = [];
+        }
+        finally
+        {
+            entrando = false;
+        }
+    }
+
+    private async Task BuscarAsync()
+    {
+        if (Sesion.Cliente is null)
+            return;
+
+        buscando = true;
+        errores = [];
+
+        try
+        {
+            var vehiculo = vehiculos.FirstOrDefault(v => v.Id.ToString() == vehiculoSeleccionado);
+            if (vehiculo is null)
+            {
+                errores = ["Elegí uno de tus vehículos."];
+                return;
+            }
+
+            var respuesta = await Fachada.BuscarAsync(new CrearBusquedaDto
+            {
+                ClienteId = Sesion.Cliente.Id,
+                Vehiculo = vehiculo.Datos,
+                TextoLibre = texto
+            });
+
+            if (respuesta.EsFallido)
+            {
+                resultado = null;
+                errores = [.. respuesta.Errores];
+                return;
+            }
+
+            resultado = respuesta.Valor;
+            texto = "";
+            recientes = await Fachada.ListarBusquedasDelClienteAsync(Sesion.Cliente.Id);
+        }
+        finally
+        {
+            buscando = false;
+        }
+    }
+
+    private static string Etiqueta(VehiculoClienteDto vehiculo) =>
+        vehiculo.Alias == vehiculo.Datos.ToString()
+            ? vehiculo.Alias
+            : $"{vehiculo.Alias} — {vehiculo.Datos}";
+}

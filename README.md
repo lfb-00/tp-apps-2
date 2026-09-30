@@ -7,9 +7,9 @@ El usuario identifica su vehículo, describe el problema en lenguaje natural, y 
 las ofertas de varios sitios reales. **No vende ni almacena stock**: normaliza, compara y deriva a la
 tienda de origen.
 
-> **Entrega actual: TP Inicial** — arquitectura de componentes, aplicación multicapa y acceso local
-> vs. remoto. El diagnóstico por IA, el servicio SOAP y la mensajería llegan en las entregas
-> siguientes.
+> **Alcance de este repo: TP Inicial y Primera Parte.** La aplicación es el comparador.
+> Diagramas, informe, evidencias y patrones están en `docs/`. El seguimiento del trabajo está
+> en `plan.md` y `status.md`.
 
 ## Arranque rápido — solo hace falta Docker
 
@@ -23,10 +23,10 @@ docker compose up --build --wait
 - Catálogo (REST + OpenAPI) → **http://localhost:8081/salud**
 - PostgreSQL → `localhost:5432`
 
-Abrí **http://localhost:8080/acceso**: esa página ejecuta la misma consulta por los dos caminos
-—invocación directa en proceso e invocación remota HTTP— y muestra ambas latencias juntas.
+La misma consulta por los dos caminos queda en `docs/evidencias/` (la genera
+`scripts/evidencias.sh` pegándole a `GET /evidencia/catalogo`).
 
-Las 54 pruebas, también sin instalar nada:
+Las pruebas, también sin instalar nada:
 
 ```bash
 docker compose --profile test run --rm tests
@@ -111,7 +111,7 @@ src/
   RepMatch.Clientes.Rest/   adaptador remoto           · incluye CatalogoRemoto
   RepMatch.Catalogo.Api/    host REST del catálogo
   RepMatch.Web/             presentación (Blazor Server)
-tests/RepMatch.Tests/       54 pruebas
+tests/RepMatch.Tests/       pruebas
 docs/                        diagramas, informe y evidencias
 scripts/evidencias.sh        genera las evidencias del entregable
 ```
@@ -173,9 +173,12 @@ Y los puertos del host, vía `.env` (ver `.env.example`): `PUERTO_WEB`, `PUERTO_
 ## Documentación
 
 - [Informe de arquitectura](docs/informe-arquitectura.md)
+- [Patrones aplicados](docs/patrones.md)
 - [Diagrama de clases](docs/diagramas/clases.md)
 - [Diagrama de componentes](docs/diagramas/componentes.md)
 - [Diagrama de despliegue](docs/diagramas/despliegue.md)
+- [Arquitectura en capas](docs/diagramas/capas.md)
+- [Secuencia de una búsqueda](docs/diagramas/secuencia.md)
 
 ## Stack
 

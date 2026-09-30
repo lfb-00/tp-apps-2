@@ -18,6 +18,10 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    <!-- .NET 10 deja de embeber blazor.web.js y solo lo trae si detecta el proyecto
+         como Blazor. Esa detección falla: los .razor ya no cuentan como Content.
+         Sin esta propiedad el script da 404 y la UI interactiva no arranca. -->
+    <RequiresAspNetWebAssets>true</RequiresAspNetWebAssets>
   </PropertyGroup>
 
 </Project>
