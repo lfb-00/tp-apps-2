@@ -8,9 +8,11 @@ Branch work is uncommitted on `main` (last commit `85ff78d`). App is a Spanish B
 
 Run: `docker compose up --build --wait` → web `http://localhost:8080`, catalog `http://localhost:8081/salud`, Postgres `localhost:5432`.
 
-Tests: `docker compose --profile test build tests && docker compose --profile test run --rm tests` → 57 passed, 0 failed (2026-10-01). Without the build step, `run` reuses an old `repmatch/tests` image and reports a stale count.
+Tests: `docker compose --profile test build tests && docker compose --profile test run --rm tests` → 58 passed, 0 failed (2026-10-01). Without the build step, `run` reuses an old `repmatch/tests` image and reports a stale count.
 
 Adding a vehicle to an existing client, or an offer to an existing search, works since 2026-10-01. Before, EF Core issued UPDATE instead of INSERT for those children (`DbUpdateConcurrencyException`). Domain ids are now `ValueGeneratedNever` in `RepMatchDbContext`.
+
+Signing in on `/` no longer races two queries on the circuit's `DbContext`: `Home.AlCambiarSesion` does not query, `EntrarAsync` loads recent searches. Data Protection keys live in the `claves-web` volume (`ProteccionDatos:DirectorioClaves`), so a tab keeps its session when the web container is recreated. If a stored session cannot be decrypted anyway, `SesionActual` drops it and starts signed out.
 
 Correction not built. `plan.md` says search is public and login needs a password. The app still does the opposite: `/` is an email gate, and `Cliente` stores `Email` only.
 

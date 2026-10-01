@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
 using RepMatch.Aplicacion.Fachada;
 using RepMatch.Contracts.Dtos;
@@ -8,7 +9,10 @@ namespace RepMatch.Web.Servicios;
 /// Quién está usando la aplicación en este circuito. La vista se arma con este cliente,
 /// no con el listado de todos.
 /// </summary>
-public sealed class SesionActual(FachadaAplicacion fachada, ProtectedSessionStorage almacenamiento)
+public sealed class SesionActual(
+    FachadaAplicacion fachada,
+    ProtectedSessionStorage almacenamiento,
+    ILogger<SesionActual> log)
 {
     private const string Clave = "clienteId";
     private bool restaurada;
@@ -35,6 +39,15 @@ public sealed class SesionActual(FachadaAplicacion fachada, ProtectedSessionStor
         catch (InvalidOperationException)
         {
             // El prerender todavía no tiene JavaScript.
+        }
+        catch (CryptographicException ex)
+        {
+            // La sesion se cifro con claves que este proceso ya no tiene: el contenedor se recreo
+            // sin volumen de claves, o las claves rotaron. No es un error del usuario, asi que se
+            // descarta el valor y se sigue sin sesion en vez de tirar el circuito.
+            restaurada = true;
+            log.LogWarning(ex, "Se descarta una sesion guardada que no se puede descifrar");
+            await almacenamiento.DeleteAsync(Clave);
         }
     }
 

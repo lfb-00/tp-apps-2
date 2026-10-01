@@ -8,7 +8,7 @@
 #     Web       http://localhost:8080
 #     Catalogo  http://localhost:8081/salud
 #
-#   docker compose --profile test run --rm tests        -> corre las 57 pruebas
+#   docker compose --profile test run --rm tests        -> corre las 58 pruebas
 #   docker compose --profile local up --build web-local -> la misma Web en modo Local
 #
 # Los puertos del host se pueden cambiar con un archivo .env (ver .env.example) para
@@ -68,6 +68,11 @@ services:
       # Acceso REMOTO al componente de catalogo: resuelve por HTTP contra el otro contenedor.
       Catalogo__Modo: Remoto
       Catalogo__UrlBaseRemota: "http://catalogo-api:8080"
+      # Claves que cifran la sesion del navegador: en un volumen, para que una pestania abierta
+      # no pierda la sesion cada vez que el contenedor se recrea.
+      ProteccionDatos__DirectorioClaves: /claves
+    volumes:
+      - claves-web:/claves
     ports:
       - "${PUERTO_WEB:-8080}:8080"
     depends_on:
@@ -92,6 +97,9 @@ services:
       <<: *conexion-postgres
       ASPNETCORE_ENVIRONMENT: Development
       Catalogo__Modo: Local
+      ProteccionDatos__DirectorioClaves: /claves
+    volumes:
+      - claves-web-local:/claves
     ports:
       - "${PUERTO_WEB_LOCAL:-8090}:8080"
     depends_on:
@@ -99,7 +107,7 @@ services:
         condition: service_healthy
     networks: [repmatch]
 
-  # Corre las 57 pruebas sin necesidad de tener el SDK de .NET instalado.
+  # Corre las 58 pruebas sin necesidad de tener el SDK de .NET instalado.
   # No depende de postgres: usan el proveedor InMemory.
   tests:
     profiles: [test]
@@ -111,6 +119,8 @@ services:
 
 volumes:
   datos-postgres:
+  claves-web:
+  claves-web-local:
 
 networks:
   repmatch:
