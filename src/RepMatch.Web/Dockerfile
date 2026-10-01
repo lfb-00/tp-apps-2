@@ -31,6 +31,11 @@ RUN apt-get update \
 # --chown: la app corre como usuario 'app' y Serilog necesita poder crear logs/ aca dentro.
 COPY --from=build --chown=app:app /app ./
 
+# Directorio de las claves de Data Protection (ver ExtensionesProteccionDatos). Tiene que existir
+# en la imagen con duenio 'app': un volumen con nombre que se monta vacio hereda esos permisos;
+# si el directorio no existiera, Docker lo crearia como root y la app no podria escribir.
+RUN mkdir -p /claves && chown app:app /claves
+
 EXPOSE 8080
 ENV ASPNETCORE_HTTP_PORTS=8080
 

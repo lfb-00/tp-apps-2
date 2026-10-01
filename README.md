@@ -166,6 +166,7 @@ Todo se puede sobreescribir por variable de entorno (`Seccion__Clave`).
 | `Catalogo:UrlBaseRemota` | URL de `Catalogo.Api` | `http://localhost:5081` |
 | `Persistencia:Proveedor` | `InMemory`, `Postgres` | `InMemory` (en compose: `Postgres`) |
 | `ConnectionStrings:RepMatch` | cadena Npgsql | vacía |
+| `ProteccionDatos:DirectorioClaves` | directorio de las claves que cifran la sesión (solo Web) | vacío: las maneja ASP.NET Core (en compose: `/claves`, en un volumen) |
 
 Y los puertos del host, vía `.env` (ver `.env.example`): `PUERTO_WEB`, `PUERTO_CATALOGO`,
 `PUERTO_POSTGRES`, `PUERTO_WEB_LOCAL`.

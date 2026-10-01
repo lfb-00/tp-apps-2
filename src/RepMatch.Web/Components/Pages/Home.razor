@@ -183,20 +183,18 @@ else
         recientes = await Fachada.ListarBusquedasDelClienteAsync(Sesion.Cliente.Id);
     }
 
-    private void AlCambiarSesion() => _ = InvokeAsync(async () =>
+    // Solo acomoda la vista: no consulta la base. Cambio se dispara dentro de Sesion.EntrarAsync,
+    // y EntrarAsync de esta pagina ya carga las consultas recientes justo despues, esperando la
+    // llamada. Si este handler tambien consultara, las dos consultas correrian a la vez sobre el
+    // DbContext del circuito, que no admite operaciones concurrentes (con Postgres fallaba al
+    // entrar; con InMemory no se notaba porque la consulta termina sin esperar).
+    private void AlCambiarSesion() => _ = InvokeAsync(() =>
     {
         resultado = null;
         errores = [];
+        vehiculoSeleccionado = vehiculos.Count > 0 ? vehiculos[0].Id.ToString() : "";
         if (Sesion.Cliente is null)
-        {
             recientes = [];
-            vehiculoSeleccionado = "";
-        }
-        else
-        {
-            vehiculoSeleccionado = vehiculos.Count > 0 ? vehiculos[0].Id.ToString() : "";
-            recientes = await Fachada.ListarBusquedasDelClienteAsync(Sesion.Cliente.Id);
-        }
 
         StateHasChanged();
     });
