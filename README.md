@@ -176,6 +176,7 @@ Y los puertos del host, vía `.env` (ver `.env.example`): `PUERTO_WEB`, `PUERTO_
 - [Patrones de diseño aplicados](docs/patrones.md)
 - [Diagrama de clases](docs/diagramas/clases.md)
 - [Diagrama de componentes](docs/diagramas/componentes.md)
+- [Diagrama de arquitectura en capas](docs/diagramas/capas.md)
 - [Diagrama de despliegue](docs/diagramas/despliegue.md)
 
 ## Stack
