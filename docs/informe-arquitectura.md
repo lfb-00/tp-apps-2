@@ -217,7 +217,7 @@ implementaciones devuelvan **exactamente lo mismo** para cinco vehículos distin
 completo campo por campo, para códigos existentes e inexistentes y para el filtro por sistema.
 
 ```
-Correctas! - Con error: 0, Superado: 54, Omitido: 0, Total: 54
+Correctas! - Con error: 0, Superado: 57, Omitido: 0, Total: 57
 ```
 
 Si algún día las dos implementaciones divergen, esto falla antes que la demo.
