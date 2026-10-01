@@ -104,7 +104,10 @@ La flecha que va de `Persistence` a `Domain` dice **implementa**, no "usa": las 
 en el dominio, y la capa de datos las implementa. Por eso `Domain` no depende de nada y puede
 testearse sin base de datos ni contenedores.
 
-## Patrones aplicados (anticipo de la Primera Parte)
+## Patrones aplicados
+
+Resumen. La justificación de cada uno, con el problema concreto que resuelve y la alternativa que se
+descartó, está en [docs/patrones.md](../patrones.md).
 
 | Patrón | Dónde | Para qué |
 |---|---|---|
