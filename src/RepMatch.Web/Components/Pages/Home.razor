@@ -219,10 +219,10 @@ else
             var existente = await Fachada.ObtenerClientePorEmailAsync(email);
             if (existente is not null)
             {
-                await Sesion.EntrarAsync(existente);
-                vehiculoSeleccionado = vehiculos.Count > 0 ? vehiculos[0].Id.ToString() : "";
-                recientes = await Fachada.ListarBusquedasDelClienteAsync(existente.Id);
+                // AlCambiarSesion recarga vehículo y consultas. Consultar acá también usaría
+                // el mismo DbContext del circuito en paralelo y lo rompería.
                 crearCuenta = false;
+                await Sesion.EntrarAsync(existente);
                 return;
             }
 
@@ -244,8 +244,8 @@ else
                 return;
             }
 
+            crearCuenta = false;
             await Sesion.EntrarAsync(creada.Valor);
-            recientes = [];
         }
         finally
         {
