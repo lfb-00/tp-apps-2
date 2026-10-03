@@ -27,6 +27,9 @@ public sealed class FachadaAplicacion(
         CrearClienteDto dto, CancellationToken ct = default) =>
         clientes.RegistrarAsync(dto, ct);
 
+    public Task<ClienteDto?> AutenticarAsync(string email, string contrasena, CancellationToken ct = default) =>
+        clientes.AutenticarAsync(email, contrasena, ct);
+
     public Task<ResultadoOperacion<ClienteDto>> AgregarVehiculoAsync(
         Guid clienteId, VehiculoDto vehiculo, string? vin = null, string? alias = null,
         CancellationToken ct = default) =>

@@ -16,5 +16,10 @@ public sealed class ValidadorCrearCliente : AbstractValidator<CrearClienteDto>
             .NotEmpty().WithMessage("El email es obligatorio.")
             .EmailAddress().WithMessage("El email no tiene un formato valido.")
             .MaximumLength(200);
+
+        RuleFor(c => c.Contrasena)
+            .NotEmpty().WithMessage("La contraseña es obligatoria.")
+            .MinimumLength(8).WithMessage("La contraseña debe tener al menos 8 caracteres.")
+            .MaximumLength(100);
     }
 }

@@ -1,0 +1,135 @@
+@page "/login"
+@using RepMatch.Aplicacion.Fachada
+@inject FachadaAplicacion Fachada
+@inject SesionActual Sesion
+@inject NavigationManager Navegacion
+
+<PageTitle>Ingresar — RepMatch</PageTitle>
+
+<section class="entrada">
+    <h1>@(crearCuenta ? "Crear cuenta" : "Ingresar")</h1>
+</section>
+
+<div class="buscador">
+    <div class="campos">
+        @if (crearCuenta)
+        {
+            <div>
+                <label for="nombre">Tu nombre</label>
+                <input id="nombre" @bind="nombre" placeholder="Bruno Lo Faro" />
+            </div>
+        }
+        <div>
+            <label for="email">Email</label>
+            <input id="email" type="email" @bind="email" placeholder="correo@ejemplo.com" />
+        </div>
+        <div>
+            <label for="contrasena">Contraseña</label>
+            <input id="contrasena" type="password" @bind="contrasena" />
+        </div>
+    </div>
+
+    @if (errores.Count > 0)
+    {
+        <div class="aviso error" style="margin-top:1rem">
+            @foreach (var error in errores)
+            {
+                <div>@error</div>
+            }
+        </div>
+    }
+
+    <p style="margin:1rem 0 0">
+        <button @onclick="AccionarAsync" disabled="@cargando">
+            @(cargando ? "Un momento…" : crearCuenta ? "Crear cuenta" : "Ingresar")
+        </button>
+    </p>
+
+    <p style="margin-top:0.75rem">
+        @if (crearCuenta)
+        {
+            <a href="#" @onclick="AlternarModo" @onclick:preventDefault>¿Ya tenés cuenta? Ingresá</a>
+        }
+        else
+        {
+            <a href="#" @onclick="AlternarModo" @onclick:preventDefault>¿Primera vez? Crear cuenta</a>
+        }
+    </p>
+</div>
+
+@code {
+    private string email = "";
+    private string contrasena = "";
+    private string nombre = "";
+    private bool crearCuenta;
+    private bool cargando;
+    private List<string> errores = [];
+
+    protected override void OnInitialized()
+    {
+        if (Sesion.Cliente is not null)
+            Navegacion.NavigateTo("/");
+    }
+
+    private void AlternarModo()
+    {
+        crearCuenta = !crearCuenta;
+        errores = [];
+    }
+
+    private async Task AccionarAsync()
+    {
+        cargando = true;
+        errores = [];
+
+        try
+        {
+            if (crearCuenta)
+                await RegistrarAsync();
+            else
+                await LoginAsync();
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async Task LoginAsync()
+    {
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(contrasena))
+        {
+            errores = ["Email y contraseña son obligatorios."];
+            return;
+        }
+
+        var cliente = await Fachada.AutenticarAsync(email, contrasena);
+        if (cliente is null)
+        {
+            errores = ["Email o contraseña incorrectos."];
+            return;
+        }
+
+        await Sesion.EntrarAsync(cliente);
+        Navegacion.NavigateTo("/");
+    }
+
+    private async Task RegistrarAsync()
+    {
+        var resultado = await Fachada.RegistrarClienteAsync(new CrearClienteDto
+        {
+            Nombre = nombre,
+            Email = email,
+            Contrasena = contrasena
+        });
+
+        if (resultado.EsFallido)
+        {
+            errores = [.. resultado.Errores];
+            return;
+        }
+
+        await Sesion.EntrarAsync(resultado.Valor);
+        Navegacion.NavigateTo("/");
+    }
+}

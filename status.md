@@ -1,10 +1,10 @@
 # Status
 
-Read this first. Snapshot 2026-09-28. English. Facts only. Intent and the next slice are in `plan.md`.
+Read this first. Snapshot 2026-10-03. English. Facts only. Intent and the next slice are in `plan.md`.
 
 ## Now
 
-Branch work is uncommitted on `main` (last commit `85ff78d`). App is a Spanish Blazor Server UI over `FachadaAplicacion`. Catalog access is local or remote via `Catalogo:Modo`. Docker Compose defaults to remote.
+Branch work is uncommitted on `main`. App is a Spanish Blazor Server UI over `FachadaAplicacion`. Catalog access is local or remote via `Catalogo:Modo`. Docker Compose defaults to remote.
 
 Run: `docker compose up --build --wait` → web `http://localhost:8080`, catalog `http://localhost:8081/salud`, Postgres `localhost:5432`.
 
@@ -12,21 +12,22 @@ Tests: `docker compose --profile test build tests && docker compose --profile te
 
 Adding a vehicle to an existing client, or an offer to an existing search, works since 2026-10-01. Before, EF Core issued UPDATE instead of INSERT for those children (`DbUpdateConcurrencyException`). Domain ids are now `ValueGeneratedNever` in `RepMatchDbContext`.
 
-Correction not built. `plan.md` says search is public and login needs a password. The app still does the opposite: `/` is an email gate, and `Cliente` stores `Email` only.
+Public search and password login implemented 2026-10-03. `/` is now the search for everyone. Login moved to `/login` with email + password. `Cliente` stores `HashContrasena` (BCrypt). Seed accounts use password `repMatch123!`.
 
 ## User-visible
 
-- `/` with no session is an email entry. A known email opens that person's account with no password. An unknown email asks for a name and creates the account. There is no list of all clients. This gate is what the next slice replaces.
-- Signed in, `/` searches that person's vehicles only. Results are part cards. Recent searches are only theirs (`ListarBusquedasDelClienteAsync`). A person with no cars gets a link to their garage, not a client picker.
+- `/` is a public vehicle search for everyone, signed in or not. Signed-out users enter marca, modelo, año, motor and a problem description and see part cards immediately. No login required to search.
+- `/login` is the new login and registration page. Email + password to sign in. "Crear cuenta" link shows a name field for registration.
+- Signed in, `/` shows the garage picker instead of the vehicle form. Results are part cards. Recent searches are only theirs (`ListarBusquedasDelClienteAsync`). A person with no cars gets a link to their garage.
+- Header shows "Ingresar" button when signed out. Shows name + "Salir" when signed in.
 - `/clientes` is "Mi garage" for the signed-in person: their cars and a form to add one. It is not an admin desk.
-- The header shows the person's name and Salir. The session id is in protected session storage (`SesionActual`).
 - `/catalogo` is still a direct lookup, not tied to a person. Results use the same cards.
 - `/busquedas` redirects to `/`.
 - `/acceso` returns 404. Do not restore it.
 - Free text is stored and ignored when choosing parts.
 - No shop offers. `Busqueda.RegistrarOfertas` has no caller.
 
-Seed data: Bruno Lo Faro `blofaro@uade.edu.ar` (Gol 2015 "El Gol", Peugeot 208 2019 "El 208"), Taller San Martin `contacto@tallersanmartin.com.ar` (Toyota Corolla 2018). Ana Sin Auto `ana.sinauto@ejemplo.com` was added later through the catalog API and has an empty garage.
+Seed data: Bruno Lo Faro `blofaro@uade.edu.ar` (Gol 2015 "El Gol", Peugeot 208 2019 "El 208"), Taller San Martin `contacto@tallersanmartin.com.ar` (Toyota Corolla 2018). All seed accounts use password `repMatch123!`.
 
 ## Assignment
 

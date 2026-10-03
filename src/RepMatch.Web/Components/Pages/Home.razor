@@ -10,33 +10,39 @@
 {
     <section class="entrada">
         <h1>Buscá la pieza para tu auto</h1>
-        <p>Entrá con tu email. Vas a ver tus vehículos y tus consultas, no las de otra persona.</p>
+        <p>Ingresá tu vehículo y el problema. Te mostramos las piezas que le van.</p>
     </section>
 
     <div class="buscador">
         <div class="campos">
             <div>
-                <label for="email">Email</label>
-                <input id="email" @bind="email" placeholder="bruno@ejemplo.com" />
+                <label for="marca">Marca</label>
+                <input id="marca" @bind="marcaAnon" placeholder="Volkswagen" />
             </div>
-            @if (crearCuenta)
-            {
-                <div>
-                    <label for="nombre">Tu nombre</label>
-                    <input id="nombre" @bind="nombre" placeholder="Bruno Lo Faro" />
-                </div>
-            }
+            <div>
+                <label for="modelo">Modelo</label>
+                <input id="modelo" @bind="modeloAnon" placeholder="Gol" />
+            </div>
+            <div>
+                <label for="anio">Año</label>
+                <input id="anio" type="number" @bind="anioAnon" placeholder="2015" />
+            </div>
+            <div>
+                <label for="motor">Motor (opcional)</label>
+                <input id="motor" @bind="motorAnon" placeholder="1.6" />
+            </div>
         </div>
 
-        @if (crearCuenta)
-        {
-            <p class="aviso" style="margin-top:1rem">No hay una cuenta con ese email. Creala y empezá con tu garage.</p>
-        }
+        <div style="margin-top:0.85rem">
+            <label for="textoAnon">Qué le pasa</label>
+            <textarea id="textoAnon" rows="3" @bind="textoAnon"
+                      placeholder="Cuando freno vibra el volante y se escucha un chillido"></textarea>
+        </div>
 
-        @if (errores.Count > 0)
+        @if (erroresAnon.Count > 0)
         {
             <div class="aviso error" style="margin-top:1rem">
-                @foreach (var error in errores)
+                @foreach (var error in erroresAnon)
                 {
                     <div>@error</div>
                 }
@@ -44,11 +50,33 @@
         }
 
         <p style="margin:1rem 0 0">
-            <button @onclick="EntrarAsync" disabled="@entrando">
-                @(entrando ? "Entrando…" : crearCuenta ? "Crear cuenta" : "Entrar")
+            <button @onclick="BuscarAnonAsync" disabled="@buscandoAnon">
+                @(buscandoAnon ? "Buscando…" : "Buscar piezas")
             </button>
         </p>
     </div>
+
+    @if (resultadoAnon is not null)
+    {
+        @if (resultadoAnon.Count == 0)
+        {
+            <div class="tarjeta">
+                <p class="vacio">No hay piezas del catálogo para ese vehículo.</p>
+            </div>
+        }
+        else
+        {
+            <p class="conteo">@resultadoAnon.Count piezas que le van</p>
+            <div class="piezas">
+                @foreach (var pieza in resultadoAnon)
+                {
+                    <article class="pieza">
+                        <TarjetaRepuesto Repuesto="pieza" Vehiculo="vehiculoAnonDto" />
+                    </article>
+                }
+            </div>
+        }
+    }
 }
 else
 {
@@ -159,11 +187,18 @@ else
     private IReadOnlyList<BusquedaDto> recientes = [];
     private ResultadoBusquedaDto? resultado;
 
-    private string email = "";
-    private string nombre = "";
-    private bool crearCuenta;
-    private bool entrando;
+    // búsqueda anónima
+    private string marcaAnon = "";
+    private string modeloAnon = "";
+    private int anioAnon = DateTime.Now.Year;
+    private string motorAnon = "";
+    private string textoAnon = "";
+    private bool buscandoAnon;
+    private List<string> erroresAnon = [];
+    private IReadOnlyList<RepuestoDto>? resultadoAnon;
+    private VehiculoDto? vehiculoAnonDto;
 
+    // búsqueda con sesión
     private string vehiculoSeleccionado = "";
     private string texto = "";
     private bool buscando;
@@ -187,6 +222,10 @@ else
     {
         resultado = null;
         errores = [];
+        resultadoAnon = null;
+        vehiculoAnonDto = null;
+        erroresAnon = [];
+
         if (Sesion.Cliente is null)
         {
             recientes = [];
@@ -203,53 +242,40 @@ else
 
     public void Dispose() => Sesion.Cambio -= AlCambiarSesion;
 
-    private async Task EntrarAsync()
+    private async Task BuscarAnonAsync()
     {
-        entrando = true;
-        errores = [];
+        buscandoAnon = true;
+        erroresAnon = [];
+        resultadoAnon = null;
 
         try
         {
-            if (string.IsNullOrWhiteSpace(email))
+            if (string.IsNullOrWhiteSpace(marcaAnon) || string.IsNullOrWhiteSpace(modeloAnon))
             {
-                errores = ["Ingresá tu email."];
+                erroresAnon = ["Ingresá la marca y el modelo."];
                 return;
             }
 
-            var existente = await Fachada.ObtenerClientePorEmailAsync(email);
-            if (existente is not null)
+            vehiculoAnonDto = new VehiculoDto
             {
-                await Sesion.EntrarAsync(existente);
-                vehiculoSeleccionado = vehiculos.Count > 0 ? vehiculos[0].Id.ToString() : "";
-                recientes = await Fachada.ListarBusquedasDelClienteAsync(existente.Id);
-                crearCuenta = false;
+                Marca = marcaAnon.Trim(),
+                Modelo = modeloAnon.Trim(),
+                Anio = anioAnon,
+                Motor = string.IsNullOrWhiteSpace(motorAnon) ? null : motorAnon.Trim()
+            };
+
+            var respuesta = await Fachada.BuscarRepuestosAsync(vehiculoAnonDto, sistema: null);
+            if (respuesta.EsFallido)
+            {
+                erroresAnon = [.. respuesta.Errores];
                 return;
             }
 
-            if (!crearCuenta)
-            {
-                crearCuenta = true;
-                return;
-            }
-
-            var creada = await Fachada.RegistrarClienteAsync(new CrearClienteDto
-            {
-                Nombre = nombre,
-                Email = email
-            });
-
-            if (creada.EsFallido)
-            {
-                errores = [.. creada.Errores];
-                return;
-            }
-
-            await Sesion.EntrarAsync(creada.Valor);
-            recientes = [];
+            resultadoAnon = [.. respuesta.Valor];
         }
         finally
         {
-            entrando = false;
+            buscandoAnon = false;
         }
     }
 

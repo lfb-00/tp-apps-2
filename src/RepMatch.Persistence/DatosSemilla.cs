@@ -18,11 +18,13 @@ public static class DatosSemilla
             await contexto.Repuestos.AddAsync(repuesto, ct);
 
         var cliente = new Cliente("Bruno Lo Faro", "blofaro@uade.edu.ar");
+        cliente.EstablecerContrasena(BCrypt.Net.BCrypt.HashPassword("repMatch123!"));
         cliente.AgregarVehiculo(new DatosVehiculo("Volkswagen", "Gol", 2015, "1.6"), alias: "El Gol");
         cliente.AgregarVehiculo(new DatosVehiculo("Peugeot", "208", 2019, "1.6"), alias: "El 208");
         await contexto.Clientes.AddAsync(cliente, ct);
 
         var otro = new Cliente("Taller San Martin", "contacto@tallersanmartin.com.ar");
+        otro.EstablecerContrasena(BCrypt.Net.BCrypt.HashPassword("repMatch123!"));
         otro.AgregarVehiculo(new DatosVehiculo("Toyota", "Corolla", 2018, "1.8"));
         await contexto.Clientes.AddAsync(otro, ct);
 
