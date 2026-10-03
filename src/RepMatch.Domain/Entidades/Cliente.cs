@@ -26,9 +26,16 @@ public class Cliente : EntidadBase
 
     public string Nombre { get; private set; } = string.Empty;
     public string Email { get; private set; } = string.Empty;
+    public string? HashContrasena { get; private set; }
     public DateTimeOffset FechaAlta { get; private set; }
 
     public IReadOnlyCollection<Vehiculo> Vehiculos => _vehiculos.AsReadOnly();
+
+    public void EstablecerContrasena(string hash)
+    {
+        ExcepcionDominio.SiNulaOVacia(hash, nameof(hash));
+        HashContrasena = hash;
+    }
 
     public Vehiculo AgregarVehiculo(DatosVehiculo datos, string? vin = null, string? alias = null)
     {

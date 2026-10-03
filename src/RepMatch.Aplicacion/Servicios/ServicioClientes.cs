@@ -54,6 +54,7 @@ public sealed class ServicioClientes(
         try
         {
             var cliente = new Cliente(dto.Nombre, dto.Email);
+            cliente.EstablecerContrasena(BCrypt.Net.BCrypt.HashPassword(dto.Contrasena));
             await clientes.AgregarAsync(cliente, ct);
             await unidadDeTrabajo.ConfirmarAsync(ct);
 
@@ -64,6 +65,20 @@ public sealed class ServicioClientes(
         {
             return ResultadoOperacion<ClienteDto>.Falla(ex.Message);
         }
+    }
+
+    public async Task<ClienteDto?> AutenticarAsync(string email, string contrasena, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(contrasena))
+            return null;
+
+        var cliente = await clientes.ObtenerPorEmailAsync(email, ct);
+        if (cliente is null || cliente.HashContrasena is null)
+            return null;
+
+        return BCrypt.Net.BCrypt.Verify(contrasena, cliente.HashContrasena)
+            ? cliente.ADto()
+            : null;
     }
 
     public async Task<ResultadoOperacion<ClienteDto>> AgregarVehiculoAsync(

@@ -16,6 +16,7 @@ public sealed class ClienteConfiguration : IEntityTypeConfiguration<Cliente>
 
         b.Property(c => c.Nombre).HasMaxLength(120).IsRequired();
         b.Property(c => c.Email).HasMaxLength(200).IsRequired();
+        b.Property(c => c.HashContrasena).HasMaxLength(200).IsRequired(false);
         b.Property(c => c.FechaAlta).IsRequired();
 
         b.HasIndex(c => c.Email).IsUnique();

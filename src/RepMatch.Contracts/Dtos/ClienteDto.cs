@@ -26,4 +26,16 @@ public sealed record CrearClienteDto
 
     [Required, EmailAddress, StringLength(200)]
     public required string Email { get; init; }
+
+    [Required, StringLength(100, MinimumLength = 8)]
+    public required string Contrasena { get; init; }
+}
+
+public sealed record LoginDto
+{
+    [Required, EmailAddress]
+    public required string Email { get; init; }
+
+    [Required]
+    public required string Contrasena { get; init; }
 }
