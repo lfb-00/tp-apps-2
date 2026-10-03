@@ -1,9 +1,9 @@
 using FluentValidation;
 using Microsoft.Extensions.Logging;
+using RepMatch.Aplicacion.Eventos;
 using RepMatch.Aplicacion.Mapeo;
 using RepMatch.Common.Resultados;
 using RepMatch.Common.Validacion;
-using RepMatch.Contracts;
 using RepMatch.Contracts.Dtos;
 using RepMatch.Domain.Comun;
 using RepMatch.Domain.Entidades;
@@ -12,18 +12,14 @@ using RepMatch.Domain.Repositorios;
 namespace RepMatch.Aplicacion.Servicios;
 
 /// <summary>
-/// Logica de negocio de las busquedas (el "Pedido" de la consigna).
-///
-/// En el TP Inicial una busqueda se crea y se resuelve contra el catalogo propio por
-/// compatibilidad. En la Segunda Parte, el paso de decidir que codigos buscar pasa al componente
-/// de IA y la consulta a las tiendas externas se dispara por cola; el contrato publico de este
-/// servicio no cambia.
+/// Crea y consulta búsquedas. No resuelve piezas: eso lo hace un observador de
+/// <c>BusquedaCreada</c> después de que la búsqueda queda persistida.
 /// </summary>
 public sealed class ServicioBusquedas(
     IBusquedaRepository busquedas,
     IClienteRepository clientes,
-    ICatalogoRepuestos catalogo,
     IUnitOfWork unidadDeTrabajo,
+    IDespachadorEventos despachador,
     IValidator<CrearBusquedaDto> validador,
     ILogger<ServicioBusquedas> log)
 {
@@ -47,11 +43,6 @@ public sealed class ServicioBusquedas(
         return busqueda?.ADto();
     }
 
-    /// <summary>
-    /// Registra la consulta del cliente y le asigna los codigos de repuesto candidatos segun la
-    /// compatibilidad con su vehiculo. Consulta el catalogo a traves de
-    /// <see cref="ICatalogoRepuestos"/>, asi que funciona igual con el catalogo local o el remoto.
-    /// </summary>
     public async Task<ResultadoOperacion<BusquedaDto>> CrearAsync(
         CrearBusquedaDto dto, CancellationToken ct = default)
     {
@@ -65,27 +56,22 @@ public sealed class ServicioBusquedas(
         try
         {
             var busqueda = new Busqueda(dto.ClienteId, dto.Vehiculo.AEntidad(), dto.TextoLibre);
-
-            var compatibles = await catalogo.BuscarCompatiblesAsync(dto.Vehiculo, sistema: null, ct);
-
-            if (compatibles.Count > 0)
-            {
-                busqueda.AsignarCodigosObjetivo(compatibles.Select(r => r.CodigoCanonico));
-            }
-            else
-            {
-                busqueda.Fallar(
-                    $"Todavia no tenemos repuestos catalogados para un {dto.Vehiculo}.");
-            }
+            var pendientes = busqueda.EventosDominio.ToArray();
 
             await busquedas.AgregarAsync(busqueda, ct);
             await unidadDeTrabajo.ConfirmarAsync(ct);
+            busqueda.LimpiarEventos();
+
+            await despachador.DespacharAsync(pendientes, ct);
+
+            var actualizada = await busquedas.ObtenerPorIdAsync(busqueda.Id, ct)
+                ?? throw new InvalidOperationException($"La búsqueda {busqueda.Id} no quedó persistida.");
 
             log.LogInformation(
-                "Busqueda {BusquedaId} creada via catalogo[{Modo}]: {Codigos} codigos objetivo, estado {Estado}",
-                busqueda.Id, catalogo.Modo, busqueda.CodigosObjetivo.Count, busqueda.Estado);
+                "Búsqueda {BusquedaId} registrada. Estado {Estado}",
+                actualizada.Id, actualizada.Estado);
 
-            return ResultadoOperacion<BusquedaDto>.Exito(busqueda.ADto());
+            return ResultadoOperacion<BusquedaDto>.Exito(actualizada.ADto());
         }
         catch (ExcepcionDominio ex)
         {

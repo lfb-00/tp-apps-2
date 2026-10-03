@@ -1,41 +1,64 @@
 @page "/clientes"
-@rendermode InteractiveServer
-@using RepMatch.Aplicacion.Servicios
-@inject ServicioClientes Servicio
+@implements IDisposable
+@using RepMatch.Aplicacion.Fachada
+@inject FachadaAplicacion Fachada
+@inject SesionActual Sesion
 
-<PageTitle>Clientes - RepMatch</PageTitle>
+<PageTitle>Mi garage - RepMatch</PageTitle>
 
-<h1>Clientes</h1>
-<p class="subtitulo">
-    Alta de clientes y de los vehiculos de su garage. La pantalla habla con
-    <code>ServicioClientes</code> (capa de logica de negocio), nunca con el repositorio.
-</p>
+@if (Sesion.Cliente is null)
+{
+    <section class="entrada">
+        <h1>Tu garage</h1>
+        <p>Entrá con tu email para ver y cargar tus autos.</p>
+    </section>
+    <p><a class="boton" href="/">Entrar</a></p>
+}
+else
+{
+    <section class="entrada">
+        <h1>Tu garage</h1>
+        <p>Los autos con los que buscás piezas. Nadie más los ve en tu cuenta.</p>
+    </section>
 
-<div class="grilla">
     <div class="tarjeta">
-        <h2 style="margin-top:0">Nuevo cliente</h2>
+        <h2 style="margin-top:0">Agregar vehículo</h2>
 
-        <div style="display:grid;gap:0.85rem">
+        <div class="campos">
             <div>
-                <label for="nombre">Nombre</label>
-                <input id="nombre" @bind="nombre" placeholder="Juan Perez" />
+                <label for="vmarca">Marca</label>
+                <input id="vmarca" @bind="marca" />
             </div>
             <div>
-                <label for="email">Email</label>
-                <input id="email" @bind="email" placeholder="juan@ejemplo.com" />
+                <label for="vmodelo">Modelo</label>
+                <input id="vmodelo" @bind="modelo" />
+            </div>
+            <div>
+                <label for="vanio">Año</label>
+                <input id="vanio" type="number" @bind="anio" />
+            </div>
+            <div>
+                <label for="vmotor">Motor</label>
+                <input id="vmotor" @bind="motor" />
+            </div>
+            <div>
+                <label for="valias">Nombre</label>
+                <input id="valias" @bind="alias" placeholder="El Gol" />
             </div>
         </div>
 
         <p style="margin-top:1rem">
-            <button @onclick="RegistrarAsync" disabled="@guardando">Registrar</button>
+            <button @onclick="AgregarAsync" disabled="@guardando">
+                @(guardando ? "Guardando…" : "Agregar")
+            </button>
         </p>
 
         @if (errores.Count > 0)
         {
             <div class="aviso error">
-                @foreach (var e in errores)
+                @foreach (var error in errores)
                 {
-                    <div>@e</div>
+                    <div>@error</div>
                 }
             </div>
         }
@@ -46,161 +69,65 @@
         }
     </div>
 
+    <h2>Tus vehículos</h2>
     <div class="tarjeta">
-        <h2 style="margin-top:0">Agregar vehiculo</h2>
-
-        <div style="display:grid;gap:0.85rem">
-            <div>
-                <label for="cliente">Cliente</label>
-                <select id="cliente" @bind="clienteSeleccionado">
-                    <option value="">Elegi un cliente</option>
-                    @foreach (var cliente in clientes)
-                    {
-                        <option value="@cliente.Id">@cliente.Nombre</option>
-                    }
-                </select>
-            </div>
-
-            <div class="campos">
-                <div>
-                    <label for="vmarca">Marca</label>
-                    <input id="vmarca" @bind="vMarca" />
-                </div>
-                <div>
-                    <label for="vmodelo">Modelo</label>
-                    <input id="vmodelo" @bind="vModelo" />
-                </div>
-                <div>
-                    <label for="vanio">Anio</label>
-                    <input id="vanio" type="number" @bind="vAnio" />
-                </div>
-                <div>
-                    <label for="vmotor">Motor</label>
-                    <input id="vmotor" @bind="vMotor" />
-                </div>
-            </div>
-        </div>
-
-        <p style="margin-top:1rem">
-            <button @onclick="AgregarVehiculoAsync" disabled="@guardando">Agregar</button>
-        </p>
-    </div>
-</div>
-
-<h2>Clientes registrados</h2>
-
-<div class="tarjeta">
-    @if (clientes.Count == 0)
-    {
-        <p class="vacio">Todavia no hay clientes.</p>
-    }
-    else
-    {
-        <table>
-            <thead>
-                <tr><th>Nombre</th><th>Email</th><th>Alta</th><th>Vehiculos</th></tr>
-            </thead>
-            <tbody>
-                @foreach (var cliente in clientes)
+        @if (Sesion.Cliente.Vehiculos.Count == 0)
+        {
+            <p class="vacio">Todavía no cargaste ninguno.</p>
+        }
+        else
+        {
+            <ul class="recientes">
+                @foreach (var vehiculo in Sesion.Cliente.Vehiculos)
                 {
-                    <tr>
-                        <td>@cliente.Nombre</td>
-                        <td class="mono">@cliente.Email</td>
-                        <td class="mono">@cliente.FechaAlta.ToLocalTime().ToString("dd/MM/yyyy")</td>
-                        <td>
-                            @if (cliente.Vehiculos.Count == 0)
-                            {
-                                <span style="color:var(--tinta-suave)">sin vehiculos</span>
-                            }
-                            else
-                            {
-                                @foreach (var vehiculo in cliente.Vehiculos)
-                                {
-                                    <div>
-                                        <span class="etiqueta">@vehiculo.Alias</span>
-                                        <span class="mono" style="font-size:0.8em">@vehiculo.Datos</span>
-                                    </div>
-                                }
-                            }
-                        </td>
-                    </tr>
+                    <li>
+                        <strong>@vehiculo.Alias</strong>
+                        <span>@vehiculo.Datos</span>
+                    </li>
                 }
-            </tbody>
-        </table>
-    }
-</div>
+            </ul>
+        }
+    </div>
+}
 
 @code {
-    private IReadOnlyList<ClienteDto> clientes = [];
-
-    private string nombre = "";
-    private string email = "";
-
-    private string clienteSeleccionado = "";
-    private string vMarca = "Fiat";
-    private string vModelo = "Cronos";
-    private int vAnio = 2020;
-    private string vMotor = "1.3";
+    private string marca = "";
+    private string modelo = "";
+    private int anio = DateTime.Now.Year;
+    private string motor = "";
+    private string alias = "";
 
     private bool guardando;
     private List<string> errores = [];
     private string? mensaje;
 
-    protected override async Task OnInitializedAsync() => await RecargarAsync();
+    protected override void OnInitialized() => Sesion.Cambio += AlCambiarSesion;
 
-    private async Task RecargarAsync() => clientes = await Servicio.ListarAsync();
+    private void AlCambiarSesion() => _ = InvokeAsync(StateHasChanged);
 
-    private async Task RegistrarAsync()
+    public void Dispose() => Sesion.Cambio -= AlCambiarSesion;
+
+    private async Task AgregarAsync()
     {
+        if (Sesion.Cliente is null)
+            return;
+
         guardando = true;
         errores = [];
         mensaje = null;
 
         try
         {
-            var resultado = await Servicio.RegistrarAsync(
-                new CrearClienteDto { Nombre = nombre, Email = email });
-
-            if (resultado.EsFallido)
-            {
-                errores = [.. resultado.Errores];
-                return;
-            }
-
-            mensaje = $"Cliente {resultado.Valor.Nombre} registrado.";
-            nombre = "";
-            email = "";
-            await RecargarAsync();
-        }
-        finally
-        {
-            guardando = false;
-        }
-    }
-
-    private async Task AgregarVehiculoAsync()
-    {
-        guardando = true;
-        errores = [];
-        mensaje = null;
-
-        try
-        {
-            if (!Guid.TryParse(clienteSeleccionado, out var clienteId))
-            {
-                errores = ["Elegi un cliente."];
-                return;
-            }
-
             var vehiculo = new VehiculoDto
             {
-                Marca = vMarca,
-                Modelo = vModelo,
-                Anio = vAnio,
-                Motor = string.IsNullOrWhiteSpace(vMotor) ? null : vMotor
+                Marca = marca,
+                Modelo = modelo,
+                Anio = anio,
+                Motor = string.IsNullOrWhiteSpace(motor) ? null : motor
             };
 
-            var resultado = await Servicio.AgregarVehiculoAsync(clienteId, vehiculo);
+            var resultado = await Fachada.AgregarVehiculoAsync(
+                Sesion.Cliente.Id, vehiculo, alias: string.IsNullOrWhiteSpace(alias) ? null : alias);
 
             if (resultado.EsFallido)
             {
@@ -208,8 +135,12 @@
                 return;
             }
 
-            mensaje = $"Vehiculo {vehiculo} agregado.";
-            await RecargarAsync();
+            await Sesion.EntrarAsync(resultado.Valor);
+            mensaje = $"Listo, {vehiculo} quedó en tu garage.";
+            marca = "";
+            modelo = "";
+            motor = "";
+            alias = "";
         }
         finally
         {

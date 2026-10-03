@@ -32,6 +32,15 @@ public sealed class ServicioClientes(
         return cliente?.ADto();
     }
 
+    public async Task<ClienteDto?> ObtenerPorEmailAsync(string email, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+            return null;
+
+        var cliente = await clientes.ObtenerPorEmailAsync(email, ct);
+        return cliente?.ADto();
+    }
+
     public async Task<ResultadoOperacion<ClienteDto>> RegistrarAsync(
         CrearClienteDto dto, CancellationToken ct = default)
     {

@@ -123,4 +123,85 @@ public class ModeloEfTests
             Assert.Equal(50000m, oferta.PrecioTotal.Monto);
         }
     }
+
+    /// <summary>
+    /// Es el caso real de "Mi garage": el cliente ya existe en la base y se le suma un auto en
+    /// otro contexto. Las pruebas de arriba guardan el agregado entero de una vez y no lo cubren.
+    /// </summary>
+    [Fact]
+    public async Task Agrega_un_vehiculo_a_un_cliente_ya_persistido()
+    {
+        var nombreBase = Guid.NewGuid().ToString();
+
+        await using (var contexto = CrearContexto(nombreBase))
+        {
+            await DatosSemilla.SembrarAsync(contexto);
+        }
+
+        await using (var contexto = CrearContexto(nombreBase))
+        {
+            var cliente = await contexto.Clientes
+                .Include(c => c.Vehiculos)
+                .SingleAsync(c => c.Email == "blofaro@uade.edu.ar");
+
+            cliente.AgregarVehiculo(new DatosVehiculo("Toyota", "Corolla", 2018, "1.8"), alias: "El Corolla");
+            await contexto.SaveChangesAsync();
+        }
+
+        await using (var contexto = CrearContexto(nombreBase))
+        {
+            var cliente = await contexto.Clientes
+                .Include(c => c.Vehiculos)
+                .SingleAsync(c => c.Email == "blofaro@uade.edu.ar");
+
+            Assert.Equal(3, cliente.Vehiculos.Count);
+            Assert.Contains(cliente.Vehiculos, v => v.Alias == "El Corolla" && v.Datos.Modelo == "Corolla");
+        }
+    }
+
+    /// <summary>
+    /// Mismo caso que el del vehiculo, pero con las ofertas: en la Segunda Parte los adaptadores de
+    /// tiendas las registran sobre una busqueda que ya quedo guardada.
+    /// </summary>
+    [Fact]
+    public async Task Registra_ofertas_en_una_busqueda_ya_persistida()
+    {
+        var nombreBase = Guid.NewGuid().ToString();
+        var clienteId = Guid.NewGuid();
+
+        await using (var contexto = CrearContexto(nombreBase))
+        {
+            await contexto.Busquedas.AddAsync(new RepMatch.Domain.Entidades.Busqueda(
+                clienteId,
+                new DatosVehiculo("Volkswagen", "Gol", 2015, "1.6"),
+                "cuando freno vibra el volante"));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using (var contexto = CrearContexto(nombreBase))
+        {
+            var busqueda = await contexto.Busquedas
+                .Include(b => b.Ofertas)
+                .SingleAsync(b => b.ClienteId == clienteId);
+
+            busqueda.AsignarCodigosObjetivo(["PAST-VW-GOL-DEL"]);
+            busqueda.RegistrarOfertas(
+            [
+                new RepMatch.Domain.Entidades.Oferta(
+                    busqueda.Id, "PAST-VW-GOL-DEL", "easy.com.ar", "Pastillas Bosch",
+                    Dinero.Pesos(45000m), "https://www.easy.com.ar/p/123")
+            ]);
+            await contexto.SaveChangesAsync();
+        }
+
+        await using (var contexto = CrearContexto(nombreBase))
+        {
+            var busqueda = await contexto.Busquedas
+                .Include(b => b.Ofertas)
+                .SingleAsync(b => b.ClienteId == clienteId);
+
+            Assert.Equal(RepMatch.Domain.Entidades.EstadoBusqueda.Completada, busqueda.Estado);
+            Assert.Equal("Pastillas Bosch", Assert.Single(busqueda.Ofertas).Titulo);
+        }
+    }
 }

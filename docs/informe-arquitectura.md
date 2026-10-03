@@ -70,12 +70,12 @@ materializan así:
 ```
 ┌──────────────────────────────────────────────────────┐
 │  PRESENTACIÓN    RepMatch.Web (Blazor Server)        │
-│                  Componentes Razor · FabricaCatalogo  │
+│                  Componentes Razor · FachadaAplicacion │
 └───────────────────────┬──────────────────────────────┘
-                        │  depende solo de ICatalogoRepuestos
+                        │  entra por FachadaAplicacion
 ┌───────────────────────▼──────────────────────────────┐
 │  LÓGICA DE       RepMatch.Aplicacion                 │
-│  NEGOCIO         ServicioClientes · ServicioBusquedas │
+│  NEGOCIO         Fachada · Servicios · Observador     │
 │                  CatalogoLocal · Validadores          │
 └───────────────────────┬──────────────────────────────┘
                         │  usa las interfaces declaradas en Domain
@@ -91,8 +91,7 @@ materializan así:
 
 Reglas que se respetan y que son verificables leyendo los `.csproj`:
 
-- La presentación **nunca** referencia un repositorio: habla con `ServicioClientes` y
-  `ServicioBusquedas`.
+- La presentación **nunca** referencia un repositorio: habla con `FachadaAplicacion`.
 - La capa de datos **no contiene reglas de negocio**. `RepuestoRepository.BuscarCompatiblesAsync`
   filtra en la base por marca, modelo y rango de años —lo que el motor puede resolver con índice— y
   delega la regla fina de motorización a `Repuesto.EsCompatibleCon`, que vive en el dominio. Así la
@@ -144,8 +143,7 @@ servicios.AddScoped<ICatalogoRepuestos>(sp => opciones.Modo switch
 ```
 
 Se cambia con `Catalogo:Modo` en `appsettings.json` o con la variable de entorno `Catalogo__Modo`.
-**Sin recompilar**, y sin que ningún consumidor —ni los componentes Razor, ni `ServicioBusquedas`—
-se entere de cuál quedó enchufada.
+**Sin recompilar**, y sin que `FachadaAplicacion` ni las páginas se enteren de cuál quedó enchufada.
 
 ### Por qué esto no es una complicación gratuita
 
@@ -163,29 +161,28 @@ otra implementación de la misma interfaz. La presentación no se toca.
 bash scripts/evidencias.sh
 ```
 
-Deja en `docs/evidencias/` los logs de los tres procesos, la respuesta REST cruda y el contrato
-OpenAPI. Para la evidencia visual, `http://localhost:5080/acceso` ejecuta **los dos caminos a la vez**
-y muestra ambas latencias juntas en una sola pantalla.
+Deja en `docs/evidencias/` los logs de los tres procesos, la respuesta REST cruda, el contrato
+OpenAPI y las dos mediciones de `GET /evidencia/catalogo`.
 
 ### 5.2 Latencia medida
 
 Consulta: repuestos compatibles con un **Volkswagen Gol 2015 1.6**. Los dos caminos devuelven
 **los mismos 7 códigos**, en el mismo orden.
 
-Medido desde la página `/acceso`, que reutiliza el ámbito de inyección del circuito Blazor:
+La primera tabla se midió cuando la comparación corría dentro del circuito de Blazor (ámbito
+caliente). La segunda, que es la que `scripts/evidencias.sh` vuelve a generar, sale de
+`GET /evidencia/catalogo`, donde cada petición crea un ámbito nuevo y por lo tanto un `DbContext`
+nuevo:
 
 | Ejecución | Local | Remoto | Sobrecosto |
 |---|---|---|---|
-| Primera (arranque en frío) | 236,7 ms | 456,6 ms | +219,8 ms |
-| **En régimen** | **1,9 ms** | **12,6 ms** | **+10,7 ms** |
-
-Medido desde el endpoint `/evidencia/catalogo`, donde **cada petición crea un ámbito nuevo** y por
-lo tanto un `DbContext` nuevo:
+| Primera (arranque en frío, circuito Blazor) | 236,7 ms | 456,6 ms | +219,8 ms |
+| **En régimen (circuito Blazor)** | **1,9 ms** | **12,6 ms** | **+10,7 ms** |
 
 | Ejecución | Local | Remoto | Sobrecosto |
 |---|---|---|---|
-| Primera | 253,6 ms | 584,8 ms | +331,2 ms |
-| Segunda | 66,5 ms | 81,1 ms | +14,6 ms |
+| Primera (`/evidencia/catalogo`) | 253,6 ms | 584,8 ms | +331,2 ms |
+| Segunda (`/evidencia/catalogo`) | 66,5 ms | 81,1 ms | +14,6 ms |
 
 Las dos mediciones son legítimas y la diferencia entre ellas es informativa: en el circuito Blazor el
 acceso directo cuesta **~6,6 veces menos** que el remoto porque el ámbito está caliente y la consulta
@@ -220,7 +217,7 @@ implementaciones devuelvan **exactamente lo mismo** para cinco vehículos distin
 completo campo por campo, para códigos existentes e inexistentes y para el filtro por sistema.
 
 ```
-Correctas! - Con error: 0, Superado: 54, Omitido: 0, Total: 54
+Correctas! - Con error: 0, Superado: 57, Omitido: 0, Total: 57
 ```
 
 Si algún día las dos implementaciones divergen, esto falla antes que la demo.
@@ -288,7 +285,7 @@ circulares, CVSS 7.5). Se fijó la versión **2.12.2**, posterior al parche 2.7.
 
 | Entrega | Qué agrega | Dónde se enchufa | Qué NO hay que tocar |
 |---|---|---|---|
-| **Primera** | Patrones formalizados, servicios de negocio, eventos de dominio internos | `EntidadBase.EventosDominio` ya acumula eventos; falta el despachador | Dominio, contratos |
+| **Primera** | Patrones formalizados, fachada, eventos de dominio internos | `DespachadorEventos` publica `BusquedaCreada` a `ObservadorCompatibilidad`. La presentación entra por `FachadaAplicacion` | Dominio, contratos |
 | **Segunda** | SOAP `ConsultaCompatibilidad` (CoreWCF + WSDL) | Tercera implementación de `ICatalogoRepuestos` | Presentación, lógica de negocio |
 | **Segunda** | REST documentados con OpenAPI | Ya publicado en `/openapi/v1.json` | — |
 | **Segunda** | RabbitMQ, productores y consumidores | `BusquedaCreada` ya existe como evento de dominio | Entidades |
@@ -296,10 +293,9 @@ circulares, CVSS 7.5). Se fijó la versión **2.12.2**, posterior al parche 2.7.
 | **Segunda** | Componente de IA (texto libre → repuestos) | Reemplaza el paso de `ServicioBusquedas.CrearAsync` que hoy asigna códigos por compatibilidad | Contrato público del servicio |
 | **Integrador** | Métricas de IA, pruebas de carga, despliegue | — | — |
 
-El punto de extensión de la IA ya está aislado: hoy `ServicioBusquedas.CrearAsync` llena
-`CodigosObjetivo` consultando el catálogo por compatibilidad; mañana los llena el servicio de
-diagnóstico a partir de `Busqueda.TextoLibre` —que ya se persiste, aunque todavía no se procese—.
-La firma pública del servicio no cambia.
+El punto de extensión queda en el evento: `ServicioBusquedas.CrearAsync` persiste la búsqueda y
+despacha `BusquedaCreada`. `ObservadorCompatibilidad` llena `CodigosObjetivo` consultando el
+catálogo por compatibilidad de vehículo. El texto libre ya se guarda.
 
 ---
 
@@ -319,7 +315,7 @@ dotnet run --project src/RepMatch.Catalogo.Api --urls http://localhost:5081
 dotnet run --project src/RepMatch.Web --urls http://localhost:5080
 ```
 
-Abrir `http://localhost:5080/acceso`.
+La evidencia de acceso local y remoto se genera con `bash scripts/evidencias.sh`.
 
 ### Con Docker
 
@@ -348,3 +344,13 @@ demostrado apenas se levanta el entorno.
 | Código fuente | `src/`, `tests/` |
 | Informe de arquitectura | este documento |
 | Evidencias de ejecución local y remota | `docs/evidencias/` + `scripts/evidencias.sh` + sección 5 |
+
+## 10. Entregables de la Primera Parte
+
+| Requisito de la consigna | Dónde está |
+|---|---|
+| Aplicación sobre framework empresarial | `src/RepMatch.Web`, `src/RepMatch.Catalogo.Api` |
+| Patrones Factory, Repository, Strategy, Observer, Facade | [`docs/patrones.md`](patrones.md) |
+| Servicios de negocio e integración por eventos | `ServicioClientes`, `ServicioBusquedas`, `ObservadorCompatibilidad` |
+| Diagrama de arquitectura en capas | [`docs/diagramas/capas.md`](diagramas/capas.md) |
+| Diagrama de secuencia | [`docs/diagramas/secuencia.md`](diagramas/secuencia.md) |

@@ -78,6 +78,7 @@ public static class Mapeadores
         TextoLibre = busqueda.TextoLibre,
         Estado = busqueda.Estado.ToString(),
         FechaCreacion = busqueda.FechaCreacion,
+        MotivoFalla = busqueda.MotivoFalla,
         CodigosObjetivo = [.. busqueda.CodigosObjetivo],
         Ofertas = [.. busqueda.Ofertas.Select(o => o.ADto())]
     };

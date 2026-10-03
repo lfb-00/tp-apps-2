@@ -17,6 +17,7 @@ builder.Services.AddRazorComponents()
 
 // Registra la capa de datos, la de logica de negocio y las dos formas de alcanzar el catalogo.
 builder.Services.AgregarCatalogo(builder.Configuration);
+builder.Services.AddScoped<RepMatch.Web.Servicios.SesionActual>();
 
 var app = builder.Build();
 
@@ -31,6 +32,7 @@ if (!app.Environment.IsDevelopment())
 
 app.UseStaticFiles();
 app.UseAntiforgery();
+app.MapStaticAssets();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();

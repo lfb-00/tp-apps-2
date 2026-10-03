@@ -1,0 +1,66 @@
+<h2>@Repuesto.Nombre</h2>
+@if (!string.IsNullOrWhiteSpace(Repuesto.Descripcion))
+{
+    <p class="pieza-desc">@Repuesto.Descripcion</p>
+}
+
+<span class="sistema">@Sistema(Repuesto.Sistema)</span>
+
+@if (Aplicaciones.Count > 0)
+{
+    <ul class="aplicaciones">
+        @foreach (var aplicacion in Aplicaciones.Take(3))
+        {
+            <li>@Texto(aplicacion)</li>
+        }
+    </ul>
+    @if (Aplicaciones.Count > 3)
+    {
+        <p class="mas">+@(Aplicaciones.Count - 3) más</p>
+    }
+}
+
+@if (Repuesto.CodigosEquivalentes.Count > 0)
+{
+    <p class="equivalencias">
+        <span>Equivalencias</span>
+        @string.Join(" · ", Repuesto.CodigosEquivalentes)
+    </p>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public RepuestoDto Repuesto { get; set; } = null!;
+
+    [Parameter]
+    public VehiculoDto? Vehiculo { get; set; }
+
+    private IReadOnlyList<AplicacionDto> Aplicaciones =>
+        Vehiculo is null
+            ? Repuesto.Aplicaciones
+            : [.. Repuesto.Aplicaciones.OrderByDescending(Coincide)];
+
+    private bool Coincide(AplicacionDto aplicacion) =>
+        Vehiculo is not null
+        && aplicacion.Marca.Equals(Vehiculo.Marca, StringComparison.OrdinalIgnoreCase)
+        && aplicacion.Modelo.Equals(Vehiculo.Modelo, StringComparison.OrdinalIgnoreCase);
+
+    private static string Texto(AplicacionDto aplicacion)
+    {
+        var anios = $"{aplicacion.Marca} {aplicacion.Modelo} {aplicacion.AnioDesde}–{aplicacion.AnioHasta}";
+        return aplicacion.Motor is null ? anios : $"{anios} · {aplicacion.Motor}";
+    }
+
+    private static string Sistema(string sistema) => sistema switch
+    {
+        "Suspension" => "Suspensión",
+        "Transmision" => "Transmisión",
+        "Electrico" => "Eléctrico",
+        "Refrigeracion" => "Refrigeración",
+        "Direccion" => "Dirección",
+        "Carroceria" => "Carrocería",
+        "Neumaticos" => "Neumáticos",
+        "Desconocido" => "Sin sistema",
+        _ => sistema
+    };
+}

@@ -16,8 +16,8 @@ namespace RepMatch.Web.Servicios;
 /// cambiando una sola clave de configuracion (o la variable de entorno Catalogo__Modo) toda la
 /// aplicacion pasa de un modo al otro, sin recompilar y sin que ningun consumidor se entere.
 ///
-/// Ademas registra siempre las DOS implementaciones concretas, para que la pagina de evidencias
-/// pueda ejecutarlas una al lado de la otra y medir la diferencia de latencia.
+/// Registra las dos implementaciones concretas y enlaza la interfaz a la que indique la
+/// configuración.
 /// </summary>
 public static class FabricaCatalogo
 {
