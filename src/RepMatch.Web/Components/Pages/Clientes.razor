@@ -95,7 +95,13 @@ else
                 {
                     <div class="vehiculo-card">
                         <div class="vehiculo-info">
-                            <strong>@vehiculo.Alias</strong>
+                            <strong>
+                                @vehiculo.Alias
+                                @if (vehiculo.Id == Sesion.Cliente.VehiculoPredeterminadoId)
+                                {
+                                    <span class="etiqueta etiqueta-predeterminado">Predeterminado</span>
+                                }
+                            </strong>
                             <span>@vehiculo.Datos</span>
                         </div>
                         <div class="vehiculo-acciones">

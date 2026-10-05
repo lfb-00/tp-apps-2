@@ -6,6 +6,11 @@
 
 <PageTitle>RepMatch</PageTitle>
 
+@if (aviso is not null)
+{
+    <div class="alerta alerta-exito" role="status" aria-live="polite">@aviso</div>
+}
+
 @if (Sesion.Cliente is null)
 {
     <section class="entrada">
@@ -149,7 +154,7 @@ else
                 <select id="vehiculo" @bind="vehiculoSeleccionado">
                     @foreach (var vehiculo in vehiculos)
                     {
-                        <option value="@vehiculo.Id">@Etiqueta(vehiculo)</option>
+                        <option value="@vehiculo.Id">@vehiculo.Etiqueta()</option>
                     }
                 </select>
             </div>
@@ -273,6 +278,8 @@ else
 @code {
     private static readonly string[] _chips = ["Ruido al frenar", "Pierde agua", "Tarda en arrancar", "Vibra el volante"];
 
+    private string? aviso;
+    private Guid? clienteMostrado;
     private IReadOnlyList<BusquedaDto> recientes = [];
     private ResultadoBusquedaDto? resultado;
 
@@ -302,19 +309,39 @@ else
     private IReadOnlyList<VehiculoClienteDto> vehiculos =>
         Sesion.Cliente?.Vehiculos ?? [];
 
-    protected override void OnInitialized() => Sesion.Cambio += AlCambiarSesion;
+    protected override void OnInitialized()
+    {
+        aviso = Sesion.TomarAviso();
+        clienteMostrado = Sesion.Cliente?.Id;
+        Sesion.Cambio += AlCambiarSesion;
+    }
 
     protected override async Task OnInitializedAsync()
     {
         if (Sesion.Cliente is null)
             return;
 
-        vehiculoSeleccionado = vehiculos.Count > 0 ? vehiculos[0].Id.ToString() : "";
+        vehiculoSeleccionado = VehiculoInicial();
         recientes = await Fachada.ListarBusquedasDelClienteAsync(Sesion.Cliente.Id);
+    }
+
+    /// <summary>El predeterminado si lo tiene; si no, el primero del garage.</summary>
+    private string VehiculoInicial()
+    {
+        var predeterminado = vehiculos.FirstOrDefault(v => v.Id == Sesion.Cliente?.VehiculoPredeterminadoId);
+        return (predeterminado ?? vehiculos.FirstOrDefault())?.Id.ToString() ?? "";
     }
 
     private void AlCambiarSesion() => _ = InvokeAsync(async () =>
     {
+        // Un refresco del mismo perfil (tema, foto, nombre) no debe borrar la búsqueda en curso.
+        if (Sesion.Cliente?.Id == clienteMostrado)
+        {
+            StateHasChanged();
+            return;
+        }
+
+        clienteMostrado = Sesion.Cliente?.Id;
         resultado = null;
         errores = [];
         errorTexto = null;
@@ -331,7 +358,7 @@ else
         }
         else
         {
-            vehiculoSeleccionado = vehiculos.Count > 0 ? vehiculos[0].Id.ToString() : "";
+            vehiculoSeleccionado = VehiculoInicial();
             recientes = await Fachada.ListarBusquedasDelClienteAsync(Sesion.Cliente.Id);
         }
 
@@ -456,9 +483,4 @@ else
             buscando = false;
         }
     }
-
-    private static string Etiqueta(VehiculoClienteDto vehiculo) =>
-        vehiculo.Alias == vehiculo.Datos.ToString()
-            ? vehiculo.Alias
-            : $"{vehiculo.Alias} — {vehiculo.Datos}";
 }

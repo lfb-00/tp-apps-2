@@ -1,0 +1,713 @@
+@page "/perfil"
+@implements IDisposable
+@using System.Text.RegularExpressions
+@using RepMatch.Aplicacion.Fachada
+@inject FachadaAplicacion Fachada
+@inject SesionActual Sesion
+@inject TemaActual Tema
+@inject NavigationManager Navegacion
+
+<PageTitle>Mi perfil — RepMatch</PageTitle>
+
+@if (Sesion.Cliente is { } cliente)
+{
+    <section class="perfil-encabezado">
+        <Avatar Nombre="@cliente.Nombre" FotoUrl="@cliente.FotoUrl" Tamano="88" />
+        <div>
+            <h1>@cliente.Nombre</h1>
+            <p>Miembro desde @MiembroDesde(cliente.FechaAlta)</p>
+        </div>
+    </section>
+
+    <div class="perfil-secciones">
+        @* ── Datos personales ─────────────────────────── *@
+        <section class="card-auth perfil-card" aria-labelledby="t-datos">
+            <h2 id="t-datos">Datos personales</h2>
+
+            <div class="campos-col">
+                <div class="campo">
+                    <label for="p-nombre">Nombre</label>
+                    <input id="p-nombre" @bind="nombre" @bind:event="oninput" @onblur="ValidarNombre"
+                           class="@(errorNombre is not null ? "input-error" : "")" autocomplete="name" maxlength="120" />
+                    @if (errorNombre is not null)
+                    {
+                        <span class="error-campo" role="alert">@errorNombre</span>
+                    }
+                </div>
+
+                <div class="campo">
+                    <label for="p-email">Email</label>
+                    <input id="p-email" type="email" value="@cliente.Email" disabled readonly aria-describedby="p-email-ayuda" />
+                    <span id="p-email-ayuda" class="ayuda-campo">El email no se puede modificar.</span>
+                </div>
+
+                <div class="campo">
+                    <label for="p-telefono">Teléfono (opcional)</label>
+                    <input id="p-telefono" type="tel" @bind="telefono" @bind:event="oninput" @onblur="ValidarTelefono"
+                           class="@(errorTelefono is not null ? "input-error" : "")"
+                           placeholder="+54 9 11 1234-5678" autocomplete="tel" maxlength="20" />
+                    @if (errorTelefono is not null)
+                    {
+                        <span class="error-campo" role="alert">@errorTelefono</span>
+                    }
+                    <label class="campo-check">
+                        <input type="checkbox" @bind="tieneWhatsApp" disabled="@string.IsNullOrWhiteSpace(telefono)" />
+                        Este número tiene WhatsApp
+                    </label>
+                </div>
+
+                <div class="campo">
+                    <label for="p-provincia">Provincia (opcional)</label>
+                    <select id="p-provincia" @bind="provincia">
+                        <option value="">Sin especificar</option>
+                        @foreach (var opcion in Provincias.Todas)
+                        {
+                            <option value="@opcion">@opcion</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="campo">
+                    <label for="p-localidad">Localidad (opcional)</label>
+                    <input id="p-localidad" @bind="localidad" @bind:event="oninput" maxlength="100"
+                           placeholder="Monserrat" autocomplete="address-level2" />
+                </div>
+            </div>
+
+            <Avisos Errores="erroresDatos" Mensaje="@mensajeDatos" />
+
+            <p class="perfil-acciones">
+                <button class="btn-full" @onclick="GuardarDatosAsync" disabled="@guardandoDatos">
+                    @(guardandoDatos ? "Guardando…" : "Guardar datos")
+                </button>
+            </p>
+        </section>
+
+        @* ── Foto de perfil ───────────────────────────── *@
+        <section class="card-auth perfil-card" aria-labelledby="t-foto">
+            <h2 id="t-foto">Foto de perfil</h2>
+
+            <div class="perfil-foto">
+                <Avatar Nombre="@cliente.Nombre" FotoUrl="@(vistaPrevia ?? cliente.FotoUrl)" Tamano="96" />
+
+                <div class="perfil-foto-acciones">
+                    @if (fotoNueva is not null)
+                    {
+                        <p class="ayuda-campo">Vista previa. Guardala para usarla.</p>
+                        <div class="botonera">
+                            <button @onclick="GuardarFotoAsync" disabled="@procesandoFoto">
+                                @(procesandoFoto ? "Guardando…" : "Guardar foto")
+                            </button>
+                            <button class="secundario" @onclick="DescartarFoto" disabled="@procesandoFoto">Descartar</button>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="botonera">
+                            <label class="boton-archivo @(procesandoFoto ? "deshabilitado" : "")">
+                                @(procesandoFoto ? "Procesando…" : cliente.FotoUrl is null ? "Subir foto" : "Reemplazar foto")
+                                <InputFile @key="claveInputFoto" OnChange="AlElegirFotoAsync" class="visualmente-oculto"
+                                           accept="image/jpeg,image/png,image/webp" disabled="@procesandoFoto" />
+                            </label>
+                            @if (cliente.FotoUrl is not null)
+                            {
+                                <button class="secundario" @onclick="QuitarFotoAsync" disabled="@procesandoFoto">Quitar foto</button>
+                            }
+                        </div>
+                    }
+                    <p class="ayuda-campo">JPG, PNG o WEBP. Tamaño máximo: 5 MB.</p>
+                </div>
+            </div>
+
+            <Avisos Errores="erroresFoto" Mensaje="@mensajeFoto" />
+        </section>
+
+        @* ── Vehículo predeterminado ──────────────────── *@
+        <section class="card-auth perfil-card" aria-labelledby="t-vehiculo">
+            <h2 id="t-vehiculo">Vehículo predeterminado</h2>
+
+            @if (cliente.Vehiculos.Count == 0)
+            {
+                <p class="vacio">Todavía no tenés vehículos. <a class="link-marca" href="/clientes">Agregá un vehículo en Mi garage</a>.</p>
+            }
+            else
+            {
+                <div class="campo">
+                    <label for="p-vehiculo">El que aparece elegido al buscar</label>
+                    <select id="p-vehiculo" @bind="predeterminado">
+                        <option value="">Ninguno</option>
+                        @foreach (var vehiculo in cliente.Vehiculos)
+                        {
+                            <option value="@vehiculo.Id">@vehiculo.Etiqueta()</option>
+                        }
+                    </select>
+                </div>
+
+                <Avisos Errores="erroresVehiculo" Mensaje="@mensajeVehiculo" />
+
+                <p class="perfil-acciones">
+                    <button class="btn-full" @onclick="GuardarPredeterminadoAsync" disabled="@guardandoVehiculo">
+                        @(guardandoVehiculo ? "Guardando…" : "Guardar vehículo predeterminado")
+                    </button>
+                </p>
+            }
+        </section>
+
+        @* ── Apariencia ───────────────────────────────── *@
+        <section class="card-auth perfil-card" aria-labelledby="t-tema">
+            <h2 id="t-tema">Apariencia</h2>
+
+            <fieldset class="opciones-tema">
+                <legend>Tema</legend>
+                <label class="campo-check">
+                    <input type="radio" name="tema" checked="@(!Tema.EsOscuro)" @onchange="@(() => CambiarTemaAsync(TemaActual.Claro))" />
+                    Claro
+                </label>
+                <label class="campo-check">
+                    <input type="radio" name="tema" checked="@Tema.EsOscuro" @onchange="@(() => CambiarTemaAsync(TemaActual.Oscuro))" />
+                    Oscuro
+                </label>
+            </fieldset>
+
+            <Avisos Mensaje="@mensajeTema" />
+        </section>
+
+        @* ── Cambiar contraseña ───────────────────────── *@
+        <section class="card-auth perfil-card" aria-labelledby="t-contrasena">
+            <h2 id="t-contrasena">Cambiar contraseña</h2>
+
+            <div class="campos-col">
+                <div class="campo">
+                    <label for="p-actual">Contraseña actual</label>
+                    <input id="p-actual" type="@(mostrarContrasenas ? "text" : "password")"
+                           @bind="contrasenaActual" @bind:event="oninput" @onblur="ValidarActual"
+                           class="@(errorActual is not null ? "input-error" : "")" autocomplete="current-password" />
+                    @if (errorActual is not null)
+                    {
+                        <span class="error-campo" role="alert">@errorActual</span>
+                    }
+                </div>
+
+                <div class="campo">
+                    <label for="p-nueva">Contraseña nueva</label>
+                    <div class="campo-password">
+                        <input id="p-nueva" type="@(mostrarContrasenas ? "text" : "password")"
+                               @bind="contrasenaNueva" @bind:event="oninput" @onblur="ValidarNueva"
+                               class="@(errorNueva is not null ? "input-error" : "")" autocomplete="new-password" />
+                        <button type="button" class="btn-ojo"
+                                @onclick="() => mostrarContrasenas = !mostrarContrasenas"
+                                aria-label="@(mostrarContrasenas ? "Ocultar contraseñas" : "Mostrar contraseñas")">
+                            @if (mostrarContrasenas)
+                            {
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                                    <path d="M17.94 17.94A10 10 0 0 1 12 20C5 20 1 12 1 12a18 18 0 0 1 5.06-5.94M9.9 4.24A9 9 0 0 1 12 4c7 0 11 8 11 8a18 18 0 0 1-2.16 3.19M1 1l22 22"/>
+                                </svg>
+                            }
+                            else
+                            {
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                                    <path d="M1 12S5 4 12 4s11 8 11 8-4 8-11 8S1 12 1 12z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                            }
+                        </button>
+                    </div>
+                    @if (errorNueva is not null)
+                    {
+                        <span class="error-campo" role="alert">@errorNueva</span>
+                    }
+                    <div class="requisitos-pass" aria-live="polite">
+                        <span class="req @(contrasenaNueva.Length >= 8 ? "cumplido" : "")">
+                            @(contrasenaNueva.Length >= 8 ? "✓" : "·") Al menos 8 caracteres
+                        </span>
+                    </div>
+                </div>
+
+                <div class="campo">
+                    <label for="p-repetir">Repetir contraseña nueva</label>
+                    <input id="p-repetir" type="@(mostrarContrasenas ? "text" : "password")"
+                           @bind="contrasenaRepetida" @bind:event="oninput" @onblur="ValidarRepetida"
+                           class="@(errorRepetida is not null ? "input-error" : "")" autocomplete="new-password" />
+                    @if (errorRepetida is not null)
+                    {
+                        <span class="error-campo" role="alert">@errorRepetida</span>
+                    }
+                </div>
+            </div>
+
+            <Avisos Errores="erroresContrasena" Mensaje="@mensajeContrasena" />
+
+            <p class="perfil-acciones">
+                <button class="btn-full" @onclick="CambiarContrasenaAsync" disabled="@guardandoContrasena">
+                    @(guardandoContrasena ? "Guardando…" : "Cambiar contraseña")
+                </button>
+            </p>
+        </section>
+
+        @* ── Zona de peligro ──────────────────────────── *@
+        <section class="card-auth perfil-card zona-peligro" aria-labelledby="t-peligro">
+            <h2 id="t-peligro">Zona de peligro</h2>
+            <p>Eliminar tu cuenta borra tus datos, tu foto, tu garage y tus búsquedas guardadas.</p>
+            <p class="perfil-acciones">
+                <button class="btn-peligro" @ref="botonEliminar" @onclick="AbrirModal">Eliminar cuenta</button>
+            </p>
+        </section>
+    </div>
+
+    @if (modalAbierto)
+    {
+        <div class="modal-fondo" @onclick="CerrarModal">
+            <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-titulo" aria-describedby="modal-texto"
+                 tabindex="-1" @onclick:stopPropagation="true" @onkeydown="AlTeclearEnModalAsync">
+                <h2 id="modal-titulo">¿Eliminar tu cuenta?</h2>
+                <p id="modal-texto">
+                    Esta acción no se puede deshacer. Se van a borrar tus datos, tu foto, los vehículos de tu garage y tus búsquedas guardadas.
+                </p>
+
+                <div class="campo">
+                    <label for="modal-contrasena">Tu contraseña</label>
+                    <input id="modal-contrasena" type="password" @ref="inputEliminar"
+                           @bind="contrasenaEliminar" @bind:event="oninput"
+                           class="@(errorEliminar is not null ? "input-error" : "")" autocomplete="current-password" />
+                    @if (errorEliminar is not null)
+                    {
+                        <span class="error-campo" role="alert">@errorEliminar</span>
+                    }
+                </div>
+
+                <div class="modal-acciones">
+                    <button type="button" class="secundario" @onclick="CerrarModal" disabled="@eliminando">Cancelar</button>
+                    <button type="button" class="btn-peligro" @onclick="EliminarCuentaAsync"
+                            disabled="@(string.IsNullOrEmpty(contrasenaEliminar) || eliminando)">
+                        @(eliminando ? "Eliminando…" : "Eliminar definitivamente")
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private const long MaximoFotoBytes = 5 * 1024 * 1024;
+    private static readonly string[] TiposFoto = ["image/jpeg", "image/png", "image/webp"];
+    private static readonly string[] Meses =
+        ["enero", "febrero", "marzo", "abril", "mayo", "junio",
+         "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+
+    // Datos personales
+    private string nombre = "";
+    private string telefono = "";
+    private bool tieneWhatsApp;
+    private string provincia = "";
+    private string localidad = "";
+    private string? errorNombre;
+    private string? errorTelefono;
+    private bool guardandoDatos;
+    private List<string> erroresDatos = [];
+    private string? mensajeDatos;
+
+    // Foto
+    private byte[]? fotoNueva;
+    private string? vistaPrevia;
+    private bool procesandoFoto;
+    private int claveInputFoto;
+    private List<string> erroresFoto = [];
+    private string? mensajeFoto;
+
+    // Vehículo predeterminado
+    private string predeterminado = "";
+    private bool guardandoVehiculo;
+    private List<string> erroresVehiculo = [];
+    private string? mensajeVehiculo;
+
+    // Tema
+    private string? mensajeTema;
+
+    // Contraseña
+    private string contrasenaActual = "";
+    private string contrasenaNueva = "";
+    private string contrasenaRepetida = "";
+    private bool mostrarContrasenas;
+    private string? errorActual;
+    private string? errorNueva;
+    private string? errorRepetida;
+    private bool guardandoContrasena;
+    private List<string> erroresContrasena = [];
+    private string? mensajeContrasena;
+
+    // Eliminar cuenta
+    private bool modalAbierto;
+    private bool enfocarModal;
+    private bool enfocarBotonEliminar;
+    private string contrasenaEliminar = "";
+    private string? errorEliminar;
+    private bool eliminando;
+    private bool cuentaEliminada;
+    private ElementReference inputEliminar;
+    private ElementReference botonEliminar;
+
+    protected override void OnInitialized()
+    {
+        if (Sesion.Cliente is null)
+        {
+            Navegacion.NavigateTo("/login");
+            return;
+        }
+
+        CargarFormulario(Sesion.Cliente);
+        Sesion.Cambio += AlCambiarSesion;
+        Tema.Cambio += AlCambiarTema;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (enfocarModal)
+        {
+            enfocarModal = false;
+            await inputEliminar.FocusAsync();
+        }
+        else if (enfocarBotonEliminar)
+        {
+            enfocarBotonEliminar = false;
+            await botonEliminar.FocusAsync();
+        }
+    }
+
+    private void CargarFormulario(ClienteDto cliente)
+    {
+        nombre = cliente.Nombre;
+        telefono = cliente.Telefono ?? "";
+        tieneWhatsApp = cliente.TieneWhatsApp;
+        provincia = cliente.Provincia ?? "";
+        localidad = cliente.Localidad ?? "";
+        predeterminado = cliente.VehiculoPredeterminadoId?.ToString() ?? "";
+    }
+
+    // Un refresco no pisa lo que la persona está escribiendo: solo vuelve a pintar.
+    private void AlCambiarSesion()
+    {
+        if (Sesion.Cliente is null && !cuentaEliminada)
+            Navegacion.NavigateTo("/login");
+        else
+            _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void AlCambiarTema() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Sesion.Cambio -= AlCambiarSesion;
+        Tema.Cambio -= AlCambiarTema;
+    }
+
+    private static string MiembroDesde(DateTimeOffset fecha)
+    {
+        var local = fecha.ToLocalTime();
+        return $"{local.Day} de {Meses[local.Month - 1]} de {local.Year}";
+    }
+
+    // ── Datos personales ──────────────────────────────
+
+    private void ValidarNombre() =>
+        errorNombre = string.IsNullOrWhiteSpace(nombre) ? "El nombre es obligatorio." :
+                      nombre.Trim().Length < 2 ? "Ingresá al menos 2 caracteres." : null;
+
+    private void ValidarTelefono() =>
+        errorTelefono = string.IsNullOrWhiteSpace(telefono) || TelefonoValido(telefono.Trim()) ? null :
+            "Usá dígitos, espacios, guiones, paréntesis y un + inicial (entre 8 y 20 caracteres).";
+
+    private static bool TelefonoValido(string valor) =>
+        Regex.IsMatch(valor, @"^(?=.{8,20}$)\+?[0-9 ()-]+$");
+
+    private async Task GuardarDatosAsync()
+    {
+        ValidarNombre();
+        ValidarTelefono();
+        mensajeDatos = null;
+        erroresDatos = [];
+        if (Sesion.Cliente is null || errorNombre is not null || errorTelefono is not null)
+            return;
+
+        guardandoDatos = true;
+        try
+        {
+            var conTelefono = !string.IsNullOrWhiteSpace(telefono);
+            var resultado = await Fachada.ActualizarPerfilAsync(Sesion.Cliente.Id, new ActualizarPerfilDto
+            {
+                Nombre = nombre.Trim(),
+                Telefono = conTelefono ? telefono.Trim() : null,
+                TieneWhatsApp = conTelefono && tieneWhatsApp,
+                Provincia = string.IsNullOrEmpty(provincia) ? null : provincia,
+                Localidad = string.IsNullOrWhiteSpace(localidad) ? null : localidad.Trim()
+            });
+
+            if (resultado.EsFallido)
+            {
+                erroresDatos = [.. resultado.Errores];
+                return;
+            }
+
+            await Sesion.RefrescarAsync();
+            CargarFormulario(resultado.Valor);
+            mensajeDatos = "Tus datos quedaron guardados.";
+        }
+        finally
+        {
+            guardandoDatos = false;
+        }
+    }
+
+    // ── Foto ──────────────────────────────────────────
+
+    private async Task AlElegirFotoAsync(InputFileChangeEventArgs e)
+    {
+        // No se toca claveInputFoto acá: recrear el InputFile mientras se lee deja al archivo sin
+        // el <input> del que sale.
+        erroresFoto = [];
+        mensajeFoto = null;
+        fotoNueva = null;
+        vistaPrevia = null;
+
+        var archivo = e.File;
+        if (archivo.Size > MaximoFotoBytes)
+        {
+            erroresFoto = ["La imagen supera el máximo de 5 MB."];
+            return;
+        }
+        if (!TiposFoto.Contains(archivo.ContentType))
+        {
+            erroresFoto = ["Formato no permitido. Usá JPG, PNG o WEBP."];
+            return;
+        }
+
+        procesandoFoto = true;
+        try
+        {
+            // El navegador la achica a 256x256 antes de mandarla: el original nunca viaja.
+            var reducida = await archivo.RequestImageFileAsync("image/jpeg", 256, 256);
+            await using var origen = reducida.OpenReadStream(maxAllowedSize: MaximoFotoBytes);
+            using var memoria = new MemoryStream();
+            await origen.CopyToAsync(memoria);
+
+            fotoNueva = memoria.ToArray();
+            vistaPrevia = $"data:image/jpeg;base64,{Convert.ToBase64String(fotoNueva)}";
+        }
+        catch (Exception ex) when (ex is IOException or JSException or InvalidOperationException)
+        {
+            erroresFoto = ["No pudimos leer la imagen. Probá con otra."];
+        }
+        finally
+        {
+            procesandoFoto = false;
+        }
+    }
+
+    private void DescartarFoto()
+    {
+        fotoNueva = null;
+        vistaPrevia = null;
+        claveInputFoto++;
+    }
+
+    private async Task GuardarFotoAsync()
+    {
+        if (Sesion.Cliente is null || fotoNueva is null)
+            return;
+
+        procesandoFoto = true;
+        erroresFoto = [];
+        try
+        {
+            var resultado = await Fachada.CambiarFotoPerfilAsync(Sesion.Cliente.Id, new CambiarFotoPerfilDto
+            {
+                Datos = fotoNueva,
+                TipoContenido = "image/jpeg"
+            });
+
+            if (resultado.EsFallido)
+            {
+                erroresFoto = [.. resultado.Errores];
+                return;
+            }
+
+            DescartarFoto();
+            await Sesion.RefrescarAsync();
+            mensajeFoto = "Tu foto quedó guardada.";
+        }
+        finally
+        {
+            procesandoFoto = false;
+        }
+    }
+
+    private async Task QuitarFotoAsync()
+    {
+        if (Sesion.Cliente is null)
+            return;
+
+        procesandoFoto = true;
+        erroresFoto = [];
+        mensajeFoto = null;
+        try
+        {
+            var resultado = await Fachada.QuitarFotoPerfilAsync(Sesion.Cliente.Id);
+            if (resultado.EsFallido)
+            {
+                erroresFoto = [.. resultado.Errores];
+                return;
+            }
+
+            await Sesion.RefrescarAsync();
+            mensajeFoto = "Quitamos tu foto.";
+        }
+        finally
+        {
+            procesandoFoto = false;
+        }
+    }
+
+    // ── Vehículo predeterminado ───────────────────────
+
+    private async Task GuardarPredeterminadoAsync()
+    {
+        if (Sesion.Cliente is null)
+            return;
+
+        guardandoVehiculo = true;
+        erroresVehiculo = [];
+        mensajeVehiculo = null;
+        try
+        {
+            Guid? vehiculoId = Guid.TryParse(predeterminado, out var id) ? id : null;
+            var resultado = await Fachada.EstablecerVehiculoPredeterminadoAsync(Sesion.Cliente.Id, vehiculoId);
+            if (resultado.EsFallido)
+            {
+                erroresVehiculo = [.. resultado.Errores];
+                return;
+            }
+
+            await Sesion.RefrescarAsync();
+            mensajeVehiculo = vehiculoId is null
+                ? "Listo, no tenés vehículo predeterminado."
+                : "Listo, ese vehículo aparece elegido al buscar.";
+        }
+        finally
+        {
+            guardandoVehiculo = false;
+        }
+    }
+
+    // ── Tema ──────────────────────────────────────────
+
+    private async Task CambiarTemaAsync(string tema)
+    {
+        await Tema.CambiarAsync(tema);
+        mensajeTema = tema == TemaActual.Oscuro ? "Tema oscuro guardado." : "Tema claro guardado.";
+    }
+
+    // ── Contraseña ────────────────────────────────────
+
+    private void ValidarActual() =>
+        errorActual = string.IsNullOrWhiteSpace(contrasenaActual) ? "La contraseña es obligatoria." : null;
+
+    private void ValidarNueva() =>
+        errorNueva = string.IsNullOrWhiteSpace(contrasenaNueva) ? "La contraseña es obligatoria." :
+                     contrasenaNueva.Length < 8 ? "Mínimo 8 caracteres." : null;
+
+    private void ValidarRepetida() =>
+        errorRepetida = string.IsNullOrWhiteSpace(contrasenaRepetida) ? "Repetí la contraseña nueva." :
+                        contrasenaRepetida != contrasenaNueva ? "Las contraseñas no coinciden." : null;
+
+    private async Task CambiarContrasenaAsync()
+    {
+        ValidarActual();
+        ValidarNueva();
+        ValidarRepetida();
+        mensajeContrasena = null;
+        erroresContrasena = [];
+        if (Sesion.Cliente is null || errorActual is not null || errorNueva is not null || errorRepetida is not null)
+            return;
+
+        guardandoContrasena = true;
+        try
+        {
+            var resultado = await Fachada.CambiarContrasenaAsync(Sesion.Cliente.Id, new CambiarContrasenaDto
+            {
+                ContrasenaActual = contrasenaActual,
+                ContrasenaNueva = contrasenaNueva,
+                RepetirContrasena = contrasenaRepetida
+            });
+
+            if (resultado.EsFallido)
+            {
+                erroresContrasena = [.. resultado.Errores];
+                return;
+            }
+
+            contrasenaActual = "";
+            contrasenaNueva = "";
+            contrasenaRepetida = "";
+            mensajeContrasena = "Tu contraseña quedó cambiada.";
+        }
+        finally
+        {
+            guardandoContrasena = false;
+        }
+    }
+
+    // ── Eliminar cuenta ───────────────────────────────
+
+    private void AbrirModal()
+    {
+        contrasenaEliminar = "";
+        errorEliminar = null;
+        modalAbierto = true;
+        enfocarModal = true;
+    }
+
+    private void CerrarModal()
+    {
+        if (eliminando)
+            return;
+
+        modalAbierto = false;
+        enfocarBotonEliminar = true;
+    }
+
+    private async Task AlTeclearEnModalAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+            CerrarModal();
+        else if (e.Key == "Enter" && !string.IsNullOrEmpty(contrasenaEliminar) && !eliminando)
+            await EliminarCuentaAsync();
+    }
+
+    private async Task EliminarCuentaAsync()
+    {
+        if (Sesion.Cliente is null || string.IsNullOrEmpty(contrasenaEliminar))
+            return;
+
+        eliminando = true;
+        errorEliminar = null;
+        try
+        {
+            var resultado = await Fachada.EliminarCuentaAsync(Sesion.Cliente.Id,
+                new EliminarCuentaDto { Contrasena = contrasenaEliminar });
+
+            if (resultado.EsFallido)
+            {
+                errorEliminar = resultado.Error;
+                return;
+            }
+
+            cuentaEliminada = true;
+            Sesion.AvisoPendiente = "Tu cuenta fue eliminada.";
+            await Sesion.SalirAsync();
+            Navegacion.NavigateTo("/");
+        }
+        finally
+        {
+            eliminando = false;
+        }
+    }
+}
