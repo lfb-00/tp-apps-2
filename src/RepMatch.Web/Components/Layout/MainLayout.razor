@@ -6,9 +6,9 @@
 <div class="app">
     <header class="barra">
         <a class="marca" href="/">
-            <span class="logo">RM</span>
-            <span>
-                <strong>RepMatch</strong>
+            <img src="logo-icon.svg" class="marca-icon" alt="" aria-hidden="true" />
+            <span class="marca-texto">
+                <strong><span class="marca-rep">Rep</span><span class="marca-match">Match</span></strong>
                 <small>Comparador de repuestos</small>
             </span>
         </a>
@@ -25,17 +25,49 @@
         @if (Sesion.Cliente is not null)
         {
             <div class="quien">
-                <span>@Sesion.Cliente.Nombre</span>
-                <button class="secundario" @onclick="SalirAsync">Salir</button>
+                <button class="user-trigger @(dropdownAbierto ? "abierto" : "")" @onclick="ToggleDropdown">
+                    @Sesion.Cliente.Nombre
+                    <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path d="M5 8l5 5 5-5H5z"/>
+                    </svg>
+                </button>
+                @if (dropdownAbierto)
+                {
+                    <div class="user-dropdown">
+                        <a href="/clientes" @onclick="CerrarDropdown">Mi garage</a>
+                        <hr />
+                        <button class="salir" @onclick="SalirAsync">Cerrar sesión</button>
+                    </div>
+                }
             </div>
         }
-        else
+        else if (!EsLoginPage)
         {
             <div class="quien">
-                <a class="boton secundario" href="/login">Ingresar</a>
+                <a class="btn-ingresar" href="/login">Ingresar</a>
             </div>
         }
+
+        <button class="hamburguesa" aria-label="Abrir menú" @onclick="ToggleNavMobile">
+            <span></span><span></span><span></span>
+        </button>
     </header>
+
+    <nav class="nav-mobile @(navMobileAbierta ? "abierto" : "")" aria-hidden="@(!navMobileAbierta)">
+        <NavLink href="/" Match="NavLinkMatch.All">Buscar</NavLink>
+        <NavLink href="/catalogo">Catálogo</NavLink>
+        @if (Sesion.Cliente is not null)
+        {
+            <NavLink href="/clientes">Mi garage</NavLink>
+            <hr class="divider" />
+            <button class="salir" @onclick="SalirAsync">Cerrar sesión</button>
+        }
+        else if (!EsLoginPage)
+        {
+            <hr class="divider" />
+            <a href="/login">Ingresar</a>
+        }
+    </nav>
 
     <main>
         @if (!sesionLista)
@@ -48,9 +80,7 @@
         }
     </main>
 
-    <footer>
-        RepMatch
-    </footer>
+    <footer>RepMatch</footer>
 </div>
 
 <div id="blazor-error-ui" data-nosnippet>
@@ -61,8 +91,16 @@
 
 @code {
     private bool sesionLista;
+    private bool dropdownAbierto;
+    private bool navMobileAbierta;
 
-    protected override void OnInitialized() => Sesion.Cambio += AlCambiarSesion;
+    private bool EsLoginPage => Navegacion.Uri.Contains("/login", StringComparison.OrdinalIgnoreCase);
+
+    protected override void OnInitialized()
+    {
+        Sesion.Cambio += AlCambiarSesion;
+        Navegacion.LocationChanged += AlCambiarRuta;
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -76,11 +114,28 @@
 
     private void AlCambiarSesion() => _ = InvokeAsync(StateHasChanged);
 
+    private void AlCambiarRuta(object? sender, LocationChangedEventArgs e)
+    {
+        navMobileAbierta = false;
+        dropdownAbierto = false;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void ToggleDropdown() => dropdownAbierto = !dropdownAbierto;
+    private void CerrarDropdown() => dropdownAbierto = false;
+    private void ToggleNavMobile() => navMobileAbierta = !navMobileAbierta;
+
     private async Task SalirAsync()
     {
+        dropdownAbierto = false;
+        navMobileAbierta = false;
         await Sesion.SalirAsync();
         Navegacion.NavigateTo("/");
     }
 
-    public void Dispose() => Sesion.Cambio -= AlCambiarSesion;
+    public void Dispose()
+    {
+        Sesion.Cambio -= AlCambiarSesion;
+        Navegacion.LocationChanged -= AlCambiarRuta;
+    }
 }

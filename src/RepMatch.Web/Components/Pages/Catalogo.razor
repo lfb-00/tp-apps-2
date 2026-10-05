@@ -1,30 +1,61 @@
 @page "/catalogo"
+@implements IDisposable
 @using RepMatch.Aplicacion.Fachada
 @using RepMatch.Common.Resultados
 @inject FachadaAplicacion Fachada
+@inject SesionActual Sesion
 
-<PageTitle>Catálogo - RepMatch</PageTitle>
+<PageTitle>Catálogo — RepMatch</PageTitle>
 
-<h1>Catálogo de repuestos</h1>
-<p class="subtitulo">Piezas compatibles con el vehículo que indiques.</p>
+<section class="entrada">
+    <h1>Catálogo de repuestos</h1>
+    <p>Buscá piezas por vehículo o explorá el catálogo completo.</p>
+</section>
+
+@if (Sesion.Cliente?.Vehiculos.Count > 0)
+{
+    <div style="margin-bottom:1rem">
+        <p style="font-size:0.82rem; font-weight:600; color:var(--color-text-muted); margin:0 0 0.4rem">Tu garage</p>
+        <div class="chips">
+            @foreach (var vehiculo in Sesion.Cliente.Vehiculos)
+            {
+                <button type="button" class="chip @(vehiculoSeleccionadoId == vehiculo.Id ? "seleccionado" : "")"
+                        @onclick="() => SeleccionarVehiculo(vehiculo)">
+                    @vehiculo.Alias
+                </button>
+            }
+        </div>
+    </div>
+}
 
 <div class="tarjeta">
     <div class="campos">
         <div>
             <label for="marca">Marca</label>
-            <input id="marca" @bind="marca" />
+            <input id="marca" @bind="marca" @bind:event="oninput" placeholder="Volkswagen" />
         </div>
         <div>
             <label for="modelo">Modelo</label>
-            <input id="modelo" @bind="modelo" />
+            <input id="modelo" @bind="modelo" @bind:event="oninput" placeholder="Gol" />
         </div>
         <div>
             <label for="anio">Año</label>
-            <input id="anio" type="number" @bind="anio" />
+            <select id="anio" @bind="anio"
+                    class="@(anio == 0 && errorAnio is not null ? "input-error" : anio == 0 ? "placeholder-activo" : "")">
+                <option value="0" disabled>Elegí el año</option>
+                @for (int y = DateTime.Now.Year + 1; y >= 1980; y--)
+                {
+                    <option value="@y">@y</option>
+                }
+            </select>
+            @if (anio == 0 && errorAnio is not null)
+            {
+                <span class="error-campo" role="alert">@errorAnio</span>
+            }
         </div>
         <div>
             <label for="motor">Motor (opcional)</label>
-            <input id="motor" @bind="motor" />
+            <input id="motor" @bind="motor" @bind:event="oninput" placeholder="1.6" />
         </div>
         <div>
             <label for="sistema">Sistema</label>
@@ -41,9 +72,9 @@
         </div>
     </div>
 
-    <p style="margin-top:1rem">
+    <p style="margin-top:1rem; display:flex; gap:0.5rem; flex-wrap:wrap">
         <button @onclick="BuscarAsync" disabled="@buscando">
-            @(buscando ? "Buscando..." : "Buscar compatibles")
+            @(buscando ? "Buscando…" : "Buscar compatibles")
         </button>
         <button class="secundario" @onclick="ListarTodoAsync" disabled="@buscando">
             Ver catálogo completo
@@ -53,7 +84,7 @@
 
 @if (error is not null)
 {
-    <div class="aviso error">@error</div>
+    <div class="alerta alerta-error" role="alert">@error</div>
 }
 
 @if (repuestos is not null)
@@ -62,13 +93,20 @@
     {
         <div class="tarjeta">
             <p class="vacio">
-                No hay repuestos para ese vehículo. Probá con Volkswagen Gol 2015,
-                Peugeot 208 2019 o Toyota Corolla 2018.
+                @if (vehiculoConsultado is not null)
+                {
+                    <span>No encontramos piezas para @vehiculoConsultado. Probá con otro vehículo o revisá los datos ingresados.</span>
+                }
+                else
+                {
+                    <span>El catálogo está vacío.</span>
+                }
             </p>
         </div>
     }
     else
     {
+        <p class="conteo">@repuestos.Count @(repuestos.Count == 1 ? "pieza" : "piezas") en el catálogo</p>
         <div class="piezas">
             @foreach (var repuesto in repuestos)
             {
@@ -81,21 +119,56 @@
 }
 
 @code {
-    private string marca = "Volkswagen";
-    private string modelo = "Gol";
-    private int anio = 2015;
-    private string motor = "1.6";
+    private string marca = "";
+    private string modelo = "";
+    private int anio = 0;
+    private string? errorAnio;
+    private string motor = "";
     private string sistema = "";
 
     private bool buscando;
     private string? error;
     private IReadOnlyList<RepuestoDto>? repuestos;
     private VehiculoDto? vehiculoConsultado;
+    private Guid? vehiculoSeleccionadoId;
 
     private VehiculoDto? VehiculoActual => vehiculoConsultado;
 
+    protected override void OnInitialized() => Sesion.Cambio += AlCambiarSesion;
+
+    private void AlCambiarSesion() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Sesion.Cambio -= AlCambiarSesion;
+
+    private void SeleccionarVehiculo(VehiculoClienteDto vehiculo)
+    {
+        if (vehiculoSeleccionadoId == vehiculo.Id)
+        {
+            vehiculoSeleccionadoId = null;
+            marca = "";
+            modelo = "";
+            anio = DateTime.Now.Year;
+            motor = "";
+        }
+        else
+        {
+            vehiculoSeleccionadoId = vehiculo.Id;
+            marca = vehiculo.Datos.Marca;
+            modelo = vehiculo.Datos.Modelo;
+            anio = vehiculo.Datos.Anio;
+            motor = vehiculo.Datos.Motor ?? "";
+        }
+    }
+
     private async Task BuscarAsync()
     {
+        errorAnio = null;
+        if (anio == 0)
+        {
+            errorAnio = "Elegí el año del vehículo.";
+            return;
+        }
+
         var vehiculo = new VehiculoDto
         {
             Marca = marca,
@@ -112,6 +185,7 @@
     private Task ListarTodoAsync()
     {
         vehiculoConsultado = null;
+        vehiculoSeleccionadoId = null;
         return EjecutarAsync(Fachada.ListarRepuestosAsync);
     }
 

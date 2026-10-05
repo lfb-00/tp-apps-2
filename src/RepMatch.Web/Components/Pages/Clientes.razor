@@ -4,21 +4,21 @@
 @inject FachadaAplicacion Fachada
 @inject SesionActual Sesion
 
-<PageTitle>Mi garage - RepMatch</PageTitle>
+<PageTitle>Mi garage — RepMatch</PageTitle>
 
 @if (Sesion.Cliente is null)
 {
     <section class="entrada">
         <h1>Tu garage</h1>
-        <p>Entrá con tu email para ver y cargar tus autos.</p>
+        <p>Ingresá para ver y administrar tus autos.</p>
     </section>
-    <p><a class="boton" href="/">Entrar</a></p>
+    <p><a class="boton" href="/login">Ingresar</a></p>
 }
 else
 {
     <section class="entrada">
         <h1>Tu garage</h1>
-        <p>Los autos con los que buscás piezas. Nadie más los ve en tu cuenta.</p>
+        <p>Los autos con los que buscás piezas. Solo vos los ves.</p>
     </section>
 
     <div class="tarjeta">
@@ -27,35 +27,46 @@ else
         <div class="campos">
             <div>
                 <label for="vmarca">Marca</label>
-                <input id="vmarca" @bind="marca" />
+                <input id="vmarca" @bind="marca" @bind:event="oninput" placeholder="Volkswagen" />
             </div>
             <div>
                 <label for="vmodelo">Modelo</label>
-                <input id="vmodelo" @bind="modelo" />
+                <input id="vmodelo" @bind="modelo" @bind:event="oninput" placeholder="Gol" />
             </div>
             <div>
                 <label for="vanio">Año</label>
-                <input id="vanio" type="number" @bind="anio" />
+                <select id="vanio" @bind="anio"
+                        class="@(anio == 0 && errorAnio is not null ? "input-error" : anio == 0 ? "placeholder-activo" : "")">
+                    <option value="0" disabled>Elegí el año</option>
+                    @for (int y = DateTime.Now.Year + 1; y >= 1980; y--)
+                    {
+                        <option value="@y">@y</option>
+                    }
+                </select>
+                @if (anio == 0 && errorAnio is not null)
+                {
+                    <span class="error-campo" role="alert">@errorAnio</span>
+                }
             </div>
             <div>
-                <label for="vmotor">Motor</label>
-                <input id="vmotor" @bind="motor" />
+                <label for="vmotor">Motor (opcional)</label>
+                <input id="vmotor" @bind="motor" @bind:event="oninput" placeholder="1.6" />
             </div>
             <div>
-                <label for="valias">Nombre</label>
-                <input id="valias" @bind="alias" placeholder="El Gol" />
+                <label for="valias">Apodo (opcional)</label>
+                <input id="valias" @bind="alias" @bind:event="oninput" placeholder="El Gol de la facu" />
             </div>
         </div>
 
         <p style="margin-top:1rem">
             <button @onclick="AgregarAsync" disabled="@guardando">
-                @(guardando ? "Guardando…" : "Agregar")
+                @(guardando ? "Guardando…" : "Agregar vehículo")
             </button>
         </p>
 
         @if (errores.Count > 0)
         {
-            <div class="aviso error">
+            <div class="alerta alerta-error" role="alert" aria-live="polite" style="margin-top:0.75rem">
                 @foreach (var error in errores)
                 {
                     <div>@error</div>
@@ -65,7 +76,9 @@ else
 
         @if (mensaje is not null)
         {
-            <div class="aviso">@mensaje</div>
+            <div class="alerta alerta-exito" role="status" aria-live="polite" style="margin-top:0.75rem">
+                @mensaje
+            </div>
         }
     </div>
 
@@ -73,19 +86,24 @@ else
     <div class="tarjeta">
         @if (Sesion.Cliente.Vehiculos.Count == 0)
         {
-            <p class="vacio">Todavía no cargaste ninguno.</p>
+            <p class="vacio">Todavía no cargaste ningún vehículo. Agregá uno arriba para empezar a buscar piezas.</p>
         }
         else
         {
-            <ul class="recientes">
+            <div style="display:grid; gap:0.55rem">
                 @foreach (var vehiculo in Sesion.Cliente.Vehiculos)
                 {
-                    <li>
-                        <strong>@vehiculo.Alias</strong>
-                        <span>@vehiculo.Datos</span>
-                    </li>
+                    <div class="vehiculo-card">
+                        <div class="vehiculo-info">
+                            <strong>@vehiculo.Alias</strong>
+                            <span>@vehiculo.Datos</span>
+                        </div>
+                        <div class="vehiculo-acciones">
+                            <a class="boton" href="/?v=@vehiculo.Id">Buscar piezas</a>
+                        </div>
+                    </div>
                 }
-            </ul>
+            </div>
         }
     </div>
 }
@@ -93,7 +111,8 @@ else
 @code {
     private string marca = "";
     private string modelo = "";
-    private int anio = DateTime.Now.Year;
+    private int anio = 0;
+    private string? errorAnio;
     private string motor = "";
     private string alias = "";
 
@@ -115,6 +134,14 @@ else
         guardando = true;
         errores = [];
         mensaje = null;
+        errorAnio = null;
+
+        if (anio == 0)
+        {
+            errorAnio = "Elegí el año del vehículo.";
+            guardando = false;
+            return;
+        }
 
         try
         {
@@ -136,11 +163,13 @@ else
             }
 
             await Sesion.EntrarAsync(resultado.Valor);
-            mensaje = $"Listo, {vehiculo} quedó en tu garage.";
+            var nombre = string.IsNullOrWhiteSpace(alias) ? vehiculo.ToString() : alias;
+            mensaje = $"¡Listo! {nombre} quedó en tu garage.";
             marca = "";
             modelo = "";
             motor = "";
             alias = "";
+            anio = 0;
         }
         finally
         {

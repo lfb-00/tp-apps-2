@@ -1,3 +1,4 @@
+
 # Plan
 
 For the next coding agent. Not a course deliverable. English. Update `status.md` when a fact changes. Do not narrate finished work here.
