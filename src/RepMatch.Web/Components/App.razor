@@ -4,6 +4,15 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+        // Antes del primer pintado, para que el tema oscuro no parpadee en blanco.
+        (function () {
+            var tema = null;
+            try { tema = localStorage.getItem("repmatch-tema"); } catch (e) { }
+            var oscuro = tema ? tema === "oscuro" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+            document.documentElement.setAttribute("data-theme", oscuro ? "dark" : "light");
+        })();
+    </script>
     <base href="/" />
     <ResourcePreloader />
     <link rel="stylesheet" href="@Assets["app.css"]" />

@@ -1,6 +1,7 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 @inject SesionActual Sesion
+@inject TemaActual Tema
 @inject NavigationManager Navegacion
 
 <div class="app">
@@ -22,11 +23,16 @@
             }
         </nav>
 
+        <button type="button" class="btn-tema" @onclick="Tema.AlternarAsync" aria-label="@EtiquetaTema" title="@EtiquetaTema">
+            <IconoTema EsOscuro="Tema.EsOscuro" />
+        </button>
+
         @if (Sesion.Cliente is not null)
         {
             <div class="quien">
                 <button class="user-trigger @(dropdownAbierto ? "abierto" : "")" @onclick="ToggleDropdown">
-                    @Sesion.Cliente.Nombre
+                    <Avatar Nombre="@Sesion.Cliente.Nombre" FotoUrl="@Sesion.Cliente.FotoUrl" Tamano="28" />
+                    <span class="user-nombre">@Sesion.Cliente.Nombre</span>
                     <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path d="M5 8l5 5 5-5H5z"/>
                     </svg>
@@ -34,6 +40,7 @@
                 @if (dropdownAbierto)
                 {
                     <div class="user-dropdown">
+                        <a href="/perfil" @onclick="CerrarDropdown">Mi perfil</a>
                         <a href="/clientes" @onclick="CerrarDropdown">Mi garage</a>
                         <hr />
                         <button class="salir" @onclick="SalirAsync">Cerrar sesión</button>
@@ -54,10 +61,18 @@
     </header>
 
     <nav class="nav-mobile @(navMobileAbierta ? "abierto" : "")" aria-hidden="@(!navMobileAbierta)">
+        @if (Sesion.Cliente is not null)
+        {
+            <div class="nav-mobile-usuario">
+                <Avatar Nombre="@Sesion.Cliente.Nombre" FotoUrl="@Sesion.Cliente.FotoUrl" Tamano="36" />
+                <strong>@Sesion.Cliente.Nombre</strong>
+            </div>
+        }
         <NavLink href="/" Match="NavLinkMatch.All">Buscar</NavLink>
         <NavLink href="/catalogo">Catálogo</NavLink>
         @if (Sesion.Cliente is not null)
         {
+            <NavLink href="/perfil">Mi perfil</NavLink>
             <NavLink href="/clientes">Mi garage</NavLink>
             <hr class="divider" />
             <button class="salir" @onclick="SalirAsync">Cerrar sesión</button>
@@ -67,6 +82,11 @@
             <hr class="divider" />
             <a href="/login">Ingresar</a>
         }
+        <hr class="divider" />
+        <button type="button" class="nav-mobile-tema" @onclick="Tema.AlternarAsync">
+            <IconoTema EsOscuro="Tema.EsOscuro" />
+            @(Tema.EsOscuro ? "Tema claro" : "Tema oscuro")
+        </button>
     </nav>
 
     <main>
@@ -94,11 +114,14 @@
     private bool dropdownAbierto;
     private bool navMobileAbierta;
 
+    private string EtiquetaTema => Tema.EsOscuro ? "Cambiar a tema claro" : "Cambiar a tema oscuro";
+
     private bool EsLoginPage => Navegacion.Uri.Contains("/login", StringComparison.OrdinalIgnoreCase);
 
     protected override void OnInitialized()
     {
         Sesion.Cambio += AlCambiarSesion;
+        Tema.Cambio += AlCambiarTema;
         Navegacion.LocationChanged += AlCambiarRuta;
     }
 
@@ -107,12 +130,21 @@
         if (!firstRender || sesionLista)
             return;
 
+        await Tema.InicializarAsync();
         await Sesion.RestaurarAsync();
+        await Tema.SincronizarConSesionAsync();
         sesionLista = true;
         StateHasChanged();
     }
 
-    private void AlCambiarSesion() => _ = InvokeAsync(StateHasChanged);
+    // Al entrar (o al refrescar el perfil) manda el tema guardado de la persona.
+    private void AlCambiarSesion() => _ = InvokeAsync(async () =>
+    {
+        await Tema.SincronizarConSesionAsync();
+        StateHasChanged();
+    });
+
+    private void AlCambiarTema() => _ = InvokeAsync(StateHasChanged);
 
     private void AlCambiarRuta(object? sender, LocationChangedEventArgs e)
     {
@@ -136,6 +168,7 @@
     public void Dispose()
     {
         Sesion.Cambio -= AlCambiarSesion;
+        Tema.Cambio -= AlCambiarTema;
         Navegacion.LocationChanged -= AlCambiarRuta;
     }
 }

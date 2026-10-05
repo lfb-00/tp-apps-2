@@ -16,8 +16,13 @@ namespace RepMatch.Aplicacion.Servicios;
 /// </summary>
 public sealed class ServicioClientes(
     IClienteRepository clientes,
+    IBusquedaRepository busquedas,
     IUnitOfWork unidadDeTrabajo,
     IValidator<CrearClienteDto> validador,
+    IValidator<ActualizarPerfilDto> validadorPerfil,
+    IValidator<CambiarContrasenaDto> validadorContrasena,
+    IValidator<CambiarFotoPerfilDto> validadorFoto,
+    IValidator<EliminarCuentaDto> validadorEliminar,
     ILogger<ServicioClientes> log)
 {
     public async Task<IReadOnlyList<ClienteDto>> ListarAsync(CancellationToken ct = default)
@@ -97,6 +102,143 @@ public sealed class ServicioClientes(
             await unidadDeTrabajo.ConfirmarAsync(ct);
 
             log.LogInformation("Vehiculo {Vehiculo} agregado al cliente {ClienteId}", vehiculo, clienteId);
+            return ResultadoOperacion<ClienteDto>.Exito(cliente.ADto());
+        }
+        catch (ExcepcionDominio ex)
+        {
+            return ResultadoOperacion<ClienteDto>.Falla(ex.Message);
+        }
+    }
+
+    // Nunca se loguean contraseñas, bytes de imagen ni el telefono: solo el id del cliente.
+
+    public async Task<ResultadoOperacion<ClienteDto>> ActualizarPerfilAsync(
+        Guid clienteId, ActualizarPerfilDto dto, CancellationToken ct = default)
+    {
+        var validacion = await validadorPerfil.ValidarAsync(dto, ct);
+        if (validacion.EsFallido)
+            return ResultadoOperacion<ClienteDto>.Falla(validacion.Errores);
+
+        return await ModificarAsync(clienteId, cliente =>
+        {
+            cliente.CambiarNombre(dto.Nombre);
+            cliente.ActualizarContacto(dto.Telefono, dto.TieneWhatsApp, dto.Provincia, dto.Localidad);
+        }, "Perfil actualizado", ct);
+    }
+
+    public async Task<ResultadoOperacion> CambiarContrasenaAsync(
+        Guid clienteId, CambiarContrasenaDto dto, CancellationToken ct = default)
+    {
+        var validacion = await validadorContrasena.ValidarAsync(dto, ct);
+        if (validacion.EsFallido)
+            return validacion;
+
+        var cliente = await clientes.ObtenerPorIdAsync(clienteId, ct);
+        if (cliente is null)
+            return ResultadoOperacion.Falla($"No existe el cliente {clienteId}.");
+
+        if (!ContrasenaCorrecta(cliente, dto.ContrasenaActual))
+        {
+            log.LogWarning("Cambio de contraseña rechazado para {ClienteId}: la actual no coincide", clienteId);
+            return ResultadoOperacion.Falla("La contraseña actual es incorrecta.");
+        }
+
+        cliente.EstablecerContrasena(BCrypt.Net.BCrypt.HashPassword(dto.ContrasenaNueva));
+        await unidadDeTrabajo.ConfirmarAsync(ct);
+
+        log.LogInformation("Contraseña cambiada del cliente {ClienteId}", clienteId);
+        return ResultadoOperacion.Exito();
+    }
+
+    public async Task<ResultadoOperacion<ClienteDto>> CambiarFotoPerfilAsync(
+        Guid clienteId, CambiarFotoPerfilDto dto, CancellationToken ct = default)
+    {
+        var validacion = await validadorFoto.ValidarAsync(dto, ct);
+        if (validacion.EsFallido)
+            return ResultadoOperacion<ClienteDto>.Falla(validacion.Errores);
+
+        return await ModificarAsync(clienteId, cliente => cliente.CambiarFotoPerfil(dto.Datos, dto.TipoContenido),
+            "Foto de perfil cambiada", ct);
+    }
+
+    public Task<ResultadoOperacion<ClienteDto>> QuitarFotoPerfilAsync(
+        Guid clienteId, CancellationToken ct = default) =>
+        ModificarAsync(clienteId, cliente => cliente.QuitarFotoPerfil(),
+            "Foto de perfil quitada", ct);
+
+    public Task<ResultadoOperacion<ClienteDto>> EstablecerVehiculoPredeterminadoAsync(
+        Guid clienteId, Guid? vehiculoId, CancellationToken ct = default) =>
+        ModificarAsync(clienteId, cliente => cliente.EstablecerVehiculoPredeterminado(vehiculoId),
+            "Vehiculo predeterminado cambiado", ct);
+
+    public Task<ResultadoOperacion<ClienteDto>> CambiarTemaAsync(
+        Guid clienteId, string tema, CancellationToken ct = default) =>
+        ModificarAsync(clienteId, cliente => cliente.CambiarTema(tema),
+            "Tema cambiado", ct);
+
+    /// <summary>
+    /// Borra el cliente, su garage (cascada en la base) y sus busquedas (que no tienen FK a
+    /// clientes) en una sola transaccion. Pide la contraseña porque no se puede deshacer.
+    /// </summary>
+    public async Task<ResultadoOperacion> EliminarCuentaAsync(
+        Guid clienteId, EliminarCuentaDto dto, CancellationToken ct = default)
+    {
+        var validacion = await validadorEliminar.ValidarAsync(dto, ct);
+        if (validacion.EsFallido)
+            return validacion;
+
+        var cliente = await clientes.ObtenerPorIdAsync(clienteId, ct);
+        if (cliente is null)
+            return ResultadoOperacion.Falla($"No existe el cliente {clienteId}.");
+
+        if (!ContrasenaCorrecta(cliente, dto.Contrasena))
+        {
+            log.LogWarning("Eliminacion de cuenta rechazada para {ClienteId}: contraseña incorrecta", clienteId);
+            return ResultadoOperacion.Falla("La contraseña es incorrecta.");
+        }
+
+        var cantidadVehiculos = cliente.Vehiculos.Count;
+        var cantidadBusquedas = 0;
+
+        await unidadDeTrabajo.EjecutarEnTransaccionAsync(async token =>
+        {
+            // clientes -> vehiculo predeterminado y vehiculos -> cliente forman un ciclo: EF no
+            // puede ordenar el DELETE de los dos en un solo guardado. Se suelta primero la FK del
+            // predeterminado, dentro de la misma transaccion.
+            if (cliente.VehiculoPredeterminadoId is not null)
+            {
+                cliente.EstablecerVehiculoPredeterminado(null);
+                await unidadDeTrabajo.ConfirmarAsync(token);
+            }
+
+            cantidadBusquedas = await busquedas.EliminarPorClienteAsync(clienteId, token);
+            clientes.Eliminar(cliente);
+            await unidadDeTrabajo.ConfirmarAsync(token);
+        }, ct);
+
+        log.LogInformation("Cuenta eliminada {ClienteId}: {Vehiculos} vehiculos y {Busquedas} busquedas",
+            clienteId, cantidadVehiculos, cantidadBusquedas);
+        return ResultadoOperacion.Exito();
+    }
+
+    private static bool ContrasenaCorrecta(Cliente cliente, string contrasena) =>
+        cliente.HashContrasena is not null && BCrypt.Net.BCrypt.Verify(contrasena, cliente.HashContrasena);
+
+    /// <summary>Carga el cliente, aplica el cambio de dominio y confirma. Una invariante violada
+    /// vuelve como falla, no como excepcion.</summary>
+    private async Task<ResultadoOperacion<ClienteDto>> ModificarAsync(
+        Guid clienteId, Action<Cliente> cambio, string cambioRealizado, CancellationToken ct)
+    {
+        var cliente = await clientes.ObtenerPorIdAsync(clienteId, ct);
+        if (cliente is null)
+            return ResultadoOperacion<ClienteDto>.Falla($"No existe el cliente {clienteId}.");
+
+        try
+        {
+            cambio(cliente);
+            await unidadDeTrabajo.ConfirmarAsync(ct);
+
+            log.LogInformation("{Cambio} del cliente {ClienteId}", cambioRealizado, clienteId);
             return ResultadoOperacion<ClienteDto>.Exito(cliente.ADto());
         }
         catch (ExcepcionDominio ex)

@@ -47,6 +47,15 @@ public static class Mapeadores
         Nombre = cliente.Nombre,
         Email = cliente.Email,
         FechaAlta = cliente.FechaAlta,
+        Telefono = cliente.Telefono,
+        TieneWhatsApp = cliente.TieneWhatsApp,
+        Provincia = cliente.Provincia,
+        Localidad = cliente.Localidad,
+        FotoUrl = cliente.FotoPerfil is { Length: > 0 } foto
+            ? $"data:{cliente.FotoTipoContenido};base64,{Convert.ToBase64String(foto)}"
+            : null,
+        VehiculoPredeterminadoId = cliente.VehiculoPredeterminadoId,
+        TemaPreferido = cliente.TemaPreferido,
         Vehiculos = [.. cliente.Vehiculos.Select(v => new VehiculoClienteDto
         {
             Id = v.Id,
