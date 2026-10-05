@@ -35,6 +35,20 @@ esperar() {
 
 consulta="api/repuestos/compatibles?marca=Volkswagen&modelo=Gol&anio=2015&motor=1.6"
 
+# La primera llamada mide el arranque en frio y queda en el log. Las de calentamiento terminan de
+# compilar (JIT y cache de consultas de EF); recien la ultima, la que se guarda, mide el regimen.
+# Con una sola llamada de calentamiento el ruido podia hacer que el remoto saliera mas rapido.
+CALENTAMIENTO=10
+
+medir() {
+  local salida="$1"
+  curl -sf -m 20 "$WEB_URL/evidencia/catalogo" >/dev/null
+  for _ in $(seq $CALENTAMIENTO); do
+    curl -sf -m 20 "$WEB_URL/evidencia/catalogo" >/dev/null
+  done
+  curl -sf -m 20 "$WEB_URL/evidencia/catalogo" | tee "$salida"
+}
+
 echo "==> Compilando"
 dotnet build -v q --nologo >/dev/null
 
@@ -52,9 +66,7 @@ ASPNETCORE_ENVIRONMENT=Development Catalogo__Modo=Local \
   dotnet run --project src/RepMatch.Web --no-build --urls "$WEB_URL" \
   > "$SALIDA/01-web-modo-local.log" 2>&1 &
 esperar "$WEB_URL"
-# Se ejercita dos veces: la primera mide el arranque en frio, la segunda el regimen normal.
-curl -sf -m 20 "$WEB_URL/evidencia/catalogo" >/dev/null
-curl -sf -m 20 "$WEB_URL/evidencia/catalogo" | tee "$SALIDA/06-medicion-local.json"
+medir "$SALIDA/06-medicion-local.json"
 echo
 sleep 1
 taskkill //F //IM RepMatch.Web.exe >/dev/null 2>&1 || pkill -f RepMatch.Web || true
@@ -65,8 +77,7 @@ ASPNETCORE_ENVIRONMENT=Development Catalogo__Modo=Remoto Catalogo__UrlBaseRemota
   dotnet run --project src/RepMatch.Web --no-build --urls "$WEB_URL" \
   > "$SALIDA/02-web-modo-remoto.log" 2>&1 &
 esperar "$WEB_URL"
-curl -sf -m 20 "$WEB_URL/evidencia/catalogo" >/dev/null
-curl -sf -m 20 "$WEB_URL/evidencia/catalogo" | tee "$SALIDA/07-medicion-remota.json"
+medir "$SALIDA/07-medicion-remota.json"
 echo
 sleep 1
 

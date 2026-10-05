@@ -1,4 +1,4 @@
-# Informe de arquitectura de componentes — TP Inicial
+# Informe de arquitectura — TP Inicial y Primera Parte
 
 **RepMatch** — Meta-buscador de repuestos automotrices con diagnóstico asistido por IA
 Desarrollo de Aplicaciones II · UADE · Mg. Christian Parkinson
@@ -25,9 +25,12 @@ eje de la materia— en vez de un ABM con carrito.
 ### Alcance de esta entrega
 
 El TP Inicial cubre la **arquitectura de componentes**: los componentes reutilizables, la aplicación
-multicapa y el ejercicio de acceso local y remoto. El diagnóstico por IA, el servicio SOAP, la
-mensajería y los adaptadores a tiendas externas corresponden a las entregas siguientes, y la
-arquitectura está preparada para recibirlos sin rediseño (sección 7).
+multicapa y el ejercicio de acceso local y remoto. La Primera Parte suma los patrones **Factory,
+Repository, Strategy, Observer y Facade**, la fachada como única puerta de la presentación, los
+eventos de dominio internos (`BusquedaCreada`) y el modelado con diagramas de capas y de secuencia.
+El diagnóstico por IA, el servicio SOAP, la mensajería y los adaptadores a tiendas externas
+corresponden a las entregas siguientes, y la arquitectura está preparada para recibirlos sin
+rediseño (sección 7).
 
 ---
 
@@ -41,7 +44,7 @@ La consigna pide un mínimo de tres componentes reutilizables independientes. Se
 | 2 | `RepMatch.Persistence` | **Acceso a datos** | `DbContext`, mapeos, repositorios y unidad de trabajo sobre EF Core |
 | 3 | `RepMatch.Common` | **Utilidad** | Validación, logging, configuración externalizada, `ResultadoOperacion<T>`, medición de latencia y correlación |
 | 4 | `RepMatch.Contracts` | Contratos | DTOs, `ICatalogoRepuestos` y `OpcionesCatalogo` |
-| 5 | `RepMatch.Aplicacion` | Lógica de negocio | `ServicioClientes`, `ServicioBusquedas`, mapeadores, validadores y `CatalogoLocal` |
+| 5 | `RepMatch.Aplicacion` | Lógica de negocio | `FachadaAplicacion`, `ServicioClientes`, `ServicioBusquedas`, `DespachadorEventos`, `ObservadorCompatibilidad`, mapeadores, validadores y `CatalogoLocal` |
 | 6 | `RepMatch.Clientes.Rest` | Adaptador remoto | `CatalogoRemoto` y propagación de correlación |
 
 Más dos hosts ejecutables: `RepMatch.Web` (presentación) y `RepMatch.Catalogo.Api` (host REST del
@@ -62,6 +65,19 @@ materializan así:
 | Cliente | `Cliente` | Igual: quien busca, con su garage de vehículos. |
 | Producto | `Repuesto` + `Oferta` | `Repuesto` es la pieza como concepto (código canónico, equivalencias, tabla de compatibilidad). `Oferta` es esa pieza publicada por una tienda a un precio. **Separarlos es lo que hace posible comparar la misma pieza entre sitios distintos**, que es el corazón de la aplicación. |
 | Pedido | `Busqueda` | El agregado que atraviesa el sistema: vehículo + texto libre + estado + resultados. Cumple el mismo rol estructural que un pedido, pero lo que se "despacha" es la consulta a las tiendas. |
+| Inventario | _(no aplica)_ | RepMatch no gestiona stock; ver la nota debajo de la tabla. |
+
+**Sobre el Servicio de Inventario.** RepMatch no tiene inventario. El catálogo propio
+(`IRepuestoRepository`) guarda las piezas y sus tablas de compatibilidad —qué repuesto le entra a
+qué vehículo—, pero no cantidades ni precios. En la Segunda Parte, los adaptadores a tiendas
+consultarán precio y disponibilidad en el momento de cada búsqueda, y cada resultado quedará
+guardado como una `Oferta`: una foto del precio, el envío, la tienda y un indicador de
+disponibilidad, con su fecha `CapturadaEn`. Es un registro de la búsqueda, no stock. Hoy `Oferta` y
+`Busqueda.RegistrarOfertas` existen en el dominio, pero nadie las alimenta todavía. Mantener un
+inventario propio implicaría almacenar datos de terceros, sincronizarlos continuamente y asumir la
+responsabilidad de su exactitud, lo que contradice el modelo de negocio de un comparador. Si la
+consigna menciona un "Servicio de Inventario" como ejemplo, en este dominio ese rol lo cumplirá el
+catálogo de repuestos combinado con las consultas a las tiendas.
 
 ---
 
@@ -98,6 +114,35 @@ Reglas que se respetan y que son verificables leyendo los `.csproj`:
   consulta es eficiente sin duplicar la lógica.
 - La inversión de dependencias es real: `IRepuestoRepository` está declarada en `Domain` e
   implementada en `Persistence`, no al revés.
+
+### Fachada como única puerta de la presentación (Primera Parte)
+
+`FachadaAplicacion` es el único objeto que las páginas Razor inyectan de la capa de negocio. Agrupa
+los métodos de `ServicioClientes`, `ServicioBusquedas` e `ICatalogoRepuestos` en una superficie
+única y estable. Las páginas no conocen qué servicio interno maneja cada operación, ni si el
+catálogo está en proceso o detrás de una API: esa decisión queda encapsulada. Además, `BuscarAsync`
+es una operación compuesta que la fachada resuelve en un solo llamado —crear la búsqueda y resolver
+las piezas compatibles—, coordinación que no le corresponde hacer a ninguna página. El observador ya
+consultó el catálogo para decidir los códigos; la fachada lo vuelve a consultar para traer el detalle
+de esas piezas.
+
+### Despacho de eventos de dominio (Primera Parte)
+
+Dentro de la capa de lógica de negocio, la resolución de piezas posterior a crear una búsqueda no
+se hace por llamado directo sino por evento. Cuando `ServicioBusquedas` persiste una nueva
+`Busqueda`, extrae los eventos acumulados por la entidad (`BusquedaCreada`) y los entrega a
+`DespachadorEventos`. `DespachadorEventos` itera todos los `IObservadorEventoDominio` registrados y
+llama a los que aceptan ese tipo de evento. Hoy solo hay uno: `ObservadorCompatibilidad`, que
+consulta el catálogo y asigna los códigos de pieza a la búsqueda en una segunda transacción.
+
+El despacho ocurre **después** de que la búsqueda ya está persistida. Si el catálogo falla o no hay
+repuestos compatibles, el observador marca la búsqueda como `Fallida` con un motivo; solo ante un
+error inesperado la búsqueda queda `Pendiente`, pero ya persistida. Ese error no se atrapa en el
+despachador: se propaga a `ServicioBusquedas.CrearAsync`, que lo devuelve como
+`ResultadoOperacion` fallido si es una `ExcepcionDominio`; cualquier otra excepción sube sin
+atrapar. Y `IDespachadorEventos` es una interfaz: en la Segunda Parte se registrará otra
+implementación de `IDespachadorEventos` que publique el evento a través de `IEventBus` (sobre
+`RabbitMQ.Client`, sección 6.5), sin tocar `ServicioBusquedas`.
 
 ---
 
@@ -162,33 +207,25 @@ bash scripts/evidencias.sh
 ```
 
 Deja en `docs/evidencias/` los logs de los tres procesos, la respuesta REST cruda, el contrato
-OpenAPI y las dos mediciones de `GET /evidencia/catalogo`.
+OpenAPI y las dos mediciones de `GET /evidencia/catalogo`. En cada modo, el script hace una primera
+llamada (arranque en frío), diez de calentamiento y una última, que es la que se guarda.
 
 ### 5.2 Latencia medida
 
 Consulta: repuestos compatibles con un **Volkswagen Gol 2015 1.6**. Los dos caminos devuelven
-**los mismos 7 códigos**, en el mismo orden.
-
-La primera tabla se midió cuando la comparación corría dentro del circuito de Blazor (ámbito
-caliente). La segunda, que es la que `scripts/evidencias.sh` vuelve a generar, sale de
-`GET /evidencia/catalogo`, donde cada petición crea un ámbito nuevo y por lo tanto un `DbContext`
-nuevo:
+**los mismos 7 códigos**, en el mismo orden. Cada petición a `GET /evidencia/catalogo` crea un
+ámbito nuevo y, por lo tanto, un `DbContext` nuevo. Valores de la corrida del 2026-10-05:
 
 | Ejecución | Local | Remoto | Sobrecosto |
 |---|---|---|---|
-| Primera (arranque en frío, circuito Blazor) | 236,7 ms | 456,6 ms | +219,8 ms |
-| **En régimen (circuito Blazor)** | **1,9 ms** | **12,6 ms** | **+10,7 ms** |
+| Primera llamada (arranque en frío) | 163,9 ms | 334,6 ms | +170,7 ms |
+| **En régimen** (`06-medicion-local.json`, `07-medicion-remota.json`) | **1,8 ms** | **11,2 ms** | **+9,4 ms** |
 
-| Ejecución | Local | Remoto | Sobrecosto |
-|---|---|---|---|
-| Primera (`/evidencia/catalogo`) | 253,6 ms | 584,8 ms | +331,2 ms |
-| Segunda (`/evidencia/catalogo`) | 66,5 ms | 81,1 ms | +14,6 ms |
-
-Las dos mediciones son legítimas y la diferencia entre ellas es informativa: en el circuito Blazor el
-acceso directo cuesta **~6,6 veces menos** que el remoto porque el ámbito está caliente y la consulta
-ya está compilada; por HTTP, el costo de levantar un `DbContext` nuevo en cada petición domina y
-achica la brecha relativa. En ambos casos el sobrecosto absoluto del salto remoto ronda los
-**10–15 ms**, y ése es el precio que se paga por poder desplegar el componente por separado.
+La primera llamada incluye la compilación JIT y la caché de consultas de EF Core, y en modo Remoto
+además la apertura de la conexión HTTP; por eso no sirve para comparar los dos caminos. En régimen,
+la invocación directa resuelve la consulta en un par de milisegundos y el salto por HTTP le suma
+alrededor de **10 ms**. Los valores exactos cambian de una corrida a otra, pero el orden de magnitud
+se mantiene. Ése es el precio de poder desplegar el componente de catálogo por separado.
 
 ### 5.3 Trazabilidad entre procesos
 
@@ -197,13 +234,13 @@ las llamadas salientes. Una misma operación en modo Remoto queda así en los do
 
 ```
 # Web  (docs/evidencias/02-web-modo-remoto.log)
-[10:27:11 INF] [Web] [5d7dce6bcbbf] Sending HTTP request GET http://localhost:5081/api/repuestos/compatibles?*
-[10:27:11 INF] [Web] [5d7dce6bcbbf] Catalogo[Remoto] compatibilidad Volkswagen Gol 2015 (1.6) -> 7 repuestos
-[10:27:11 INF] [Web] [5d7dce6bcbbf] Evidencia acceso origen=Remoto duracion=79,7ms resultados=7
+[19:57:11 INF] [Web] [c1be50fb134a] Sending HTTP request GET http://localhost:5081/api/repuestos/compatibles?*
+[19:57:11 INF] [Web] [c1be50fb134a] Catalogo[Remoto] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[19:57:11 INF] [Web] [c1be50fb134a] Evidencia acceso origen=Remoto duracion=11,2ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
 
 # Catalogo.Api  (docs/evidencias/03-catalogo-api.log)  ← mismo identificador
-[10:27:11 INF] [Catalogo.Api] [5d7dce6bcbbf] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) -> 7 repuestos
-[10:27:11 INF] [Catalogo.Api] [5d7dce6bcbbf] HTTP GET /api/repuestos/compatibles responded 200 in 71.2007 ms
+[19:57:11 INF] [Catalogo.Api] [c1be50fb134a] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[19:57:11 INF] [Catalogo.Api] [c1be50fb134a] HTTP GET /api/repuestos/compatibles responded 200 in 2.6876 ms
 ```
 
 Con dos procesos ya hace falta; cuando en la Segunda Parte se sumen la cola, el servicio de IA y los
@@ -217,7 +254,7 @@ implementaciones devuelvan **exactamente lo mismo** para cinco vehículos distin
 completo campo por campo, para códigos existentes e inexistentes y para el filtro por sistema.
 
 ```
-Correctas! - Con error: 0, Superado: 57, Omitido: 0, Total: 57
+Correctas! - Con error: 0, Superado: 79, Omitido: 0, Total: 79
 ```
 
 Si algún día las dos implementaciones divergen, esto falla antes que la demo.
@@ -288,9 +325,9 @@ circulares, CVSS 7.5). Se fijó la versión **2.12.2**, posterior al parche 2.7.
 | **Primera** | Patrones formalizados, fachada, eventos de dominio internos | `DespachadorEventos` publica `BusquedaCreada` a `ObservadorCompatibilidad`. La presentación entra por `FachadaAplicacion` | Dominio, contratos |
 | **Segunda** | SOAP `ConsultaCompatibilidad` (CoreWCF + WSDL) | Tercera implementación de `ICatalogoRepuestos` | Presentación, lógica de negocio |
 | **Segunda** | REST documentados con OpenAPI | Ya publicado en `/openapi/v1.json` | — |
-| **Segunda** | RabbitMQ, productores y consumidores | `BusquedaCreada` ya existe como evento de dominio | Entidades |
+| **Segunda** | RabbitMQ, productores y consumidores | Implementación de `IDespachadorEventos` sobre `IEventBus`; `BusquedaCreada` ya existe como evento de dominio | Entidades |
 | **Segunda** | Adaptadores a eBay y VTEX | Nueva interfaz `IFuenteOfertas`, consumida por `search-api` | Catálogo, dominio |
-| **Segunda** | Componente de IA (texto libre → repuestos) | Reemplaza el paso de `ServicioBusquedas.CrearAsync` que hoy asigna códigos por compatibilidad | Contrato público del servicio |
+| **Segunda** | Componente de IA (texto libre → repuestos) | Reemplaza o complementa a `ObservadorCompatibilidad` (que hoy asigna los códigos solo por compatibilidad de vehículo), leyendo `Busqueda.TextoLibre` | Contrato público del servicio |
 | **Integrador** | Métricas de IA, pruebas de carga, despliegue | — | — |
 
 El punto de extensión queda en el evento: `ServicioBusquedas.CrearAsync` persiste la búsqueda y
@@ -352,5 +389,6 @@ demostrado apenas se levanta el entorno.
 | Aplicación sobre framework empresarial | `src/RepMatch.Web`, `src/RepMatch.Catalogo.Api` |
 | Patrones Factory, Repository, Strategy, Observer, Facade | [`docs/patrones.md`](patrones.md) |
 | Servicios de negocio e integración por eventos | `ServicioClientes`, `ServicioBusquedas`, `ObservadorCompatibilidad` |
+| Servicio de Inventario | No existe como módulo separado porque RepMatch no almacena stock. El catálogo interno cubre la compatibilidad de piezas; en la Segunda Parte, disponibilidad y precio se consultarán en el momento de cada búsqueda a las APIs de las tiendas. Justificación ampliada en la nota "Sobre el Servicio de Inventario" de la sección 2. |
 | Diagrama de arquitectura en capas | [`docs/diagramas/capas.md`](diagramas/capas.md) |
-| Diagrama de secuencia | [`docs/diagramas/secuencia.md`](diagramas/secuencia.md) |
+| Diagramas de secuencia (búsqueda, login, alta de vehículo) | [`docs/diagramas/secuencia.md`](diagramas/secuencia.md) |

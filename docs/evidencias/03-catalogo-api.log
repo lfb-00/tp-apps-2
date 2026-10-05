@@ -1,15 +1,35 @@
 Usando la configuración de inicio de src\RepMatch.Catalogo.Api\Properties\launchSettings.json...
-[10:26:55 INF] [Catalogo.Api] [] Base de datos lista (proveedor Microsoft.EntityFrameworkCore.InMemory).
-[10:26:56 INF] [Catalogo.Api] [] Catalogo.Api escuchando
-[10:26:56 INF] [Catalogo.Api] [] Now listening on: http://localhost:5081
-[10:26:56 INF] [Catalogo.Api] [] Application started. Press Ctrl+C to shut down.
-[10:26:56 INF] [Catalogo.Api] [] Hosting environment: Development
-[10:26:56 INF] [Catalogo.Api] [] Content root path: C:\Users\d78650\src\tp-apps-2\src\RepMatch.Catalogo.Api
-[10:26:56 INF] [Catalogo.Api] [e710f3ff806f] HTTP GET /salud responded 200 in 41.7402 ms
-[10:27:11 INF] [Catalogo.Api] [a3a59e6ba73e] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
-[10:27:11 INF] [Catalogo.Api] [a3a59e6ba73e] HTTP GET /api/repuestos/compatibles responded 200 in 307.1489 ms
-[10:27:11 INF] [Catalogo.Api] [5d7dce6bcbbf] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
-[10:27:11 INF] [Catalogo.Api] [5d7dce6bcbbf] HTTP GET /api/repuestos/compatibles responded 200 in 71.2007 ms
-[10:27:12 INF] [Catalogo.Api] [912bd9cd3741] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
-[10:27:12 INF] [Catalogo.Api] [912bd9cd3741] HTTP GET /api/repuestos/compatibles responded 200 in 12.0778 ms
-[10:27:13 INF] [Catalogo.Api] [4f981a29d1f3] HTTP GET /openapi/v1.json responded 200 in 312.2113 ms
+[19:56:54 INF] [Catalogo.Api] [] Base de datos lista (proveedor Microsoft.EntityFrameworkCore.InMemory).
+[19:56:54 INF] [Catalogo.Api] [] Catalogo.Api escuchando
+[19:56:54 INF] [Catalogo.Api] [] Now listening on: http://localhost:5081
+[19:56:54 INF] [Catalogo.Api] [] Application started. Press Ctrl+C to shut down.
+[19:56:54 INF] [Catalogo.Api] [] Hosting environment: Development
+[19:56:54 INF] [Catalogo.Api] [] Content root path: C:\Repos\tp-apps-2-evidencias\src\RepMatch.Catalogo.Api
+[19:56:54 INF] [Catalogo.Api] [679670413285] HTTP GET /salud responded 200 in 41.7777 ms
+[19:57:10 INF] [Catalogo.Api] [a27fd2bd13eb] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[19:57:10 INF] [Catalogo.Api] [a27fd2bd13eb] HTTP GET /api/repuestos/compatibles responded 200 in 202.4430 ms
+[19:57:10 INF] [Catalogo.Api] [76ba3a62b1e5] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[19:57:10 INF] [Catalogo.Api] [76ba3a62b1e5] HTTP GET /api/repuestos/compatibles responded 200 in 49.7460 ms
+[19:57:10 INF] [Catalogo.Api] [a643e061329c] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[19:57:10 INF] [Catalogo.Api] [a643e061329c] HTTP GET /api/repuestos/compatibles responded 200 in 4.7007 ms
+[19:57:10 INF] [Catalogo.Api] [f39d9d5c2197] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[19:57:10 INF] [Catalogo.Api] [f39d9d5c2197] HTTP GET /api/repuestos/compatibles responded 200 in 2.6431 ms
+[19:57:10 INF] [Catalogo.Api] [9d72eb785a9e] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[19:57:10 INF] [Catalogo.Api] [9d72eb785a9e] HTTP GET /api/repuestos/compatibles responded 200 in 2.3983 ms
+[19:57:10 INF] [Catalogo.Api] [8b5c7df094ee] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[19:57:10 INF] [Catalogo.Api] [8b5c7df094ee] HTTP GET /api/repuestos/compatibles responded 200 in 2.6760 ms
+[19:57:10 INF] [Catalogo.Api] [c65ad98c3f7e] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[19:57:10 INF] [Catalogo.Api] [c65ad98c3f7e] HTTP GET /api/repuestos/compatibles responded 200 in 3.3287 ms
+[19:57:10 INF] [Catalogo.Api] [742bcf3b6174] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[19:57:10 INF] [Catalogo.Api] [742bcf3b6174] HTTP GET /api/repuestos/compatibles responded 200 in 2.5440 ms
+[19:57:10 INF] [Catalogo.Api] [397e68fba9c8] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[19:57:11 INF] [Catalogo.Api] [397e68fba9c8] HTTP GET /api/repuestos/compatibles responded 200 in 2.5167 ms
+[19:57:11 INF] [Catalogo.Api] [7706a91c66b6] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[19:57:11 INF] [Catalogo.Api] [7706a91c66b6] HTTP GET /api/repuestos/compatibles responded 200 in 2.5165 ms
+[19:57:11 INF] [Catalogo.Api] [caca52381296] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[19:57:11 INF] [Catalogo.Api] [caca52381296] HTTP GET /api/repuestos/compatibles responded 200 in 3.6380 ms
+[19:57:11 INF] [Catalogo.Api] [c1be50fb134a] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[19:57:11 INF] [Catalogo.Api] [c1be50fb134a] HTTP GET /api/repuestos/compatibles responded 200 in 2.6876 ms
+[19:57:12 INF] [Catalogo.Api] [5ca7ea360ecb] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[19:57:12 INF] [Catalogo.Api] [5ca7ea360ecb] HTTP GET /api/repuestos/compatibles responded 200 in 28.9068 ms
+[19:57:12 INF] [Catalogo.Api] [e526ab1b2ad4] HTTP GET /openapi/v1.json responded 200 in 232.4288 ms

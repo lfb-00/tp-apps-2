@@ -90,7 +90,7 @@ public interface ICatalogoRepuestos
 | Mecanismo | Invocación directa en proceso, por referencia de proyecto | HTTP + JSON contra `Catalogo.Api` |
 | Recorrido | `CatalogoLocal → IRepuestoRepository → EF Core → BD` | `HttpClient → GET /api/repuestos/compatibles → CatalogoLocal (en el otro proceso) → BD` |
 | Serialización | ninguna | JSON de ida y vuelta |
-| Latencia medida (caliente) | **~1,9 ms** | **~12,6 ms** |
+| Latencia medida (en régimen) | **~1,8 ms** | **~11,2 ms** |
 
 La selección se hace en `RepMatch.Web/Servicios/FabricaCatalogo.cs`, leyendo la clave
 `Catalogo:Modo` (o la variable de entorno `Catalogo__Modo`). **No hay recompilación de por medio**, y

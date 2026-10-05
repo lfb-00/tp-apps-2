@@ -32,7 +32,7 @@ Los docs son entregables evaluados tanto como el código. Cada etapa suma sobre 
 - **Entregable:** diagramas de clases, componentes y despliegue + código + informe breve de
   arquitectura + evidencias de ejecución local y remota.
 
-### Primera Parte — arquitectura de aplicaciones (**en curso**, rama `feature/patrones`)
+### Primera Parte — arquitectura de aplicaciones (**implementada**)
 - Framework empresarial (.NET Core / ASP.NET Core ✔).
 - Patrones: **Factory, Repository, Strategy, Observer, Facade**.
 - Servicios orientados a componentes (en la consigna: Pedidos, Inventario, Clientes).
@@ -76,8 +76,9 @@ src/
   RepMatch.Contracts/      DTOs, ICatalogoRepuestos, OpcionesCatalogo. SIN refs internas.
   RepMatch.Persistence/    Acceso a datos: RepMatchDbContext, Configuraciones/ (todo el mapeo EF),
                            repositorios, UnitOfWork, DatosSemilla. → Domain, Common
-  RepMatch.Aplicacion/     Lógica de negocio: ServicioClientes, ServicioBusquedas, validadores,
-                           mapeadores, CatalogoLocal. → Domain, Common, Contracts
+  RepMatch.Aplicacion/     Lógica de negocio: FachadaAplicacion, ServicioClientes, ServicioBusquedas,
+                           DespachadorEventos, ObservadorCompatibilidad, validadores, mapeadores,
+                           CatalogoLocal. → Domain, Common, Contracts
   RepMatch.Clientes.Rest/  Adaptador remoto: CatalogoRemoto (HttpClient tipado + correlación).
                            → Common, Contracts
   RepMatch.Catalogo.Api/   Host REST del catálogo (controllers, OpenAPI en /openapi/v1.json).
@@ -94,16 +95,20 @@ scripts/evidencias.sh      regenera docs/evidencias/ (logs + mediciones local vs
   Core ni ASP.NET: el mapeo vive en `Persistence/Configuraciones/` (incluido `Ignore(EventosDominio)`).
 - **Acceso local vs. remoto**: `ICatalogoRepuestos` (Strategy) con `CatalogoLocal` y
   `CatalogoRemoto` (Adapter); `FabricaCatalogo.AgregarCatalogo` (Factory) decide por
-  `Catalogo:Modo` al arrancar y registra **ambas** concretas (la página `/acceso` las compara).
+  `Catalogo:Modo` al arrancar y registra **ambas** concretas (`scripts/evidencias.sh` las compara vía
+  `GET /evidencia/catalogo`; la página `/acceso` ya no existe).
   `ExtensionesAplicacion` **no** registra `ICatalogoRepuestos` a propósito: es decisión del host.
   La futura implementación SOAP es una tercera estrategia, sin tocar interfaz ni consumidores.
 - **Errores esperables → `ResultadoOperacion<T>`**, no excepciones. Excepciones solo para lo
   verdaderamente excepcional.
 - **Eventos de dominio**: `EntidadBase` acumula eventos (`RegistrarEvento`); `Busqueda` emite
-  `BusquedaCreada`. El despacho in-process (Observer) es de la Primera Parte; el paso a RabbitMQ
-  (con `RabbitMQ.Client` directo detrás de un `IEventBus` propio, no MassTransit) es de la Segunda.
-- **Punto de extensión de la IA**: `ServicioBusquedas.CrearAsync` hoy llena `CodigosObjetivo` por
-  compatibilidad; la IA lo reemplazará leyendo `Busqueda.TextoLibre`, sin cambiar la firma pública.
+  `BusquedaCreada`. El despacho in-process (`DespachadorEventos` → `ObservadorCompatibilidad`,
+  Observer) es de la Primera Parte. En la Segunda se registrará otra implementación de
+  `IDespachadorEventos` que publique a través de un `IEventBus` propio (sobre `RabbitMQ.Client`
+  directo, no MassTransit), sin tocar `ServicioBusquedas`.
+- **Punto de extensión de la IA**: hoy `ObservadorCompatibilidad`, al recibir `BusquedaCreada`, llena
+  `CodigosObjetivo` por compatibilidad de vehículo; la IA lo reemplazará o complementará leyendo
+  `Busqueda.TextoLibre`, sin cambiar la firma pública de `ServicioBusquedas.CrearAsync`.
 - **Configuración externalizada**: todo se sobreescribe por variable de entorno (`Seccion__Clave`):
   `Catalogo:Modo` (`Local`/`Remoto`), `Catalogo:UrlBaseRemota`, `Persistencia:Proveedor`
   (`InMemory`/`Postgres`), `ConnectionStrings:RepMatch`. Puertos del host en `.env`.
@@ -112,17 +117,16 @@ scripts/evidencias.sh      regenera docs/evidencias/ (logs + mediciones local vs
 - Base: `EnsureCreatedAsync` + `DatosSemilla`, idempotente, con reintentos. **No hay migraciones.**
 
 ### Patrones ya documentados
-`docs/patrones.md` cubre Factory, Strategy, Repository, Unit of Work y Adapter, cada uno con
-*dónde está / qué problema resuelve / qué pasaría sin él / código*. Faltan **Observer** y
-**Facade** (hay ramas `issue-2-observer` y `fachada-busqueda`) y el diagrama de capas
-(`diagrama-capas`). Al agregar un patrón, documentarlo con la misma estructura.
+`docs/patrones.md` cubre Factory, Strategy, Repository, Unit of Work, Adapter, Observer y Facade,
+cada uno con *dónde está / qué problema resuelve / qué pasaría sin él / código*. El diagrama de
+capas está en `docs/diagramas/capas.md`. Al agregar un patrón, documentarlo con la misma estructura.
 
 ## Comandos
 
 ```bash
 dotnet build && dotnet test                                            # sin Docker, InMemory
 dotnet run --project src/RepMatch.Catalogo.Api --urls http://localhost:5081
-dotnet run --project src/RepMatch.Web --urls http://localhost:5080    # /acceso compara modos
+dotnet run --project src/RepMatch.Web --urls http://localhost:5080    # GET /evidencia/catalogo mide el modo activo
 docker compose up --build --wait                                       # web 8080, api 8081, pg 5432 (Web en modo Remoto)
 docker compose --profile test run --rm tests                           # pruebas sin SDK
 docker compose --profile local up --build web-local                    # Web en modo Local (8090)
@@ -147,9 +151,9 @@ La solución compila **sin advertencias**; mantenerlo así.
 - **Docs**: `docs/informe-arquitectura.md` (incluye la tabla de la sección 7 "cómo recibe las
   entregas siguientes" y la de entregables), `docs/diagramas/*.md`, `docs/patrones.md` y
   `README.md`. Los diagramas son Mermaid y deben renderizar en GitHub.
-- **Cantidad de pruebas**: está escrita literal en `README.md` (2 veces), `docker-compose.yml`
-  (2 comentarios), `tests/RepMatch.Tests/Dockerfile` y la sección 5.4 del informe. Si agregás o
-  quitás pruebas, buscá el número viejo y reemplazalo en todos lados.
+- **Cantidad de pruebas**: está escrita literal solo en la sección 5.4 del informe (la salida de
+  `dotnet test`). `docker-compose.yml` y `tests/RepMatch.Tests/Dockerfile` dicen "las pruebas" sin
+  número, a propósito. Si agregás o quitás pruebas, corré `dotnet test` y actualizá el informe.
 - **Proyecto nuevo**: sumarlo a `RepMatch.slnx` **y** a los `COPY` de `.csproj` de cada
   `Dockerfile` que lo necesite (`src/*/Dockerfile`, `tests/RepMatch.Tests/Dockerfile`); si no, el
   `dotnet restore` del build en Docker falla.
