@@ -11,6 +11,7 @@ COPY src/RepMatch.Contracts/RepMatch.Contracts.csproj           src/RepMatch.Con
 COPY src/RepMatch.Persistence/RepMatch.Persistence.csproj       src/RepMatch.Persistence/
 COPY src/RepMatch.Aplicacion/RepMatch.Aplicacion.csproj         src/RepMatch.Aplicacion/
 COPY src/RepMatch.Clientes.Rest/RepMatch.Clientes.Rest.csproj   src/RepMatch.Clientes.Rest/
+COPY src/RepMatch.Proveedores/RepMatch.Proveedores.csproj       src/RepMatch.Proveedores/
 COPY src/RepMatch.Web/RepMatch.Web.csproj                       src/RepMatch.Web/
 RUN dotnet restore src/RepMatch.Web/RepMatch.Web.csproj
 

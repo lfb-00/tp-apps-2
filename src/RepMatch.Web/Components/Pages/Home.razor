@@ -248,6 +248,41 @@ else
                         </article>
                     }
                 </div>
+
+                @if (resultado.Busqueda.Ofertas.Count > 0)
+                {
+                    <h2 style="margin-top:2rem">Ofertas en tiendas</h2>
+                    <p style="color:var(--color-text-muted);font-size:0.875rem;margin-top:-0.5rem">
+                        Precios orientativos al momento de la búsqueda. RepMatch no vende: te lleva al sitio de la tienda.
+                    </p>
+                    <div class="piezas">
+                        @foreach (var oferta in resultado.Busqueda.Ofertas.OrderBy(o => o.PrecioTotal))
+                        {
+                            <article class="pieza" style="padding:1rem">
+                                <p style="font-weight:600;margin:0 0 0.25rem">@oferta.Titulo</p>
+                                <p style="margin:0;font-size:0.9rem;color:var(--color-text-muted)">@oferta.NombreTienda · @oferta.CodigoRepuesto</p>
+                                <p style="margin:0.5rem 0;font-size:1.1rem;font-weight:700">
+                                    @oferta.Moneda @oferta.Precio.ToString("N2")
+                                    @if (oferta.CostoEnvio.HasValue)
+                                    {
+                                        if (oferta.CostoEnvio.Value == 0)
+                                        {
+                                            <span style="margin-left:0.5rem;color:var(--color-success);font-size:0.8rem;font-weight:400">Envío gratis</span>
+                                        }
+                                        else
+                                        {
+                                            <span style="margin-left:0.5rem;color:var(--color-text-muted);font-size:0.8rem;font-weight:400">+ @oferta.Moneda @oferta.CostoEnvio.Value.ToString("N2") envío</span>
+                                        }
+                                    }
+                                </p>
+                                <a href="@oferta.UrlOriginal" target="_blank" rel="noopener noreferrer"
+                                   class="boton" style="display:inline-block;font-size:0.875rem;padding:0.4rem 0.9rem">
+                                    Ver en tienda →
+                                </a>
+                            </article>
+                        }
+                    </div>
+                }
             }
         }
     }
@@ -477,6 +512,10 @@ else
             resultado = respuesta.Valor;
             texto = "";
             recientes = await Fachada.ListarBusquedasDelClienteAsync(Sesion.Cliente.Id);
+        }
+        catch (Exception ex)
+        {
+            errores = [$"Error inesperado: {ex.Message}"];
         }
         finally
         {

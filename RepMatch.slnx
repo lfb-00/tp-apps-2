@@ -7,6 +7,7 @@
     <Project Path="src/RepMatch.Contracts/RepMatch.Contracts.csproj" />
     <Project Path="src/RepMatch.Domain/RepMatch.Domain.csproj" />
     <Project Path="src/RepMatch.Persistence/RepMatch.Persistence.csproj" />
+    <Project Path="src/RepMatch.Proveedores/RepMatch.Proveedores.csproj" />
     <Project Path="src/RepMatch.Web/RepMatch.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">

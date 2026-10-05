@@ -11,6 +11,7 @@
     <ProjectReference Include="..\RepMatch.Persistence\RepMatch.Persistence.csproj" />
     <ProjectReference Include="..\RepMatch.Aplicacion\RepMatch.Aplicacion.csproj" />
     <ProjectReference Include="..\RepMatch.Clientes.Rest\RepMatch.Clientes.Rest.csproj" />
+    <ProjectReference Include="..\RepMatch.Proveedores\RepMatch.Proveedores.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

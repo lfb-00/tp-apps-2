@@ -32,6 +32,9 @@ public static class ExtensionesAplicacion
         servicios.AddScoped<FachadaAplicacion>();
 
         servicios.AddScoped<IObservadorEventoDominio, ObservadorCompatibilidad>();
+        // ObservadorOfertas se registra segundo: el despachador lo ejecuta despues de
+        // ObservadorCompatibilidad, cuando CodigosObjetivo ya fueron asignados y persistidos.
+        servicios.AddScoped<IObservadorEventoDominio, ObservadorOfertas>();
         servicios.AddScoped<IDespachadorEventos, DespachadorEventos>();
 
         return servicios;

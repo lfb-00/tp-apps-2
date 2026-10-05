@@ -4,6 +4,7 @@ using RepMatch.Contracts;
 using RepMatch.Contracts.Dtos;
 using RepMatch.Contracts.Configuracion;
 using RepMatch.Persistence;
+using RepMatch.Proveedores;
 using RepMatch.Web.Components;
 using RepMatch.Web.Servicios;
 using Serilog;
@@ -17,6 +18,8 @@ builder.Services.AddRazorComponents()
 
 // Registra la capa de datos, la de logica de negocio y las dos formas de alcanzar el catalogo.
 builder.Services.AgregarCatalogo(builder.Configuration);
+// Proveedores de ofertas externas (MercadoLibre, eBay, …). Cada uno es habilitado por config.
+builder.Services.AgregarProveedores(builder.Configuration);
 builder.Services.AddScoped<RepMatch.Web.Servicios.SesionActual>();
 builder.Services.AddScoped<RepMatch.Web.Servicios.TemaActual>();
 
