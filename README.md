@@ -132,7 +132,7 @@ Catalogo__Modo=Remoto  dotnet run --project src/RepMatch.Web
 | | Local | Remoto |
 |---|---|---|
 | Mecanismo | referencia de proyecto, en proceso | HTTP + JSON contra `Catalogo.Api` |
-| Latencia (en régimen) | ~1,8 ms | ~11,2 ms |
+| Latencia (en régimen, mediana) | ~2 ms | ~7 ms |
 
 ## Base de datos
 

@@ -51,11 +51,11 @@ y explícito.
 ### Qué pasaría sin él
 
 La alternativa que se descartó era que cada consumidor leyera `Catalogo:Modo` y decidiera por su
-cuenta. Eso significa repetir el mismo `if` en `Busquedas.razor`, `Catalogo.razor`,
-`AccesoComponentes.razor` y `ObservadorCompatibilidad`, es decir cuatro lugares que habría que tocar de
-nuevo cada vez que se agregue una forma de acceso. Además la capa de presentación pasaría a depender
-de las dos clases concretas en lugar de la interfaz, con lo cual `RepMatch.Web` tendría que
-referenciar `RepMatch.Clientes.Rest` incluso corriendo en modo local.
+cuenta. Eso significa repetir el mismo `if` en `FachadaAplicacion`, `ObservadorCompatibilidad` y el
+endpoint `GET /evidencia/catalogo` de `src/RepMatch.Web/Program.cs`, es decir tres lugares que habría
+que tocar de nuevo cada vez que se agregue una forma de acceso. Además cada consumidor pasaría a
+depender de las dos clases concretas y de la configuración en lugar de la interfaz, y la decisión
+de modo, que hoy se toma una sola vez en el arranque, quedaría repartida entre todos ellos.
 
 La otra opción era elegir en tiempo de compilación con directivas `#if`, pero obliga a recompilar
 para cambiar de modo, y eso anula la posibilidad de configurar el comportamiento por variable de
@@ -64,7 +64,7 @@ entorno.
 ### Código
 
 ```csharp
-// src/RepMatch.Web/Servicios/FabricaCatalogo.cs
+// src/RepMatch.Web/Servicios/FabricaCatalogo.cs (fragmento de AgregarCatalogo)
 var opciones = configuracion.GetSection(OpcionesCatalogo.Seccion).Get<OpcionesCatalogo>()
                ?? new OpcionesCatalogo();
 
@@ -125,15 +125,20 @@ decisión duplicada.
 ### Código
 
 ```csharp
-// src/RepMatch.Contracts/ICatalogoRepuestos.cs
+// src/RepMatch.Contracts/ICatalogoRepuestos.cs (fragmento)
 public interface ICatalogoRepuestos
 {
-    string Modo { get; }   // "Local" | "Remoto". Queda en el log de cada operacion
+    /// <summary>Como se esta accediendo al componente ("Local", "Remoto", ...). Se registra en el
+    /// log de cada operacion: es la evidencia que pide el entregable.</summary>
+    string Modo { get; }
 
+    /// <summary>Repuestos del catalogo compatibles con el vehiculo indicado.</summary>
+    /// <param name="sistema">Filtro opcional por sistema (Frenos, Motor, ...).</param>
     Task<IReadOnlyList<RepuestoDto>> BuscarCompatiblesAsync(
         VehiculoDto vehiculo, string? sistema = null, CancellationToken ct = default);
 
     Task<RepuestoDto?> ObtenerPorCodigoAsync(string codigoCanonico, CancellationToken ct = default);
+
     Task<IReadOnlyList<RepuestoDto>> ListarAsync(CancellationToken ct = default);
 }
 ```
@@ -143,16 +148,17 @@ El consumidor ve una sola cosa, que es la interfaz. `ObservadorCompatibilidad` r
 en los dos modos:
 
 ```csharp
-// src/RepMatch.Aplicacion/Eventos/ObservadorCompatibilidad.cs (fragmento)
+// src/RepMatch.Aplicacion/Eventos/ObservadorCompatibilidad.cs (fragmento: constructor)
 public sealed class ObservadorCompatibilidad(
     IBusquedaRepository busquedas,
     ICatalogoRepuestos catalogo,
     IUnitOfWork unidadDeTrabajo,
     ILogger<ObservadorCompatibilidad> log) : IObservadorEventoDominio
-{
-    // ...
-    var compatibles = await catalogo.BuscarCompatiblesAsync(creada.Vehiculo.ADto(), sistema: null, ct);
-}
+```
+
+```csharp
+// src/RepMatch.Aplicacion/Eventos/ObservadorCompatibilidad.cs (fragmento de ObservarAsync)
+var compatibles = await catalogo.BuscarCompatiblesAsync(creada.Vehiculo.ADto(), sistema: null, ct);
 ```
 
 | | Local | Remoto |
@@ -160,7 +166,7 @@ public sealed class ObservadorCompatibilidad(
 | Implementación | `Aplicacion.Catalogo.CatalogoLocal` | `Clientes.Rest.CatalogoRemoto` |
 | Mecanismo | invocación directa en proceso | HTTP + JSON contra `Catalogo.Api` |
 | Serialización | ninguna | JSON de ida y vuelta |
-| Latencia medida en régimen | ~1,8 ms | ~11,2 ms |
+| Latencia en régimen (mediana) | ~2 ms | ~7 ms |
 
 ---
 
@@ -176,7 +182,8 @@ Las interfaces en `src/RepMatch.Domain/Repositorios/`, que son `IClienteReposito
 
 El dominio tiene reglas que conviene probar por separado: la compatibilidad de un repuesto con un
 vehículo en `Repuesto.EsCompatibleCon`, las transiciones de estado de una `Busqueda` y la
-comparación de precios de `Oferta` dentro de una misma moneda. Si esas entidades dependieran de EF
+comparación de precios dentro de una misma moneda, que aplican `Busqueda.OfertasOrdenadasPorPrecio`
+y el value object `Dinero`. Si esas entidades dependieran de EF
 Core, cada prueba necesitaría levantar un contexto y un proveedor de datos.
 
 Acá el patrón se usa sobre todo por la dirección de la dependencia. Las interfaces se declaran en
@@ -226,10 +233,12 @@ public interface IBusquedaRepository
 }
 ```
 
-La implementación, en persistencia, donde sí vive EF y el reparto entre SQL y dominio:
+La implementación, en persistencia, donde sí vive EF y el reparto entre SQL y dominio. El filtro
+grueso (marca, modelo, rango de años y, si se pidió, sistema) lo hace la base; la regla fina del
+motor la aplica la entidad con `EsCompatibleCon` sobre los candidatos ya traídos:
 
 ```csharp
-// src/RepMatch.Persistence/Repositorios/RepuestoRepository.cs
+// src/RepMatch.Persistence/Repositorios/RepuestoRepository.cs (fragmento de BuscarCompatiblesAsync)
 var consulta = contexto.Repuestos
     .Include(r => r.Aplicaciones)
     .Where(r => r.Aplicaciones.Any(a =>
@@ -238,9 +247,11 @@ var consulta = contexto.Repuestos
         && a.AnioDesde <= vehiculo.Anio
         && a.AnioHasta >= vehiculo.Anio));
 
+if (sistema is not null)
+    consulta = consulta.Where(r => r.Sistema == sistema.Value);
+
 var candidatos = await consulta.OrderBy(r => r.CodigoCanonico).ToListAsync(ct);
 
-// El filtro grueso lo hace la base; la regla fina del motor la hace la entidad.
 return [.. candidatos.Where(r => r.EsCompatibleCon(vehiculo))];
 ```
 
@@ -258,8 +269,12 @@ Cada operación de negocio acumula sus cambios en los repositorios y los confirm
 llamada a `ConfirmarAsync`. Crear una búsqueda son dos operaciones, cada una con su propia
 confirmación: `ServicioBusquedas.CrearAsync` guarda la `Busqueda` en estado `Pendiente` y emite
 `BusquedaCreada`; después `ObservadorCompatibilidad` le asigna los códigos objetivo, o la marca
-`Fallida`, y confirma de nuevo. Están separadas a propósito, para que la búsqueda no se pierda si
-falla el catálogo (ver [Observer](#observer-despachador-de-eventos-de-dominio)).
+`Fallida` si la consulta al catálogo falla con `HttpRequestException` o `TaskCanceledException`
+(error HTTP o timeout del catálogo remoto), y confirma de nuevo. Están separadas a propósito, para
+que la búsqueda no se pierda si falla el catálogo: ante otra excepción (por ejemplo, de base de
+datos en modo Local) la búsqueda queda `Pendiente` y la excepción se propaga a `CrearAsync`, que la
+devuelve como `Falla` si es `ExcepcionDominio` y si no la deja subir (ver
+[Observer](#observer-despachador-de-eventos-de-dominio)).
 
 Cuando una sola operación necesita varias confirmaciones y tienen que quedar todas o ninguna, se usa
 `IUnitOfWork.EjecutarEnTransaccionAsync`. Es el caso de `ServicioClientes.EliminarCuentaAsync`:
@@ -271,8 +286,8 @@ directamente.
 
 `DbContext` ya funciona como unidad de trabajo, porque rastrea los cambios y los confirma en una
 transacción. La interfaz existe para que los servicios de aplicación puedan pedir la confirmación
-sin conocer EF Core. Si el servicio llamara directamente a `contexto.SaveChangesAsync`, `RepMatch.Aplicacion`
-tendría que referenciar EF y la inversión de dependencias se rompería por ahí.
+sin conocer EF Core. Si el servicio llamara directamente a `contexto.SaveChangesAsync`,
+`RepMatch.Aplicacion` tendría que referenciar EF y la inversión de dependencias se rompería por ahí.
 
 `ConfirmarAsync` es un envoltorio de una línea. No está por la lógica que agrega sino por el
 acoplamiento que evita.
@@ -384,20 +399,27 @@ dos roles distintos.
 
 ### Qué pasaría sin él
 
-Sin el adaptador, el `HttpClient` se inyectaría en los consumidores y `Busquedas.razor` tendría que
-armar la query string, revisar el `StatusCode`, deserializar y decidir qué hacer con un 404, y eso se
-repetiría en cada página que consulte el catálogo. Además el modo local dejaría de ser intercambiable
-con el remoto, porque los consumidores ya estarían escritos contra HTTP.
+Sin el adaptador, el `HttpClient` se inyectaría en los consumidores del catálogo
+(`FachadaAplicacion`, `ObservadorCompatibilidad` y el endpoint `GET /evidencia/catalogo`) y cada uno
+tendría que armar la query string, revisar el `StatusCode`, deserializar y decidir qué hacer con un
+404. Además el modo local dejaría de ser intercambiable con el remoto, porque los consumidores ya
+estarían escritos contra HTTP.
 
-Queda una filtración conocida y acotada. `Busquedas.razor` atrapa `HttpRequestException` y
-`TaskCanceledException` para mostrar un mensaje entendible cuando la API remota no responde. El
-adaptador traduce los errores de protocolo pero deja pasar los de transporte. Sin adaptador, la
+Queda una filtración conocida y acotada. `FachadaAplicacion.ConsultarAsync` y
+`ObservadorCompatibilidad` atrapan `HttpRequestException` y `TaskCanceledException`: la fachada las
+convierte en un `ResultadoOperacion` con un mensaje entendible para la página, y el observador marca
+la búsqueda como `Fallida`. Ninguna página Razor atrapa esas excepciones. El adaptador traduce los
+errores de protocolo pero deja pasar los de transporte. Sin adaptador, la
 filtración no sería una excepción puntual sino todo el modelo HTTP.
 
 ### Código
 
+En `ObtenerPorCodigoAsync` se ven las dos traducciones de errores: si la API responde 404, el
+método registra el caso en el log y devuelve `null`, que es como el contrato expresa "no existe";
+cualquier otro código de error lo convierte en excepción con `EnsureSuccessStatusCode`:
+
 ```csharp
-// src/RepMatch.Clientes.Rest/CatalogoRemoto.cs
+// src/RepMatch.Clientes.Rest/CatalogoRemoto.cs (fragmento)
 public sealed class CatalogoRemoto(HttpClient http, ILogger<CatalogoRemoto> log) : ICatalogoRepuestos
 {
     public string Modo => "Remoto";
@@ -411,11 +433,17 @@ public sealed class CatalogoRemoto(HttpClient http, ILogger<CatalogoRemoto> log)
             $"api/repuestos/{Uri.EscapeDataString(codigoCanonico)}", ct);
 
         if (respuesta.StatusCode == HttpStatusCode.NotFound)
-            return null;                       // 404 (HTTP) se traduce a null (contrato del dominio)
+        {
+            log.LogInformation("Catalogo[{Modo}] codigo={Codigo} -> no encontrado", Modo, codigoCanonico);
+            return null;
+        }
 
-        respuesta.EnsureSuccessStatusCode();   // el resto de los errores, como excepcion
+        respuesta.EnsureSuccessStatusCode();
 
-        return await respuesta.Content.ReadFromJsonAsync<RepuestoDto>(ct);
+        var repuesto = await respuesta.Content.ReadFromJsonAsync<RepuestoDto>(ct);
+
+        log.LogInformation("Catalogo[{Modo}] codigo={Codigo} -> encontrado", Modo, codigoCanonico);
+        return repuesto;
     }
 }
 ```
@@ -424,11 +452,15 @@ Del otro lado, `CatalogoLocal` cumple el mismo contrato sin traducir nada, porqu
 protocolo ajeno del que defenderse:
 
 ```csharp
-// src/RepMatch.Aplicacion/Catalogo/CatalogoLocal.cs
+// src/RepMatch.Aplicacion/Catalogo/CatalogoLocal.cs (fragmento)
 public async Task<RepuestoDto?> ObtenerPorCodigoAsync(
     string codigoCanonico, CancellationToken ct = default)
 {
     var repuesto = await repuestos.ObtenerPorCodigoAsync(codigoCanonico, ct);
+
+    log.LogInformation("Catalogo[{Modo}] codigo={Codigo} -> {Resultado}",
+        Modo, codigoCanonico, repuesto is null ? "no encontrado" : "encontrado");
+
     return repuesto?.ADto();
 }
 ```
@@ -466,12 +498,13 @@ registrados que respondan `true` en `PuedeObservar`. `ObservadorCompatibilidad` 
 consulta el catálogo y asigna los códigos a la búsqueda en una segunda transacción.
 
 El orden importa: el despacho ocurre después de `ConfirmarAsync`. Así el observador encuentra la
-búsqueda en la base de datos cuando la lee. Si el catálogo falla (`HttpRequestException` o
-`TaskCanceledException`) o no devuelve repuestos compatibles, `ObservadorCompatibilidad` llama a
-`busqueda.Fallar(motivo)` y confirma, con lo cual la búsqueda queda en estado `Fallida` y con el
-motivo registrado. Solo ante un error inesperado la búsqueda queda en estado `Pendiente`, pero no se
-pierde, porque ya se había confirmado antes del despacho. Ese error no se atrapa en el observador ni
-en `DespachadorEventos`, así que se propaga a `CrearAsync`: si es una `ExcepcionDominio`, vuelve como
+búsqueda en la base de datos cuando la lee. Si la consulta al catálogo falla con
+`HttpRequestException` o `TaskCanceledException` (error HTTP o timeout del catálogo remoto), o si no
+devuelve repuestos compatibles, `ObservadorCompatibilidad` llama a `busqueda.Fallar(motivo)` y
+confirma, con lo cual la búsqueda queda en estado `Fallida` y con el motivo registrado. Ante
+cualquier otra excepción (por ejemplo, un error de base de datos en modo Local) la búsqueda queda en
+estado `Pendiente`, pero no se pierde, porque ya se había confirmado antes del despacho. Ese error
+no se atrapa en el observador ni en `DespachadorEventos`, así que se propaga a `CrearAsync`: si es una `ExcepcionDominio`, vuelve como
 `ResultadoOperacion` con `Falla`; si es otra excepción, sube sin atrapar.
 
 Este diseño también es el punto de extensión hacia RabbitMQ. En la Segunda Parte se registrará
@@ -584,7 +617,7 @@ El registro en DI usa `AddScoped` con la interfaz, de modo que el contenedor iny
 automáticamente todos los `IObservadorEventoDominio` registrados al `DespachadorEventos`:
 
 ```csharp
-// src/RepMatch.Aplicacion/ExtensionesAplicacion.cs
+// src/RepMatch.Aplicacion/ExtensionesAplicacion.cs (fragmento)
 servicios.AddScoped<IObservadorEventoDominio, ObservadorCompatibilidad>();
 servicios.AddScoped<IDespachadorEventos, DespachadorEventos>();
 ```
@@ -611,8 +644,12 @@ Hay además una operación compuesta que ninguno de los tres componentes puede d
 Cuando el usuario busca repuestos, la presentación espera recibir en un solo llamado tanto la
 búsqueda persistida como las piezas del catálogo resueltas. Eso requiere coordinar
 `ServicioBusquedas.CrearAsync` con `ICatalogoRepuestos.BuscarCompatiblesAsync` y manejar el caso
-en que el catálogo falle. `FachadaAplicacion.BuscarAsync` encapsula esa orquestación y la expone
-como un único método con resultado tipado.
+en que el catálogo falle con `HttpRequestException` o `TaskCanceledException` (error HTTP o timeout
+del catálogo remoto). Si dentro de `CrearAsync` el observador recibe otra excepción (por ejemplo, de
+base de datos en modo Local), la búsqueda queda `Pendiente` y la excepción se propaga a `CrearAsync`,
+que la devuelve como `Falla` si es `ExcepcionDominio` y si no la deja subir.
+`FachadaAplicacion.BuscarAsync` encapsula esa orquestación y la expone como un único método con
+resultado tipado.
 
 La fachada también centraliza el manejo de errores del catálogo para las operaciones de consulta.
 El método privado `ConsultarAsync` convierte `HttpRequestException` y `TaskCanceledException` en
@@ -624,8 +661,8 @@ excepciones.
 La alternativa descartada era que cada página Razor inyectara los servicios que necesita. Las
 consecuencias concretas son tres:
 
-- `Home.razor`, `Login.razor`, `Clientes.razor`, `Perfil.razor` y `Catalogo.razor` inyectarían `ServicioClientes`,
-  `ServicioBusquedas` o `ICatalogoRepuestos` según lo que usen. Mover una operación de un servicio
+- `Home.razor`, `Login.razor`, `Clientes.razor`, `Perfil.razor` y `Catalogo.razor` inyectarían
+  `ServicioClientes`, `ServicioBusquedas` o `ICatalogoRepuestos` según lo que usen. Mover una operación de un servicio
   a otro obliga a actualizar todas las páginas que la usan.
 - La operación `BuscarAsync` —crear la búsqueda y resolver las piezas en un solo llamado— no
   tiene un lugar natural. Quedaría duplicada en cada página que la necesite, o repartida en dos
@@ -638,7 +675,7 @@ consecuencias concretas son tres:
 La fachada recibe los tres componentes internos y no los expone hacia afuera:
 
 ```csharp
-// src/RepMatch.Aplicacion/Fachada/FachadaAplicacion.cs
+// src/RepMatch.Aplicacion/Fachada/FachadaAplicacion.cs (fragmento)
 public sealed class FachadaAplicacion(
     ServicioClientes clientes,
     ServicioBusquedas busquedas,
@@ -693,14 +730,14 @@ observador desacoplado de la presentación. Con `CatalogoRemoto` son dos llamada
 
 Del lado de la presentación, las páginas que necesitan la capa de aplicación inyectan un único punto
 de acceso a ella. Las páginas también inyectan servicios propios de la Web, como `SesionActual` y
-`TemaActual`, que no forman parte de la capa de aplicación:
+`TemaActual`, que no forman parte de la capa de aplicación. En `Home.razor`, las directivas
+`@inject` del encabezado y, dentro del bloque `@code`, la llamada del método `BuscarAsync`:
 
 ```razor
 @* src/RepMatch.Web/Components/Pages/Home.razor (fragmento) *@
 @inject FachadaAplicacion Fachada
 @inject SesionActual Sesion
 
-// dentro de @code, en BuscarAsync
 var respuesta = await Fachada.BuscarAsync(new CrearBusquedaDto
 {
     ClienteId = Sesion.Cliente.Id,

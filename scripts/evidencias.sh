@@ -37,7 +37,8 @@ consulta="api/repuestos/compatibles?marca=Volkswagen&modelo=Gol&anio=2015&motor=
 
 # La primera llamada mide el arranque en frio y queda en el log. Las de calentamiento terminan de
 # compilar (JIT y cache de consultas de EF); recien la ultima, la que se guarda, mide el regimen.
-# Con una sola llamada de calentamiento el ruido podia hacer que el remoto saliera mas rapido.
+# La segunda llamada todavia incluye costo de arranque (en el log queda entre 37 y 59 ms), por eso
+# se hacen diez de calentamiento despues de la primera y recien se guarda la duodecima.
 CALENTAMIENTO=10
 
 medir() {

@@ -86,18 +86,19 @@ catálogo de repuestos combinado con las consultas a las tiendas.
 ```
 ┌──────────────────────────────────────────────────────┐
 │  PRESENTACIÓN    RepMatch.Web (Blazor Server)        │
-│                  Componentes Razor · FachadaAplicacion │
+│                  Componentes Razor                   │
 └───────────────────────┬──────────────────────────────┘
                         │  entra por FachadaAplicacion
 ┌───────────────────────▼──────────────────────────────┐
 │  LÓGICA DE       RepMatch.Aplicacion                 │
-│  NEGOCIO         Fachada · Servicios · Observador     │
-│                  CatalogoLocal · Validadores          │
+│  NEGOCIO         FachadaAplicacion · Servicios       │
+│                  Observador · CatalogoLocal          │
+│                  Validadores                         │
 └───────────────────────┬──────────────────────────────┘
                         │  usa las interfaces declaradas en Domain
 ┌───────────────────────▼──────────────────────────────┐
 │  DATOS           RepMatch.Persistence                │
-│                  Repositorios · UnitOfWork · EF Core  │
+│                  Repositorios · UnitOfWork · EF Core │
 └───────────────────────┬──────────────────────────────┘
                         ▼
                  PostgreSQL / InMemory
@@ -129,15 +130,18 @@ de esas piezas.
 ### Despacho de eventos de dominio (Primera Parte)
 
 Dentro de la capa de lógica de negocio, la resolución de piezas posterior a crear una búsqueda no
-se hace por llamado directo sino por evento. Cuando `ServicioBusquedas` persiste una nueva
-`Busqueda`, extrae los eventos acumulados por la entidad (`BusquedaCreada`) y los entrega a
+se hace por llamado directo sino por evento. Al crear una nueva `Busqueda`, `ServicioBusquedas`
+copia los eventos acumulados por la entidad (`BusquedaCreada`), la persiste (`AgregarAsync` y
+`ConfirmarAsync`), limpia los eventos de la entidad y recién después entrega la copia a
 `DespachadorEventos`. `DespachadorEventos` itera todos los `IObservadorEventoDominio` registrados y
 llama a los que aceptan ese tipo de evento. Hoy solo hay uno: `ObservadorCompatibilidad`, que
 consulta el catálogo y asigna los códigos de pieza a la búsqueda en una segunda transacción.
 
-El despacho ocurre **después** de que la búsqueda ya está persistida. Si el catálogo falla o no hay
-repuestos compatibles, el observador marca la búsqueda como `Fallida` con un motivo; solo ante un
-error inesperado la búsqueda queda `Pendiente`, pero ya persistida. Ese error no se atrapa en el
+El despacho ocurre **después** de que la búsqueda ya está persistida. Si no hay repuestos
+compatibles, o si la consulta al catálogo lanza `HttpRequestException` o `TaskCanceledException`
+(error HTTP o timeout del catálogo remoto), el observador marca la búsqueda como `Fallida` con un
+motivo. Cualquier otra excepción —por ejemplo, un error de base de datos en modo Local— no se
+atrapa: la búsqueda queda `Pendiente`, pero ya persistida. Ese error no se atrapa en el
 despachador: se propaga a `ServicioBusquedas.CrearAsync`, que lo devuelve como
 `ResultadoOperacion` fallido si es una `ExcepcionDominio`; cualquier otra excepción sube sin
 atrapar. Y `IDespachadorEventos` es una interfaz: en la Segunda Parte se registrará otra
@@ -207,24 +211,32 @@ bash scripts/evidencias.sh
 ```
 
 Deja en `docs/evidencias/` los logs de los tres procesos, la respuesta REST cruda, el contrato
-OpenAPI y las dos mediciones de `GET /evidencia/catalogo`. En cada modo, el script hace una primera
-llamada (arranque en frío), diez de calentamiento y una última, que es la que se guarda.
+OpenAPI y las dos mediciones de `GET /evidencia/catalogo`. En cada modo, el script hace 12 llamadas:
+una primera (arranque en frío), diez de calentamiento y una última, que es la única que se guarda
+en `06-medicion-local.json` o `07-medicion-remota.json`. La duración de las 12 queda en el log de la
+Web (líneas `Evidencia acceso ... duracion=`).
 
 ### 5.2 Latencia medida
 
 Consulta: repuestos compatibles con un **Volkswagen Gol 2015 1.6**. Los dos caminos devuelven
 **los mismos 7 códigos**, en el mismo orden. Cada petición a `GET /evidencia/catalogo` crea un
-ámbito nuevo y, por lo tanto, un `DbContext` nuevo. Valores de la corrida del 2026-10-05:
+ámbito nuevo y, por lo tanto, un `DbContext` nuevo. Valores de la corrida del 2026-10-05, tomados
+de `01-web-modo-local.log` y `02-web-modo-remoto.log`:
 
 | Ejecución | Local | Remoto | Sobrecosto |
 |---|---|---|---|
 | Primera llamada (arranque en frío) | 163,9 ms | 334,6 ms | +170,7 ms |
-| **En régimen** (`06-medicion-local.json`, `07-medicion-remota.json`) | **1,8 ms** | **11,2 ms** | **+9,4 ms** |
+| Segunda llamada (todavía calentando) | 37,1 ms | 58,7 ms | +21,6 ms |
+| **En régimen: llamadas 3 a 12, mediana (rango)** | **2,1 ms** (1,8–3,6) | **7,4 ms** (6,4–11,2) | **≈ +5 ms** |
+
+`06-medicion-local.json` y `07-medicion-remota.json` guardan solo la última llamada de cada modo
+(1,8 ms y 11,2 ms). Una sola muestra puede caer en cualquier punto del rango —en esta corrida, la
+remota fue la más lenta de las diez—, por eso para comparar conviene mirar la mediana.
 
 La primera llamada incluye la compilación JIT y la caché de consultas de EF Core, y en modo Remoto
 además la apertura de la conexión HTTP; por eso no sirve para comparar los dos caminos. En régimen,
 la invocación directa resuelve la consulta en un par de milisegundos y el salto por HTTP le suma
-alrededor de **10 ms**. Los valores exactos cambian de una corrida a otra, pero el orden de magnitud
+alrededor de **5 ms**. Los valores exactos cambian de una corrida a otra, pero el orden de magnitud
 se mantiene. Ése es el precio de poder desplegar el componente de catálogo por separado.
 
 ### 5.3 Trazabilidad entre procesos

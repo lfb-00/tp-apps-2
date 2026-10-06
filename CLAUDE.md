@@ -95,8 +95,10 @@ scripts/evidencias.sh      regenera docs/evidencias/ (logs + mediciones local vs
   Core ni ASP.NET: el mapeo vive en `Persistence/Configuraciones/` (incluido `Ignore(EventosDominio)`).
 - **Acceso local vs. remoto**: `ICatalogoRepuestos` (Strategy) con `CatalogoLocal` y
   `CatalogoRemoto` (Adapter); `FabricaCatalogo.AgregarCatalogo` (Factory) decide por
-  `Catalogo:Modo` al arrancar y registra **ambas** concretas (`scripts/evidencias.sh` las compara vía
-  `GET /evidencia/catalogo`; la página `/acceso` ya no existe).
+  `Catalogo:Modo` al arrancar y registra **ambas** concretas, pero `ICatalogoRepuestos` queda enlazada
+  a una sola. `GET /evidencia/catalogo` mide solo la activa; `scripts/evidencias.sh` compara los dos
+  caminos levantando la Web dos veces, una con cada valor de `Catalogo:Modo` (la página `/acceso`
+  ya no existe).
   `ExtensionesAplicacion` **no** registra `ICatalogoRepuestos` a propósito: es decisión del host.
   La futura implementación SOAP es una tercera estrategia, sin tocar interfaz ni consumidores.
 - **Errores esperables → `ResultadoOperacion<T>`**, no excepciones. Excepciones solo para lo
@@ -151,9 +153,10 @@ La solución compila **sin advertencias**; mantenerlo así.
 - **Docs**: `docs/informe-arquitectura.md` (incluye la tabla de la sección 7 "cómo recibe las
   entregas siguientes" y la de entregables), `docs/diagramas/*.md`, `docs/patrones.md` y
   `README.md`. Los diagramas son Mermaid y deben renderizar en GitHub.
-- **Cantidad de pruebas**: está escrita literal solo en la sección 5.4 del informe (la salida de
-  `dotnet test`). `docker-compose.yml` y `tests/RepMatch.Tests/Dockerfile` dicen "las pruebas" sin
-  número, a propósito. Si agregás o quitás pruebas, corré `dotnet test` y actualizá el informe.
+- **Cantidad de pruebas**: está escrita literal en la sección 5.4 del informe (la salida de
+  `dotnet test`) y en `status.md` ("79 passed"). `docker-compose.yml` y
+  `tests/RepMatch.Tests/Dockerfile` dicen "las pruebas" sin número, a propósito. Si agregás o quitás
+  pruebas, corré `dotnet test` y actualizá los dos.
 - **Proyecto nuevo**: sumarlo a `RepMatch.slnx` **y** a los `COPY` de `.csproj` de cada
   `Dockerfile` que lo necesite (`src/*/Dockerfile`, `tests/RepMatch.Tests/Dockerfile`); si no, el
   `dotnet restore` del build en Docker falla.

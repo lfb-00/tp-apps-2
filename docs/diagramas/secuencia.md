@@ -16,45 +16,56 @@ sequenceDiagram
     participant Fachada as FachadaAplicacion
     participant Busquedas as ServicioBusquedas
     participant Dominio as Busqueda
+    participant Repo as IBusquedaRepository
     participant UoW as UnitOfWork
     participant Despacho as DespachadorEventos
     participant Obs as ObservadorCompatibilidad
     participant Catalogo as ICatalogoRepuestos
 
     Usuario->>Web: Cliente, vehículo del garage y problema
-    Web->>Fachada: BuscarAsync(CrearBusquedaDto)
-    Fachada->>Busquedas: CrearAsync
-    Note over Busquedas: valida el DTO con FluentValidation y verifica que el cliente exista<br/>(si falla → ResultadoOperacion Falla)
-    Busquedas->>Dominio: new Busqueda
-    Dominio-->>Busquedas: encola BusquedaCreada
-    Busquedas->>UoW: ConfirmarAsync
-    Note over UoW: la búsqueda queda Pendiente
-    Busquedas->>Despacho: DespacharAsync
-    Despacho->>Obs: ObservarAsync(BusquedaCreada)
-    Obs->>Catalogo: BuscarCompatiblesAsync
-    alt hay piezas compatibles
-        Catalogo-->>Obs: piezas compatibles
-        Obs->>Dominio: AsignarCodigosObjetivo
-    else sin piezas o falla el catálogo (HttpRequestException / TaskCanceledException)
-        Obs->>Dominio: Fallar
-    end
-    Obs->>UoW: ConfirmarAsync
-    Note over Busquedas: vuelve a leer la búsqueda persistida
-    Busquedas-->>Fachada: ResultadoOperacion#lt;BusquedaDto#gt;
-    alt quedaron códigos asignados
-        Fachada->>Catalogo: BuscarCompatiblesAsync (vía ConsultarAsync)
-        alt el catálogo responde
-            Catalogo-->>Fachada: repuestos del vehículo
-            Note over Fachada: arma las piezas de los códigos asignados
-            Fachada-->>Web: ResultadoOperacion#lt;ResultadoBusquedaDto#gt; (búsqueda + piezas)
-        else falla el catálogo (HttpRequestException / TaskCanceledException)
-            Note over Fachada: ConsultarAsync atrapa la excepción<br/>la búsqueda ya quedó guardada, pero no se arman las piezas
-            Fachada-->>Web: ResultadoOperacion Falla ("No se pudo consultar el catálogo…")
+    alt no eligió vehículo o el texto tiene menos de 15 caracteres
+        Web-->>Usuario: "Elegí uno de tus vehículos." o pedido de más detalle, no llama a la fachada
+    else datos válidos
+        Web->>Fachada: BuscarAsync(CrearBusquedaDto)
+        Fachada->>Busquedas: CrearAsync
+        Note over Busquedas: valida el DTO con FluentValidation y verifica que el cliente exista<br/>(si falla → ResultadoOperacion Falla)<br/>una ExcepcionDominio dentro de CrearAsync también vuelve como Falla
+        Busquedas->>Dominio: new Busqueda
+        Dominio-->>Busquedas: encola BusquedaCreada
+        Busquedas->>Repo: AgregarAsync(busqueda)
+        Busquedas->>UoW: ConfirmarAsync
+        Note over UoW: la búsqueda queda Pendiente
+        Busquedas->>Despacho: DespacharAsync
+        Despacho->>Obs: ObservarAsync(BusquedaCreada)
+        Obs->>Repo: ObtenerPorIdAsync(BusquedaId)
+        Note over Obs: si no la encuentra registra un warning<br/>y retorna sin confirmar
+        Obs->>Catalogo: BuscarCompatiblesAsync
+        alt hay piezas compatibles
+            Catalogo-->>Obs: piezas compatibles
+            Obs->>Dominio: AsignarCodigosObjetivo
+        else sin piezas compatibles
+            Obs->>Dominio: Fallar
+        else error HTTP o timeout del catálogo remoto (HttpRequestException / TaskCanceledException)
+            Obs->>Dominio: Fallar
         end
-    else sin códigos (búsqueda Fallida)
-        Fachada-->>Web: ResultadoOperacion#lt;ResultadoBusquedaDto#gt; (búsqueda sin piezas)
+        Obs->>UoW: ConfirmarAsync
+        Busquedas->>Repo: ObtenerPorIdAsync(busqueda.Id)
+        Note over Busquedas: vuelve a leer la búsqueda persistida
+        Busquedas-->>Fachada: ResultadoOperacion#lt;BusquedaDto#gt;
+        alt quedaron códigos asignados
+            Fachada->>Catalogo: BuscarCompatiblesAsync (vía ConsultarAsync)
+            alt el catálogo responde
+                Catalogo-->>Fachada: repuestos del vehículo
+                Note over Fachada: arma las piezas de los códigos asignados
+                Fachada-->>Web: ResultadoOperacion#lt;ResultadoBusquedaDto#gt; (búsqueda + piezas)
+            else falla el catálogo (HttpRequestException / TaskCanceledException)
+                Note over Fachada: ConsultarAsync atrapa la excepción<br/>la búsqueda ya quedó guardada, pero no se arman las piezas
+                Fachada-->>Web: ResultadoOperacion Falla ("No se pudo consultar el catálogo…")
+            end
+        else sin códigos (búsqueda Fallida)
+            Fachada-->>Web: ResultadoOperacion#lt;ResultadoBusquedaDto#gt; (búsqueda sin piezas)
+        end
+        Web-->>Usuario: búsqueda con estado y piezas, o mensaje de error
     end
-    Web-->>Usuario: búsqueda con estado y piezas, o mensaje de error
 ```
 
 ---
@@ -107,7 +118,7 @@ sequenceDiagram
                 Web->>Sesion: EntrarAsync(cliente)
                 Sesion->>Storage: SetAsync("clienteId", cliente.Id)
                 Note over Sesion: dispara Cambio → MainLayout aplica el tema guardado y actualiza el header
-                Web-->>Usuario: redirige a / (Home.OnInitializedAsync carga las búsquedas recientes)
+                Web-->>Usuario: redirige a / (Home.OnInitializedAsync carga las búsquedas del cliente)
             end
         end
     end
@@ -136,35 +147,49 @@ sequenceDiagram
     participant Sesion as SesionActual
 
     Usuario->>Web: marca, modelo, año, motor y alias (opcionales)
-    Web->>Fachada: AgregarVehiculoAsync(clienteId, vehiculoDto, alias)
-    Fachada->>Clientes: AgregarVehiculoAsync
-    Clientes->>Repo: ObtenerPorIdAsync(clienteId)
-    Repo-->>Clientes: Cliente con garage actual (o null)
 
-    alt cliente inexistente
-        Clientes-->>Fachada: ResultadoOperacion.Falla("No existe el cliente …")
-        Fachada-->>Web: error
-        Web-->>Usuario: mensaje de error
-    else cliente encontrado
-        Clientes->>Datos: vehiculo.AEntidad()
-        Note over Datos: valida marca y modelo obligatorios y año entre 1950<br/>y el año actual + 1 (el motor es opcional)
-        Datos-->>Clientes: DatosVehiculo
-        Clientes->>Dominio: AgregarVehiculo(datosVehiculo, vin = null, alias)
-        Note over Dominio: rechaza el vehículo repetido<br/>y agrega un Vehiculo al garage
+    alt no eligió el año
+        Web-->>Usuario: "Elegí el año del vehículo.", no llama a la fachada
+    else año elegido
+        Web->>Fachada: AgregarVehiculoAsync(clienteId, vehiculoDto, alias)
+        Fachada->>Clientes: AgregarVehiculoAsync
+        Clientes->>Repo: ObtenerPorIdAsync(clienteId)
+        Repo-->>Clientes: Cliente con garage actual (o null)
 
-        alt regla de dominio violada
-            Note over Clientes: ExcepcionDominio de DatosVehiculo (marca o modelo vacíos,<br/>año fuera de rango) o de Cliente (vehículo repetido)
-            Clientes-->>Fachada: ResultadoOperacion.Falla
+        alt cliente inexistente
+            Clientes-->>Fachada: ResultadoOperacion.Falla("No existe el cliente …")
             Fachada-->>Web: error
             Web-->>Usuario: mensaje de error
-        else datos válidos
-            Clientes->>UoW: ConfirmarAsync
-            Note over UoW: persiste el Vehiculo nuevo
-            Clientes-->>Fachada: ResultadoOperacion#lt;ClienteDto#gt;
-            Fachada-->>Web: cliente actualizado con el vehículo nuevo
-            Web->>Sesion: EntrarAsync(resultado.Valor)
-            Note over Sesion: refresca la sesión con el garage nuevo
-            Web-->>Usuario: confirmación y garage actualizado
+        else cliente encontrado
+            Clientes->>Datos: vehiculo.AEntidad()
+            Note over Datos: valida marca y modelo obligatorios y año entre 1950<br/>y el año actual + 1 (el motor es opcional)
+
+            alt datos inválidos
+                Datos-->>Clientes: ExcepcionDominio (marca o modelo vacíos, año fuera de rango)
+                Note over Clientes: AgregarVehiculo no llega a ejecutarse
+                Clientes-->>Fachada: ResultadoOperacion.Falla
+                Fachada-->>Web: error
+                Web-->>Usuario: mensaje de error
+            else datos válidos
+                Datos-->>Clientes: DatosVehiculo
+                Clientes->>Dominio: AgregarVehiculo(datosVehiculo, vin = null, alias)
+                Note over Dominio: rechaza el vehículo repetido<br/>y agrega un Vehiculo al garage
+
+                alt vehículo repetido
+                    Dominio-->>Clientes: ExcepcionDominio
+                    Clientes-->>Fachada: ResultadoOperacion.Falla
+                    Fachada-->>Web: error
+                    Web-->>Usuario: mensaje de error
+                else vehículo agregado
+                    Clientes->>UoW: ConfirmarAsync
+                    Note over UoW: persiste el Vehiculo nuevo
+                    Clientes-->>Fachada: ResultadoOperacion#lt;ClienteDto#gt;
+                    Fachada-->>Web: cliente actualizado con el vehículo nuevo
+                    Web->>Sesion: EntrarAsync(resultado.Valor)
+                    Note over Sesion: refresca la sesión con el garage nuevo
+                    Web-->>Usuario: confirmación y garage actualizado
+                end
+            end
         end
     end
 ```
