@@ -50,8 +50,24 @@ classDiagram
     class Cliente {
         +string Nombre
         +string Email
+        +string? HashContrasena
         +DateTimeOffset FechaAlta
+        +string? Telefono
+        +bool TieneWhatsApp
+        +string? Provincia
+        +string? Localidad
+        +byte[]? FotoPerfil
+        +string? FotoTipoContenido
+        +Guid? VehiculoPredeterminadoId
+        +string? TemaPreferido
         +IReadOnlyCollection~Vehiculo~ Vehiculos
+        +EstablecerContrasena(hash)
+        +CambiarNombre(nombre)
+        +ActualizarContacto(telefono, tieneWhatsApp, provincia, localidad)
+        +CambiarFotoPerfil(datos, tipoContenido)
+        +QuitarFotoPerfil()
+        +EstablecerVehiculoPredeterminado(vehiculoId)
+        +CambiarTema(tema)
         +AgregarVehiculo(datos, vin, alias) Vehiculo
         +QuitarVehiculo(vehiculoId)
     }
@@ -145,6 +161,7 @@ classDiagram
     EntidadBase <|-- Oferta
 
     Cliente "1" *-- "0..*" Vehiculo : garage
+    Cliente "0..*" --> "0..1" Vehiculo : predeterminado
     Vehiculo *-- "1" DatosVehiculo : datos
     Repuesto "1" *-- "1..*" AplicacionVehiculo : compatibilidad
     Repuesto --> SistemaVehiculo
@@ -166,6 +183,16 @@ así que el tipo lo prohíbe y lanza `ExcepcionDominio`.
 
 **`Oferta.PrecioTotal` incluye el envío.** Ordenar por precio de lista haría ganar a una oferta
 barata con envío carísimo. El ranking usa siempre el total.
+
+**El perfil del cliente protege sus invariantes.** La foto no puede estar vacía, tiene que ser JPG,
+PNG o WEBP y no puede superar 5 MB. El teléfono admite dígitos, espacios, guiones, paréntesis y un
+`+` inicial, entre 8 y 20 caracteres. El tema solo puede ser `"claro"` u `"oscuro"`. La provincia se
+guarda como texto y no como enumeración: es un dato de contacto, no algo sobre lo que el dominio
+decida. No hay ningún método para cambiar el email.
+
+**El vehículo predeterminado tiene que ser del propio garage.** `EstablecerVehiculoPredeterminado`
+rechaza un vehículo ajeno, y `QuitarVehiculo` limpia el predeterminado si se quita ese auto. Se
+guarda solo el `Id` (sin navegación); en la base es una FK opcional con `ON DELETE SET NULL`.
 
 **Las colecciones se exponen como `IReadOnlyCollection`.** Modificarlas obliga a pasar por un método
 de la entidad, que es donde viven las invariantes. EF Core escribe directamente los campos privados

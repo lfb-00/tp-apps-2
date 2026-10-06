@@ -27,10 +27,42 @@ public sealed class FachadaAplicacion(
         CrearClienteDto dto, CancellationToken ct = default) =>
         clientes.RegistrarAsync(dto, ct);
 
+    public Task<ClienteDto?> AutenticarAsync(string email, string contrasena, CancellationToken ct = default) =>
+        clientes.AutenticarAsync(email, contrasena, ct);
+
     public Task<ResultadoOperacion<ClienteDto>> AgregarVehiculoAsync(
         Guid clienteId, VehiculoDto vehiculo, string? vin = null, string? alias = null,
         CancellationToken ct = default) =>
         clientes.AgregarVehiculoAsync(clienteId, vehiculo, vin, alias, ct);
+
+    public Task<ResultadoOperacion<ClienteDto>> ActualizarPerfilAsync(
+        Guid clienteId, ActualizarPerfilDto dto, CancellationToken ct = default) =>
+        clientes.ActualizarPerfilAsync(clienteId, dto, ct);
+
+    public Task<ResultadoOperacion> CambiarContrasenaAsync(
+        Guid clienteId, CambiarContrasenaDto dto, CancellationToken ct = default) =>
+        clientes.CambiarContrasenaAsync(clienteId, dto, ct);
+
+    public Task<ResultadoOperacion<ClienteDto>> CambiarFotoPerfilAsync(
+        Guid clienteId, CambiarFotoPerfilDto dto, CancellationToken ct = default) =>
+        clientes.CambiarFotoPerfilAsync(clienteId, dto, ct);
+
+    public Task<ResultadoOperacion<ClienteDto>> QuitarFotoPerfilAsync(
+        Guid clienteId, CancellationToken ct = default) =>
+        clientes.QuitarFotoPerfilAsync(clienteId, ct);
+
+    public Task<ResultadoOperacion<ClienteDto>> EstablecerVehiculoPredeterminadoAsync(
+        Guid clienteId, Guid? vehiculoId, CancellationToken ct = default) =>
+        clientes.EstablecerVehiculoPredeterminadoAsync(clienteId, vehiculoId, ct);
+
+    /// <summary>Guarda la preferencia de tema del cliente: "claro" u "oscuro".</summary>
+    public Task<ResultadoOperacion<ClienteDto>> CambiarTemaAsync(
+        Guid clienteId, string tema, CancellationToken ct = default) =>
+        clientes.CambiarTemaAsync(clienteId, tema, ct);
+
+    public Task<ResultadoOperacion> EliminarCuentaAsync(
+        Guid clienteId, EliminarCuentaDto dto, CancellationToken ct = default) =>
+        clientes.EliminarCuentaAsync(clienteId, dto, ct);
 
     public Task<IReadOnlyList<BusquedaDto>> ListarBusquedasRecientesAsync(
         int cantidad = 20, CancellationToken ct = default) =>

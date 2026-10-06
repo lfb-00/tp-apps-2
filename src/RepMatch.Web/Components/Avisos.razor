@@ -1,0 +1,21 @@
+@* Errores y mensaje de éxito de un formulario, con las alertas de siempre. *@
+@if (Errores.Count > 0)
+{
+    <div class="alerta alerta-error" role="alert" aria-live="assertive" style="margin-top:1rem">
+        <div>
+            @foreach (var error in Errores)
+            {
+                <div>@error</div>
+            }
+        </div>
+    </div>
+}
+else if (Mensaje is not null)
+{
+    <div class="alerta alerta-exito" role="status" aria-live="polite" style="margin-top:1rem">@Mensaje</div>
+}
+
+@code {
+    [Parameter] public IReadOnlyList<string> Errores { get; set; } = [];
+    [Parameter] public string? Mensaje { get; set; }
+}

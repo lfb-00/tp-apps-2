@@ -1,0 +1,203 @@
+@page "/login"
+@using RepMatch.Aplicacion.Fachada
+@inject FachadaAplicacion Fachada
+@inject SesionActual Sesion
+@inject NavigationManager Navegacion
+
+<PageTitle>@(crearCuenta ? "Crear cuenta" : "Ingresar") — RepMatch</PageTitle>
+
+<div class="card-auth">
+    <h1>@(crearCuenta ? "Crear cuenta" : "Ingresar")</h1>
+
+    <div class="campos-col">
+        @if (crearCuenta)
+        {
+            <div class="campo">
+                <label for="nombre">Tu nombre</label>
+                <input id="nombre" @bind="nombre" @bind:event="oninput" @onblur="ValidarNombre"
+                       class="@(errorNombre is not null ? "input-error" : "")"
+                       placeholder="Bruno Lo Faro" autocomplete="name" />
+                @if (errorNombre is not null)
+                {
+                    <span class="error-campo" role="alert">@errorNombre</span>
+                }
+            </div>
+        }
+
+        <div class="campo">
+            <label for="email">Email</label>
+            <input id="email" type="email" @bind="email" @bind:event="oninput" @onblur="ValidarEmail"
+                   class="@(errorEmail is not null ? "input-error" : "")"
+                   placeholder="correo@ejemplo.com" autocomplete="email" />
+            @if (errorEmail is not null)
+            {
+                <span class="error-campo" role="alert">@errorEmail</span>
+            }
+        </div>
+
+        <div class="campo">
+            <label for="contrasena">Contraseña</label>
+            <div class="campo-password">
+                <input id="contrasena" type="@(mostrarContrasena ? "text" : "password")"
+                       @bind="contrasena" @bind:event="oninput" @onblur="ValidarContrasena"
+                       class="@(errorContrasena is not null ? "input-error" : "")"
+                       autocomplete="@(crearCuenta ? "new-password" : "current-password")" />
+                <button type="button" class="btn-ojo"
+                        @onclick="() => mostrarContrasena = !mostrarContrasena"
+                        aria-label="@(mostrarContrasena ? "Ocultar contraseña" : "Mostrar contraseña")">
+                    @if (mostrarContrasena)
+                    {
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                            <path d="M17.94 17.94A10 10 0 0 1 12 20C5 20 1 12 1 12a18 18 0 0 1 5.06-5.94M9.9 4.24A9 9 0 0 1 12 4c7 0 11 8 11 8a18 18 0 0 1-2.16 3.19M1 1l22 22"/>
+                        </svg>
+                    }
+                    else
+                    {
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                            <path d="M1 12S5 4 12 4s11 8 11 8-4 8-11 8S1 12 1 12z"/>
+                            <circle cx="12" cy="12" r="3"/>
+                        </svg>
+                    }
+                </button>
+            </div>
+            @if (errorContrasena is not null)
+            {
+                <span class="error-campo" role="alert">@errorContrasena</span>
+            }
+            @if (crearCuenta)
+            {
+                <div class="requisitos-pass" aria-live="polite">
+                    <span class="req @(contrasena.Length >= 8 ? "cumplido" : "")">
+                        @(contrasena.Length >= 8 ? "✓" : "·") Al menos 8 caracteres
+                    </span>
+                </div>
+            }
+        </div>
+    </div>
+
+    @if (errores.Count > 0)
+    {
+        <div class="alerta alerta-error" role="alert" aria-live="assertive" style="margin-top:1rem">
+            @foreach (var error in errores)
+            {
+                <div>@error</div>
+            }
+        </div>
+    }
+
+    <p style="margin:1.25rem 0 0">
+        <button class="btn-full" @onclick="AccionarAsync" disabled="@cargando">
+            @(cargando ? "Un momento…" : crearCuenta ? "Crear cuenta" : "Ingresar")
+        </button>
+    </p>
+
+    <p style="margin-top:0.9rem; text-align:center; font-size:0.9rem">
+        @if (crearCuenta)
+        {
+            <span>¿Ya tenés cuenta? <a href="#" class="link-marca" @onclick="AlternarModo" @onclick:preventDefault>Ingresá</a></span>
+        }
+        else
+        {
+            <span>¿No tenés cuenta? <a href="#" class="link-marca" @onclick="AlternarModo" @onclick:preventDefault>Creá una</a></span>
+        }
+    </p>
+</div>
+
+@code {
+    private string email = "";
+    private string contrasena = "";
+    private string nombre = "";
+    private bool crearCuenta;
+    private bool cargando;
+    private bool mostrarContrasena;
+    private List<string> errores = [];
+
+    private string? errorEmail;
+    private string? errorContrasena;
+    private string? errorNombre;
+
+    protected override void OnInitialized()
+    {
+        if (Sesion.Cliente is not null)
+            Navegacion.NavigateTo("/");
+    }
+
+    private void AlternarModo()
+    {
+        crearCuenta = !crearCuenta;
+        errores = [];
+        errorEmail = null;
+        errorContrasena = null;
+        errorNombre = null;
+    }
+
+    private void ValidarEmail() =>
+        errorEmail = string.IsNullOrWhiteSpace(email) ? "El email es obligatorio." :
+                     !email.Contains('@') ? "El email no es válido." : null;
+
+    private void ValidarContrasena() =>
+        errorContrasena = string.IsNullOrWhiteSpace(contrasena) ? "La contraseña es obligatoria." :
+                          contrasena.Length < 8 ? "Mínimo 8 caracteres." : null;
+
+    private void ValidarNombre() =>
+        errorNombre = string.IsNullOrWhiteSpace(nombre) ? "El nombre es obligatorio." :
+                      nombre.Trim().Length < 2 ? "Ingresá al menos 2 caracteres." : null;
+
+    private async Task AccionarAsync()
+    {
+        ValidarEmail();
+        ValidarContrasena();
+        if (crearCuenta)
+            ValidarNombre();
+
+        if (errorEmail is not null || errorContrasena is not null || (crearCuenta && errorNombre is not null))
+            return;
+
+        cargando = true;
+        errores = [];
+
+        try
+        {
+            if (crearCuenta)
+                await RegistrarAsync();
+            else
+                await LoginAsync();
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async Task LoginAsync()
+    {
+        var cliente = await Fachada.AutenticarAsync(email, contrasena);
+        if (cliente is null)
+        {
+            errores = ["Email o contraseña incorrectos."];
+            return;
+        }
+
+        await Sesion.EntrarAsync(cliente);
+        Navegacion.NavigateTo("/");
+    }
+
+    private async Task RegistrarAsync()
+    {
+        var resultado = await Fachada.RegistrarClienteAsync(new CrearClienteDto
+        {
+            Nombre = nombre,
+            Email = email,
+            Contrasena = contrasena
+        });
+
+        if (resultado.EsFallido)
+        {
+            errores = [.. resultado.Errores];
+            return;
+        }
+
+        await Sesion.EntrarAsync(resultado.Valor);
+        Navegacion.NavigateTo("/");
+    }
+}

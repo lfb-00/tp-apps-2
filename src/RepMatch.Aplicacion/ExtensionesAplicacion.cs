@@ -22,6 +22,10 @@ public static class ExtensionesAplicacion
         servicios.AddScoped<IValidator<CrearClienteDto>, ValidadorCrearCliente>();
         servicios.AddScoped<IValidator<CrearBusquedaDto>, ValidadorCrearBusqueda>();
         servicios.AddScoped<IValidator<VehiculoDto>, ValidadorVehiculo>();
+        servicios.AddScoped<IValidator<ActualizarPerfilDto>, ValidadorActualizarPerfil>();
+        servicios.AddScoped<IValidator<CambiarContrasenaDto>, ValidadorCambiarContrasena>();
+        servicios.AddScoped<IValidator<CambiarFotoPerfilDto>, ValidadorCambiarFotoPerfil>();
+        servicios.AddScoped<IValidator<EliminarCuentaDto>, ValidadorEliminarCuenta>();
 
         servicios.AddScoped<ServicioClientes>();
         servicios.AddScoped<ServicioBusquedas>();

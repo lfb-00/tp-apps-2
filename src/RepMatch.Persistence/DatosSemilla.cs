@@ -18,14 +18,23 @@ public static class DatosSemilla
             await contexto.Repuestos.AddAsync(repuesto, ct);
 
         var cliente = new Cliente("Bruno Lo Faro", "blofaro@uade.edu.ar");
-        cliente.AgregarVehiculo(new DatosVehiculo("Volkswagen", "Gol", 2015, "1.6"), alias: "El Gol");
+        cliente.EstablecerContrasena(BCrypt.Net.BCrypt.HashPassword("repMatch123!"));
+        cliente.ActualizarContacto("+54 9 11 1234-5678", tieneWhatsApp: true,
+            "Ciudad Autónoma de Buenos Aires", "Monserrat");
+        var gol = cliente.AgregarVehiculo(new DatosVehiculo("Volkswagen", "Gol", 2015, "1.6"), alias: "El Gol");
         cliente.AgregarVehiculo(new DatosVehiculo("Peugeot", "208", 2019, "1.6"), alias: "El 208");
         await contexto.Clientes.AddAsync(cliente, ct);
 
         var otro = new Cliente("Taller San Martin", "contacto@tallersanmartin.com.ar");
+        otro.EstablecerContrasena(BCrypt.Net.BCrypt.HashPassword("repMatch123!"));
         otro.AgregarVehiculo(new DatosVehiculo("Toyota", "Corolla", 2018, "1.8"));
         await contexto.Clientes.AddAsync(otro, ct);
 
+        await contexto.SaveChangesAsync(ct);
+
+        // El predeterminado va en un segundo guardado: cliente -> vehiculo predeterminado y
+        // vehiculo -> cliente forman un ciclo que EF no puede ordenar en un solo INSERT.
+        cliente.EstablecerVehiculoPredeterminado(gol.Id);
         await contexto.SaveChangesAsync(ct);
     }
 
