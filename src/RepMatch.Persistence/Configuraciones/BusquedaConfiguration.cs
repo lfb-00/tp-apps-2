@@ -14,7 +14,7 @@ public sealed class BusquedaConfiguration : IEntityTypeConfiguration<Busqueda>
 
         b.Ignore(x => x.EventosDominio);
 
-        b.Property(x => x.TextoLibre).HasMaxLength(1000).IsRequired();
+        b.Property(x => x.TextoLibre).HasMaxLength(Busqueda.LongitudMaximaTexto).IsRequired();
         b.Property(x => x.Estado).HasConversion<string>().HasMaxLength(20).IsRequired();
         b.Property(x => x.FechaCreacion).IsRequired();
         b.Property(x => x.MotivoFalla).HasMaxLength(500);

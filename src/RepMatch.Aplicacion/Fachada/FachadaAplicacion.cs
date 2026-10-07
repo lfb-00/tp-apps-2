@@ -12,7 +12,8 @@ namespace RepMatch.Aplicacion.Fachada;
 public sealed class FachadaAplicacion(
     ServicioClientes clientes,
     ServicioBusquedas busquedas,
-    ICatalogoRepuestos catalogo)
+    ICatalogoRepuestos catalogo,
+    ICatalogoVehiculos catalogoVehiculos)
 {
     public Task<IReadOnlyList<ClienteDto>> ListarClientesAsync(CancellationToken ct = default) =>
         clientes.ListarAsync(ct);
@@ -83,6 +84,9 @@ public sealed class FachadaAplicacion(
     public async Task<ResultadoOperacion<ResultadoBusquedaDto>> BuscarAsync(
         CrearBusquedaDto dto, CancellationToken ct = default)
     {
+        if (!await catalogoVehiculos.EsConfiguracionValidaAsync(dto.Vehiculo, ct))
+            return ResultadoOperacion<ResultadoBusquedaDto>.Falla("Elegí una configuración válida del catálogo de vehículos.");
+
         var creada = await busquedas.CrearAsync(dto, ct);
         if (creada.EsFallido)
             return ResultadoOperacion<ResultadoBusquedaDto>.Falla(creada.Errores);
@@ -113,9 +117,14 @@ public sealed class FachadaAplicacion(
         });
     }
 
-    public Task<ResultadoOperacion<IReadOnlyList<RepuestoDto>>> BuscarRepuestosAsync(
-        VehiculoDto vehiculo, string? sistema, CancellationToken ct = default) =>
-        ConsultarAsync(token => catalogo.BuscarCompatiblesAsync(vehiculo, sistema, token), ct);
+    public async Task<ResultadoOperacion<IReadOnlyList<RepuestoDto>>> BuscarRepuestosAsync(
+        VehiculoDto vehiculo, string? sistema, CancellationToken ct = default)
+    {
+        if (!await catalogoVehiculos.EsConfiguracionValidaAsync(vehiculo, ct))
+            return ResultadoOperacion<IReadOnlyList<RepuestoDto>>.Falla("Elegí una configuración válida del catálogo de vehículos.");
+
+        return await ConsultarAsync(token => catalogo.BuscarCompatiblesAsync(vehiculo, sistema, token), ct);
+    }
 
     public Task<ResultadoOperacion<IReadOnlyList<RepuestoDto>>> ListarRepuestosAsync(
         CancellationToken ct = default) =>

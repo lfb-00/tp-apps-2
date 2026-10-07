@@ -19,35 +19,7 @@
     </section>
 
     <div class="buscador">
-        <div class="campos">
-            <div>
-                <label for="marca">Marca</label>
-                <input id="marca" @bind="marcaAnon" @bind:event="oninput" placeholder="Volkswagen" />
-            </div>
-            <div>
-                <label for="modelo">Modelo</label>
-                <input id="modelo" @bind="modeloAnon" @bind:event="oninput" placeholder="Gol" />
-            </div>
-            <div>
-                <label for="anio">Año</label>
-                <select id="anio" @bind="anioAnon"
-                        class="@(anioAnon == 0 && errorAnioAnon is not null ? "input-error" : anioAnon == 0 ? "placeholder-activo" : "")">
-                    <option value="0" disabled>Elegí el año</option>
-                    @for (int y = DateTime.Now.Year + 1; y >= 1980; y--)
-                    {
-                        <option value="@y">@y</option>
-                    }
-                </select>
-                @if (anioAnon == 0 && errorAnioAnon is not null)
-                {
-                    <span class="error-campo" role="alert">@errorAnioAnon</span>
-                }
-            </div>
-            <div>
-                <label for="motor">Motor (opcional)</label>
-                <input id="motor" @bind="motorAnon" @bind:event="oninput" placeholder="1.6" />
-            </div>
-        </div>
+        <SelectorVehiculo @bind-Valor="vehiculoAnonDto" Prefijo="anon" Deshabilitado="@buscandoAnon" />
 
         <div style="margin-top:0.85rem">
             <div class="label-con-icono">
@@ -64,7 +36,7 @@
                             @onclick="() => ToggleChipAnon(chip)">@chip</button>
                 }
             </div>
-            <textarea id="textoAnon" rows="3"
+            <textarea id="textoAnon" rows="3" maxlength="500"
                       @bind="textoAnon" @bind:event="oninput"
                       class="@(MostrarErrorTextoAnon ? "input-error" : "")"
                       placeholder="Ej: cuando freno vibra el volante y se escucha un chirrido"
@@ -174,7 +146,7 @@ else
                                 @onclick="() => ToggleChipSesion(chip)">@chip</button>
                     }
                 </div>
-                <textarea id="texto" rows="3"
+                <textarea id="texto" rows="3" maxlength="500"
                           @bind="texto" @bind:event="oninput"
                           class="@(MostrarErrorTexto ? "input-error" : "")"
                           placeholder="Ej: cuando freno vibra el volante y se escucha un chirrido"
@@ -283,15 +255,14 @@ else
     private IReadOnlyList<BusquedaDto> recientes = [];
     private ResultadoBusquedaDto? resultado;
 
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "v")]
+    public Guid? VehiculoSolicitadoId { get; set; }
+
     // búsqueda anónima
-    private string marcaAnon = "";
-    private string modeloAnon = "";
-    private int anioAnon = 0;
-    private string motorAnon = "";
     private string textoAnon = "";
     private bool buscandoAnon;
     private List<string> erroresAnon = [];
-    private string? errorAnioAnon;
     private string? errorTextoAnon;
     private IReadOnlyList<RepuestoDto>? resultadoAnon;
     private VehiculoDto? vehiculoAnonDto;
@@ -325,11 +296,18 @@ else
         recientes = await Fachada.ListarBusquedasDelClienteAsync(Sesion.Cliente.Id);
     }
 
+    protected override void OnParametersSet()
+    {
+        if (Sesion.Cliente is not null && VehiculoSolicitadoId is not null)
+            vehiculoSeleccionado = VehiculoInicial();
+    }
+
     /// <summary>El predeterminado si lo tiene; si no, el primero del garage.</summary>
     private string VehiculoInicial()
     {
+        var solicitado = vehiculos.FirstOrDefault(v => v.Id == VehiculoSolicitadoId);
         var predeterminado = vehiculos.FirstOrDefault(v => v.Id == Sesion.Cliente?.VehiculoPredeterminadoId);
-        return (predeterminado ?? vehiculos.FirstOrDefault())?.Id.ToString() ?? "";
+        return (solicitado ?? predeterminado ?? vehiculos.FirstOrDefault())?.Id.ToString() ?? "";
     }
 
     private void AlCambiarSesion() => _ = InvokeAsync(async () =>
@@ -348,7 +326,6 @@ else
         resultadoAnon = null;
         vehiculoAnonDto = null;
         erroresAnon = [];
-        errorAnioAnon = null;
         errorTextoAnon = null;
 
         if (Sesion.Cliente is null)
@@ -391,38 +368,20 @@ else
 
         try
         {
-            var valido = true;
-
-            if (string.IsNullOrWhiteSpace(marcaAnon) || string.IsNullOrWhiteSpace(modeloAnon))
+            var vehiculo = vehiculoAnonDto;
+            if (vehiculo is null)
             {
-                erroresAnon = ["Ingresá la marca y el modelo."];
-                valido = false;
-            }
-
-            if (anioAnon == 0)
-            {
-                errorAnioAnon = "Elegí el año del vehículo.";
-                valido = false;
+                erroresAnon = ["Elegí marca, modelo, año y motor del vehículo."];
+                return;
             }
 
             if (textoAnon.Length < 15)
             {
                 errorTextoAnon = "Describí el problema con un poco más de detalle, por ejemplo cuándo pasa o qué ruido hace.";
-                valido = false;
+                return;
             }
 
-            if (!valido)
-                return;
-
-            vehiculoAnonDto = new VehiculoDto
-            {
-                Marca = marcaAnon.Trim(),
-                Modelo = modeloAnon.Trim(),
-                Anio = anioAnon,
-                Motor = string.IsNullOrWhiteSpace(motorAnon) ? null : motorAnon.Trim()
-            };
-
-            var respuesta = await Fachada.BuscarRepuestosAsync(vehiculoAnonDto, sistema: null);
+            var respuesta = await Fachada.BuscarRepuestosAsync(vehiculo, sistema: null);
             if (respuesta.EsFallido)
             {
                 erroresAnon = [.. respuesta.Errores];
@@ -459,6 +418,8 @@ else
                 errorTexto = "Describí el problema con un poco más de detalle, por ejemplo cuándo pasa o qué ruido hace.";
                 return;
             }
+
+            errorTexto = null;
 
             var respuesta = await Fachada.BuscarAsync(new CrearBusquedaDto
             {

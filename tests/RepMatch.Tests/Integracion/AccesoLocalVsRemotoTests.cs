@@ -47,6 +47,11 @@ public class AccesoLocalVsRemotoTests : IClassFixture<WebApplicationFactory<Prog
     private ICatalogoRepuestos CrearCatalogoRemoto() =>
         new CatalogoRemoto(_http, NullLogger<CatalogoRemoto>.Instance);
 
+    private ICatalogoVehiculos CrearCatalogoVehiculosLocal() =>
+        _fabrica.Services.CreateScope().ServiceProvider.GetRequiredService<ICatalogoVehiculos>();
+
+    private ICatalogoVehiculos CrearCatalogoVehiculosRemoto() => new CatalogoVehiculosRemoto(_http);
+
     public static TheoryData<string, string, int, string?> Vehiculos() => new()
     {
         { "Volkswagen", "Gol", 2015, "1.6" },
@@ -78,6 +83,40 @@ public class AccesoLocalVsRemotoTests : IClassFixture<WebApplicationFactory<Prog
         Assert.Equal("Remoto", CrearCatalogoRemoto().Modo);
 
         await Task.CompletedTask;
+    }
+
+    [Fact]
+    public async Task Catalogo_de_vehiculos_local_y_remoto_coinciden_y_cubren_siete_marcas()
+    {
+        var local = await CrearCatalogoVehiculosLocal().ListarOpcionesAsync();
+        var remoto = await CrearCatalogoVehiculosRemoto().ListarOpcionesAsync();
+
+        Assert.Equal(local, remoto);
+        Assert.Equal(7, local.Select(o => o.Marca).Distinct().Count());
+        Assert.All(local.GroupBy(o => o.Marca), grupo => Assert.True(grupo.Select(o => o.Modelo).Distinct().Count() >= 3));
+        Assert.All(local, o =>
+        {
+            Assert.True(o.AnioDesde <= o.AnioHasta);
+            Assert.False(string.IsNullOrWhiteSpace(o.Motor));
+        });
+    }
+
+    [Fact]
+    public async Task Cada_modelo_del_catalogo_tiene_al_menos_un_repuesto_compatible()
+    {
+        var opciones = await CrearCatalogoVehiculosLocal().ListarOpcionesAsync();
+
+        foreach (var opcion in opciones.GroupBy(o => new { o.Marca, o.Modelo }).Select(g => g.First()))
+        {
+            var repuestos = await CrearCatalogoLocal().BuscarCompatiblesAsync(new VehiculoDto
+            {
+                Marca = opcion.Marca,
+                Modelo = opcion.Modelo,
+                Anio = opcion.AnioDesde,
+                Motor = opcion.Motor
+            });
+            Assert.NotEmpty(repuestos);
+        }
     }
 
     [Fact]

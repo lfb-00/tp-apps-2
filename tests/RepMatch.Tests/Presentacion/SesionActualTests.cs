@@ -29,7 +29,7 @@ public class SesionActualTests
 
         // La fachada no se llega a usar: el valor guardado no se puede leer.
         var sesion = new SesionActual(
-            new FachadaAplicacion(null!, null!, null!), almacenamiento, NullLogger<SesionActual>.Instance);
+            new FachadaAplicacion(null!, null!, null!, null!), almacenamiento, NullLogger<SesionActual>.Instance);
 
         await sesion.RestaurarAsync();
 

@@ -19,10 +19,12 @@ public sealed class ServicioClientes(
     IBusquedaRepository busquedas,
     IUnitOfWork unidadDeTrabajo,
     IValidator<CrearClienteDto> validador,
+    IValidator<VehiculoDto> validadorVehiculo,
     IValidator<ActualizarPerfilDto> validadorPerfil,
     IValidator<CambiarContrasenaDto> validadorContrasena,
     IValidator<CambiarFotoPerfilDto> validadorFoto,
     IValidator<EliminarCuentaDto> validadorEliminar,
+    IConfiguracionVehiculoRepository configuracionesVehiculo,
     ILogger<ServicioClientes> log)
 {
     public async Task<IReadOnlyList<ClienteDto>> ListarAsync(CancellationToken ct = default)
@@ -91,6 +93,16 @@ public sealed class ServicioClientes(
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(vehiculo);
+
+        var validacion = await validadorVehiculo.ValidarAsync(vehiculo, ct);
+        if (validacion.EsFallido)
+            return ResultadoOperacion<ClienteDto>.Falla(validacion.Errores);
+
+        if (!await configuracionesVehiculo.ExisteAsync(vehiculo.Marca, vehiculo.Modelo, vehiculo.Anio, vehiculo.Motor, ct))
+            return ResultadoOperacion<ClienteDto>.Falla("Elegí una configuración válida del catálogo de vehículos.");
+
+        if (alias?.Trim().Length > Vehiculo.LongitudMaximaAlias)
+            return ResultadoOperacion<ClienteDto>.Falla("El apodo admite hasta 120 caracteres.");
 
         var cliente = await clientes.ObtenerPorIdAsync(clienteId, ct);
         if (cliente is null)

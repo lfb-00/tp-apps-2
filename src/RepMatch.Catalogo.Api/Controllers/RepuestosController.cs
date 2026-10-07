@@ -12,7 +12,7 @@ namespace RepMatch.Catalogo.Api.Controllers;
 [ApiController]
 [Route("api/repuestos")]
 [Produces("application/json")]
-public sealed class RepuestosController(ICatalogoRepuestos catalogo) : ControllerBase
+public sealed class RepuestosController(ICatalogoRepuestos catalogo, ICatalogoVehiculos catalogoVehiculos) : ControllerBase
 {
     /// <summary>Catalogo completo de repuestos.</summary>
     [HttpGet]
@@ -44,6 +44,9 @@ public sealed class RepuestosController(ICatalogoRepuestos catalogo) : Controlle
             return BadRequest(new ProblemDetails { Title = $"El anio {anio} esta fuera de rango." });
 
         var vehiculo = new VehiculoDto { Marca = marca, Modelo = modelo, Anio = anio, Motor = motor };
+
+        if (!await catalogoVehiculos.EsConfiguracionValidaAsync(vehiculo, ct))
+            return BadRequest(new ProblemDetails { Title = "La configuración del vehículo no existe en el catálogo." });
 
         return Ok(await catalogo.BuscarCompatiblesAsync(vehiculo, sistema, ct));
     }
