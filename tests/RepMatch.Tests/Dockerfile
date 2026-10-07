@@ -1,4 +1,4 @@
-# Runner de pruebas: permite correr las 58 pruebas sin tener el SDK de .NET instalado.
+# Runner de pruebas: permite correr las pruebas sin tener el SDK de .NET instalado.
 #
 #   docker compose --profile test run --rm tests
 #

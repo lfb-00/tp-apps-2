@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using RepMatch.Domain.Repositorios;
 
 namespace RepMatch.Persistence;
@@ -11,4 +12,24 @@ public sealed class UnitOfWork(RepMatchDbContext contexto) : IUnitOfWork
 {
     public Task<int> ConfirmarAsync(CancellationToken ct = default) =>
         contexto.SaveChangesAsync(ct);
+
+    public async Task EjecutarEnTransaccionAsync(Func<CancellationToken, Task> trabajo, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(trabajo);
+
+        // El proveedor InMemory (pruebas y modo sin Docker) no tiene transacciones.
+        if (!contexto.Database.IsRelational())
+        {
+            await trabajo(ct);
+            return;
+        }
+
+        var estrategia = contexto.Database.CreateExecutionStrategy();
+        await estrategia.ExecuteAsync(async () =>
+        {
+            await using var transaccion = await contexto.Database.BeginTransactionAsync(ct);
+            await trabajo(ct);
+            await transaccion.CommitAsync(ct);
+        });
+    }
 }

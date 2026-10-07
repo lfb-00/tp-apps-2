@@ -19,6 +19,7 @@ builder.Services.AddRazorComponents()
 builder.Services.AgregarCatalogo(builder.Configuration);
 builder.Services.AgregarProteccionDatos(builder.Configuration);
 builder.Services.AddScoped<RepMatch.Web.Servicios.SesionActual>();
+builder.Services.AddScoped<RepMatch.Web.Servicios.TemaActual>();
 
 var app = builder.Build();
 

@@ -19,6 +19,10 @@ public sealed class SesionActual(
 
     public ClienteDto? Cliente { get; private set; }
 
+    /// <summary>Mensaje para mostrar en la próxima página, por ejemplo después de borrar la
+    /// cuenta. Lo consume quien lo muestra.</summary>
+    public string? AvisoPendiente { get; set; }
+
     public event Action? Cambio;
 
     public async Task RestaurarAsync()
@@ -58,6 +62,24 @@ public sealed class SesionActual(
         restaurada = true;
         await almacenamiento.SetAsync(Clave, cliente.Id);
         Cambio?.Invoke();
+    }
+
+    /// <summary>Vuelve a leer el cliente de la fachada y avisa, para que el header y las páginas
+    /// muestren el perfil recién guardado sin recargar.</summary>
+    public async Task RefrescarAsync()
+    {
+        if (Cliente is null)
+            return;
+
+        Cliente = await fachada.ObtenerClienteAsync(Cliente.Id);
+        Cambio?.Invoke();
+    }
+
+    public string? TomarAviso()
+    {
+        var aviso = AvisoPendiente;
+        AvisoPendiente = null;
+        return aviso;
     }
 
     public async Task SalirAsync()

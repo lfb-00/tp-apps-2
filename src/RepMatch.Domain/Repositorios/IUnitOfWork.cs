@@ -8,4 +8,8 @@ namespace RepMatch.Domain.Repositorios;
 public interface IUnitOfWork
 {
     Task<int> ConfirmarAsync(CancellationToken ct = default);
+
+    /// <summary>Corre varias confirmaciones como una sola transaccion: o quedan todas o ninguna.
+    /// Hace falta cuando un cambio no se puede ordenar en un solo guardado.</summary>
+    Task EjecutarEnTransaccionAsync(Func<CancellationToken, Task> trabajo, CancellationToken ct = default);
 }

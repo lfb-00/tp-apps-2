@@ -6,55 +6,137 @@
 
 <PageTitle>RepMatch</PageTitle>
 
+@if (aviso is not null)
+{
+    <div class="alerta alerta-exito" role="status" aria-live="polite">@aviso</div>
+}
+
 @if (Sesion.Cliente is null)
 {
     <section class="entrada">
         <h1>Buscá la pieza para tu auto</h1>
-        <p>Entrá con tu email. Vas a ver tus vehículos y tus consultas, no las de otra persona.</p>
+        <p>Ingresá tu vehículo y el problema. La IA te muestra las piezas que le van.</p>
     </section>
 
     <div class="buscador">
         <div class="campos">
             <div>
-                <label for="email">Email</label>
-                <input id="email" @bind="email" placeholder="bruno@ejemplo.com" />
+                <label for="marca">Marca</label>
+                <input id="marca" @bind="marcaAnon" @bind:event="oninput" placeholder="Volkswagen" />
             </div>
-            @if (crearCuenta)
-            {
-                <div>
-                    <label for="nombre">Tu nombre</label>
-                    <input id="nombre" @bind="nombre" placeholder="Bruno Lo Faro" />
-                </div>
-            }
+            <div>
+                <label for="modelo">Modelo</label>
+                <input id="modelo" @bind="modeloAnon" @bind:event="oninput" placeholder="Gol" />
+            </div>
+            <div>
+                <label for="anio">Año</label>
+                <select id="anio" @bind="anioAnon"
+                        class="@(anioAnon == 0 && errorAnioAnon is not null ? "input-error" : anioAnon == 0 ? "placeholder-activo" : "")">
+                    <option value="0" disabled>Elegí el año</option>
+                    @for (int y = DateTime.Now.Year + 1; y >= 1980; y--)
+                    {
+                        <option value="@y">@y</option>
+                    }
+                </select>
+                @if (anioAnon == 0 && errorAnioAnon is not null)
+                {
+                    <span class="error-campo" role="alert">@errorAnioAnon</span>
+                }
+            </div>
+            <div>
+                <label for="motor">Motor (opcional)</label>
+                <input id="motor" @bind="motorAnon" @bind:event="oninput" placeholder="1.6" />
+            </div>
         </div>
 
-        @if (crearCuenta)
-        {
-            <p class="aviso" style="margin-top:1rem">No hay una cuenta con ese email. Creala y empezá con tu garage.</p>
-        }
+        <div style="margin-top:0.85rem">
+            <div class="label-con-icono">
+                <AiIcon Size="15" />
+                <label for="textoAnon">¿Qué le pasa?</label>
+            </div>
+            <div class="chips" role="group" aria-label="Síntomas frecuentes">
+                @foreach (var chip in _chips)
+                {
+                    var seleccionado = textoAnon.Contains(chip);
+                    <button type="button"
+                            class="chip @(seleccionado ? "is-selected" : "")"
+                            aria-pressed="@(seleccionado ? "true" : "false")"
+                            @onclick="() => ToggleChipAnon(chip)">@chip</button>
+                }
+            </div>
+            <textarea id="textoAnon" rows="3"
+                      @bind="textoAnon" @bind:event="oninput"
+                      class="@(MostrarErrorTextoAnon ? "input-error" : "")"
+                      placeholder="Ej: cuando freno vibra el volante y se escucha un chirrido"
+                      style="margin-top:0.5rem"></textarea>
+            <div class="ayuda-campo">
+                @if (MostrarErrorTextoAnon)
+                {
+                    <span class="error-campo">@errorTextoAnon</span>
+                }
+                else
+                {
+                    <span>Contá cuándo pasa, qué ruido hace o qué notás. Mínimo 15 caracteres.</span>
+                }
+                <span style="color:@(textoAnon.Length >= 15 ? "var(--color-success)" : "var(--color-text-muted)")">
+                    @textoAnon.Length / 500
+                </span>
+            </div>
+        </div>
 
-        @if (errores.Count > 0)
+        @if (erroresAnon.Count > 0)
         {
-            <div class="aviso error" style="margin-top:1rem">
-                @foreach (var error in errores)
+            <div class="alerta alerta-error" role="alert" aria-live="polite" style="margin-top:0.75rem">
+                @foreach (var error in erroresAnon)
                 {
                     <div>@error</div>
                 }
             </div>
         }
 
-        <p style="margin:1rem 0 0">
-            <button @onclick="EntrarAsync" disabled="@entrando">
-                @(entrando ? "Entrando…" : crearCuenta ? "Crear cuenta" : "Entrar")
+        <p style="margin:0.85rem 0 0">
+            <button @onclick="BuscarAnonAsync" disabled="@buscandoAnon">
+                @if (buscandoAnon)
+                {
+                    <span class="ai-spin"><AiIcon /></span>
+                    <span>Buscando…</span>
+                }
+                else
+                {
+                    <AiIcon />
+                    <span>Diagnosticar con IA</span>
+                }
             </button>
         </p>
     </div>
+
+    @if (resultadoAnon is not null)
+    {
+        @if (resultadoAnon.Count == 0)
+        {
+            <div class="tarjeta">
+                <p class="vacio">No encontramos piezas del catálogo para ese vehículo. Probá con otra marca o modelo.</p>
+            </div>
+        }
+        else
+        {
+            <p class="conteo">@resultadoAnon.Count @(resultadoAnon.Count == 1 ? "pieza" : "piezas") compatibles</p>
+            <div class="piezas">
+                @foreach (var pieza in resultadoAnon)
+                {
+                    <article class="pieza">
+                        <TarjetaRepuesto Repuesto="pieza" Vehiculo="vehiculoAnonDto" />
+                    </article>
+                }
+            </div>
+        }
+    }
 }
 else
 {
     <section class="entrada">
-        <h1>Qué le pasa a tu auto</h1>
-        <p>Elegí uno de tus vehículos y contá el problema. Te mostramos las piezas que le van.</p>
+        <h1>¿Qué le pasa a tu auto?</h1>
+        <p>Elegí uno de tus vehículos y contá el problema. La IA identifica las piezas que le van.</p>
     </section>
 
     @if (vehiculos.Count == 0)
@@ -72,26 +154,64 @@ else
                 <select id="vehiculo" @bind="vehiculoSeleccionado">
                     @foreach (var vehiculo in vehiculos)
                     {
-                        <option value="@vehiculo.Id">@Etiqueta(vehiculo)</option>
+                        <option value="@vehiculo.Id">@vehiculo.Etiqueta()</option>
                     }
                 </select>
             </div>
 
             <div style="margin-top:0.85rem">
-                <label for="texto">Qué le pasa</label>
-                <textarea id="texto" rows="3" @bind="texto"
-                          placeholder="Cuando freno vibra el volante y se escucha un chillido"></textarea>
+                <div class="label-con-icono">
+                    <AiIcon Size="15" />
+                    <label for="texto">¿Qué le pasa?</label>
+                </div>
+                <div class="chips" role="group" aria-label="Síntomas frecuentes">
+                    @foreach (var chip in _chips)
+                    {
+                        var seleccionado = texto.Contains(chip);
+                        <button type="button"
+                                class="chip @(seleccionado ? "is-selected" : "")"
+                                aria-pressed="@(seleccionado ? "true" : "false")"
+                                @onclick="() => ToggleChipSesion(chip)">@chip</button>
+                    }
+                </div>
+                <textarea id="texto" rows="3"
+                          @bind="texto" @bind:event="oninput"
+                          class="@(MostrarErrorTexto ? "input-error" : "")"
+                          placeholder="Ej: cuando freno vibra el volante y se escucha un chirrido"
+                          style="margin-top:0.5rem"></textarea>
+                <div class="ayuda-campo">
+                    @if (MostrarErrorTexto)
+                    {
+                        <span class="error-campo">@errorTexto</span>
+                    }
+                    else
+                    {
+                        <span>Contá cuándo pasa, qué ruido hace o qué notás. Mínimo 15 caracteres.</span>
+                    }
+                    <span style="color:@(texto.Length >= 15 ? "var(--color-success)" : "var(--color-text-muted)")">
+                        @texto.Length / 500
+                    </span>
+                </div>
             </div>
 
-            <p style="margin:1rem 0 0">
+            <p style="margin:0.85rem 0 0">
                 <button @onclick="BuscarAsync" disabled="@buscando">
-                    @(buscando ? "Buscando…" : "Buscar piezas")
+                    @if (buscando)
+                    {
+                        <span class="ai-spin"><AiIcon /></span>
+                        <span>Buscando…</span>
+                    }
+                    else
+                    {
+                        <AiIcon />
+                        <span>Diagnosticar con IA</span>
+                    }
                 </button>
             </p>
 
             @if (errores.Count > 0)
             {
-                <div class="aviso error" style="margin-top:1rem">
+                <div class="alerta alerta-error" role="alert" aria-live="polite" style="margin-top:0.75rem">
                     @foreach (var error in errores)
                     {
                         <div>@error</div>
@@ -109,17 +229,17 @@ else
 
             @if (!string.IsNullOrWhiteSpace(resultado.Busqueda.MotivoFalla))
             {
-                <div class="aviso error">@resultado.Busqueda.MotivoFalla</div>
+                <div class="alerta alerta-error">@resultado.Busqueda.MotivoFalla</div>
             }
             else if (resultado.Piezas.Count == 0)
             {
                 <div class="tarjeta">
-                    <p class="vacio">No hay piezas del catálogo para ese vehículo.</p>
+                    <p class="vacio">No encontramos piezas del catálogo para ese vehículo.</p>
                 </div>
             }
             else
             {
-                <p class="conteo">@resultado.Piezas.Count piezas que le van</p>
+                <p class="conteo">@resultado.Piezas.Count @(resultado.Piezas.Count == 1 ? "pieza" : "piezas") compatibles</p>
                 <div class="piezas">
                     @foreach (var pieza in resultado.Piezas)
                     {
@@ -147,7 +267,7 @@ else
                     }
                     else
                     {
-                        <em>@busqueda.CodigosObjetivo.Count piezas</em>
+                        <em>@busqueda.CodigosObjetivo.Count @(busqueda.CodigosObjetivo.Count == 1 ? "pieza" : "piezas")</em>
                     }
                 </li>
             }
@@ -156,98 +276,164 @@ else
 }
 
 @code {
+    private static readonly string[] _chips = ["Ruido al frenar", "Pierde agua", "Tarda en arrancar", "Vibra el volante"];
+
+    private string? aviso;
+    private Guid? clienteMostrado;
     private IReadOnlyList<BusquedaDto> recientes = [];
     private ResultadoBusquedaDto? resultado;
 
-    private string email = "";
-    private string nombre = "";
-    private bool crearCuenta;
-    private bool entrando;
+    // búsqueda anónima
+    private string marcaAnon = "";
+    private string modeloAnon = "";
+    private int anioAnon = 0;
+    private string motorAnon = "";
+    private string textoAnon = "";
+    private bool buscandoAnon;
+    private List<string> erroresAnon = [];
+    private string? errorAnioAnon;
+    private string? errorTextoAnon;
+    private IReadOnlyList<RepuestoDto>? resultadoAnon;
+    private VehiculoDto? vehiculoAnonDto;
 
+    // búsqueda con sesión
     private string vehiculoSeleccionado = "";
     private string texto = "";
     private bool buscando;
     private List<string> errores = [];
+    private string? errorTexto;
+
+    private bool MostrarErrorTextoAnon => errorTextoAnon is not null && textoAnon.Length < 15;
+    private bool MostrarErrorTexto     => errorTexto is not null && texto.Length < 15;
 
     private IReadOnlyList<VehiculoClienteDto> vehiculos =>
         Sesion.Cliente?.Vehiculos ?? [];
 
-    protected override void OnInitialized() => Sesion.Cambio += AlCambiarSesion;
+    protected override void OnInitialized()
+    {
+        aviso = Sesion.TomarAviso();
+        clienteMostrado = Sesion.Cliente?.Id;
+        Sesion.Cambio += AlCambiarSesion;
+    }
 
     protected override async Task OnInitializedAsync()
     {
         if (Sesion.Cliente is null)
             return;
 
-        vehiculoSeleccionado = vehiculos.Count > 0 ? vehiculos[0].Id.ToString() : "";
+        vehiculoSeleccionado = VehiculoInicial();
         recientes = await Fachada.ListarBusquedasDelClienteAsync(Sesion.Cliente.Id);
     }
 
-    // Solo acomoda la vista: no consulta la base. Cambio se dispara dentro de Sesion.EntrarAsync,
-    // y EntrarAsync de esta pagina ya carga las consultas recientes justo despues, esperando la
-    // llamada. Si este handler tambien consultara, las dos consultas correrian a la vez sobre el
-    // DbContext del circuito, que no admite operaciones concurrentes (con Postgres fallaba al
-    // entrar; con InMemory no se notaba porque la consulta termina sin esperar).
-    private void AlCambiarSesion() => _ = InvokeAsync(() =>
+    /// <summary>El predeterminado si lo tiene; si no, el primero del garage.</summary>
+    private string VehiculoInicial()
     {
+        var predeterminado = vehiculos.FirstOrDefault(v => v.Id == Sesion.Cliente?.VehiculoPredeterminadoId);
+        return (predeterminado ?? vehiculos.FirstOrDefault())?.Id.ToString() ?? "";
+    }
+
+    private void AlCambiarSesion() => _ = InvokeAsync(async () =>
+    {
+        // Un refresco del mismo perfil (tema, foto, nombre) no debe borrar la búsqueda en curso.
+        if (Sesion.Cliente?.Id == clienteMostrado)
+        {
+            StateHasChanged();
+            return;
+        }
+
+        clienteMostrado = Sesion.Cliente?.Id;
         resultado = null;
         errores = [];
-        vehiculoSeleccionado = vehiculos.Count > 0 ? vehiculos[0].Id.ToString() : "";
+        errorTexto = null;
+        resultadoAnon = null;
+        vehiculoAnonDto = null;
+        erroresAnon = [];
+        errorAnioAnon = null;
+        errorTextoAnon = null;
+
         if (Sesion.Cliente is null)
+        {
             recientes = [];
+            vehiculoSeleccionado = "";
+        }
+        else
+        {
+            vehiculoSeleccionado = VehiculoInicial();
+            recientes = await Fachada.ListarBusquedasDelClienteAsync(Sesion.Cliente.Id);
+        }
 
         StateHasChanged();
     });
 
     public void Dispose() => Sesion.Cambio -= AlCambiarSesion;
 
-    private async Task EntrarAsync()
+    private void ToggleChipAnon(string chip)
     {
-        entrando = true;
-        errores = [];
+        if (textoAnon.Contains(chip))
+            textoAnon = textoAnon.Replace($"{chip}, ", "").Replace($", {chip}", "").Replace(chip, "").Trim().TrimStart(',').TrimEnd(',').Trim();
+        else
+            textoAnon = string.IsNullOrWhiteSpace(textoAnon) ? chip : $"{textoAnon}, {chip}";
+    }
+
+    private void ToggleChipSesion(string chip)
+    {
+        if (texto.Contains(chip))
+            texto = texto.Replace($"{chip}, ", "").Replace($", {chip}", "").Replace(chip, "").Trim().TrimStart(',').TrimEnd(',').Trim();
+        else
+            texto = string.IsNullOrWhiteSpace(texto) ? chip : $"{texto}, {chip}";
+    }
+
+    private async Task BuscarAnonAsync()
+    {
+        buscandoAnon = true;
+        erroresAnon = [];
+        resultadoAnon = null;
 
         try
         {
-            if (string.IsNullOrWhiteSpace(email))
+            var valido = true;
+
+            if (string.IsNullOrWhiteSpace(marcaAnon) || string.IsNullOrWhiteSpace(modeloAnon))
             {
-                errores = ["Ingresá tu email."];
+                erroresAnon = ["Ingresá la marca y el modelo."];
+                valido = false;
+            }
+
+            if (anioAnon == 0)
+            {
+                errorAnioAnon = "Elegí el año del vehículo.";
+                valido = false;
+            }
+
+            if (textoAnon.Length < 15)
+            {
+                errorTextoAnon = "Describí el problema con un poco más de detalle, por ejemplo cuándo pasa o qué ruido hace.";
+                valido = false;
+            }
+
+            if (!valido)
+                return;
+
+            vehiculoAnonDto = new VehiculoDto
+            {
+                Marca = marcaAnon.Trim(),
+                Modelo = modeloAnon.Trim(),
+                Anio = anioAnon,
+                Motor = string.IsNullOrWhiteSpace(motorAnon) ? null : motorAnon.Trim()
+            };
+
+            var respuesta = await Fachada.BuscarRepuestosAsync(vehiculoAnonDto, sistema: null);
+            if (respuesta.EsFallido)
+            {
+                erroresAnon = [.. respuesta.Errores];
                 return;
             }
 
-            var existente = await Fachada.ObtenerClientePorEmailAsync(email);
-            if (existente is not null)
-            {
-                await Sesion.EntrarAsync(existente);
-                vehiculoSeleccionado = vehiculos.Count > 0 ? vehiculos[0].Id.ToString() : "";
-                recientes = await Fachada.ListarBusquedasDelClienteAsync(existente.Id);
-                crearCuenta = false;
-                return;
-            }
-
-            if (!crearCuenta)
-            {
-                crearCuenta = true;
-                return;
-            }
-
-            var creada = await Fachada.RegistrarClienteAsync(new CrearClienteDto
-            {
-                Nombre = nombre,
-                Email = email
-            });
-
-            if (creada.EsFallido)
-            {
-                errores = [.. creada.Errores];
-                return;
-            }
-
-            await Sesion.EntrarAsync(creada.Valor);
-            recientes = [];
+            resultadoAnon = [.. respuesta.Valor];
         }
         finally
         {
-            entrando = false;
+            buscandoAnon = false;
         }
     }
 
@@ -265,6 +451,12 @@ else
             if (vehiculo is null)
             {
                 errores = ["Elegí uno de tus vehículos."];
+                return;
+            }
+
+            if (texto.Length < 15)
+            {
+                errorTexto = "Describí el problema con un poco más de detalle, por ejemplo cuándo pasa o qué ruido hace.";
                 return;
             }
 
@@ -291,9 +483,4 @@ else
             buscando = false;
         }
     }
-
-    private static string Etiqueta(VehiculoClienteDto vehiculo) =>
-        vehiculo.Alias == vehiculo.Datos.ToString()
-            ? vehiculo.Alias
-            : $"{vehiculo.Alias} — {vehiculo.Datos}";
 }

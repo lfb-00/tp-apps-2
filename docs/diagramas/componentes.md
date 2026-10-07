@@ -1,18 +1,18 @@
 # Diagrama de componentes — RepMatch
 
 Seis componentes reutilizables e independientes (la consigna pide un mínimo de tres) más dos hosts
-ejecutables. Cada componente es un proyecto .NET separado con sus propias dependencias declaradas
-en NuGet.
+ejecutables. Cada componente es un proyecto .NET separado, cada uno con su `.csproj` y sus
+referencias declaradas.
 
 ## Componentes
 
 | Componente | Tipo según la consigna | Contenido | Depende de |
 |---|---|---|---|
 | `RepMatch.Domain` | **Dominio** | Entidades, value objects, eventos e interfaces de repositorio | *nada* |
-| `RepMatch.Persistence` | **Acceso a datos** | `DbContext`, mapeos, repositorios, unidad de trabajo | Domain, Common |
+| `RepMatch.Persistence` | **Acceso a datos** | `DbContext`, mapeos, repositorios, unidad de trabajo | Domain (y una referencia declarada a Common que hoy ningún archivo usa) |
 | `RepMatch.Common` | **Utilidad** | Validación, logging, configuración, `ResultadoOperacion<T>`, medición de latencia, correlación | *nada del proyecto* |
 | `RepMatch.Contracts` | Contratos | DTOs, `ICatalogoRepuestos`, `OpcionesCatalogo` | *nada del proyecto* |
-| `RepMatch.Aplicacion` | Lógica de negocio | Servicios, mapeadores, validadores, `CatalogoLocal` | Domain, Common, Contracts |
+| `RepMatch.Aplicacion` | Lógica de negocio | Servicios, `FachadaAplicacion`, despacho y observadores de eventos, mapeadores, validadores, `CatalogoLocal` | Domain, Common, Contracts |
 | `RepMatch.Clientes.Rest` | Adaptador remoto | `CatalogoRemoto`, propagación de correlación | Common, Contracts |
 
 ## Diagrama
@@ -22,7 +22,6 @@ flowchart TB
     subgraph host_web["🖥️ Host: RepMatch.Web (Blazor Server)"]
         UI["Componentes Razor<br/><i>capa de presentación</i>"]
         FCAT["FabricaCatalogo<br/><i>patrón Factory</i>"]
-        FACH["FachadaAplicacion<br/><i>patrón Facade</i>"]
     end
 
     subgraph host_api["🖥️ Host: RepMatch.Catalogo.Api (REST)"]
@@ -30,7 +29,10 @@ flowchart TB
     end
 
     subgraph comp["📦 Componentes reutilizables"]
-        APP["RepMatch.Aplicacion<br/>ServicioClientes · ServicioBusquedas<br/>ObservadorCompatibilidad<br/><b>CatalogoLocal</b>"]
+        subgraph app_sub["RepMatch.Aplicacion"]
+            FACH["FachadaAplicacion<br/><i>patrón Facade</i>"]
+            APP["ServicioClientes · ServicioBusquedas<br/>ObservadorCompatibilidad<br/><b>CatalogoLocal</b>"]
+        end
         REST["RepMatch.Clientes.Rest<br/><b>CatalogoRemoto</b>"]
         CON["RepMatch.Contracts<br/><b>«interface» ICatalogoRepuestos</b><br/>DTOs · OpcionesCatalogo"]
         PER["RepMatch.Persistence<br/>RepMatchDbContext · Repositorios · UnitOfWork"]
@@ -51,12 +53,13 @@ flowchart TB
 
     REST == "HTTP · JSON" ==> CTRL
     CTRL --> APP
+    CTRL --> CON
 
     APP --> DOM
     APP --> COM
     REST --> COM
     PER -- implementa --> DOM
-    PER --> COM
+    PER -. "referencia declarada, sin uso" .-> COM
     PER --> BD
 
     APP -. "usa las interfaces de" .-> DOM
@@ -75,12 +78,17 @@ que salen de `FabricaCatalogo`.
 **Una sola interfaz, dos implementaciones:**
 
 ```csharp
+// src/RepMatch.Contracts/ICatalogoRepuestos.cs (fragmento, sin comentarios XML)
 public interface ICatalogoRepuestos
 {
-    string Modo { get; }                       // "Local" | "Remoto" — para las evidencias
-    Task<IReadOnlyList<RepuestoDto>> BuscarCompatiblesAsync(VehiculoDto v, string? sistema, CancellationToken ct);
-    Task<RepuestoDto?> ObtenerPorCodigoAsync(string codigo, CancellationToken ct);
-    Task<IReadOnlyList<RepuestoDto>> ListarAsync(CancellationToken ct);
+    string Modo { get; }
+
+    Task<IReadOnlyList<RepuestoDto>> BuscarCompatiblesAsync(
+        VehiculoDto vehiculo, string? sistema = null, CancellationToken ct = default);
+
+    Task<RepuestoDto?> ObtenerPorCodigoAsync(string codigoCanonico, CancellationToken ct = default);
+
+    Task<IReadOnlyList<RepuestoDto>> ListarAsync(CancellationToken ct = default);
 }
 ```
 
@@ -90,14 +98,15 @@ public interface ICatalogoRepuestos
 | Mecanismo | Invocación directa en proceso, por referencia de proyecto | HTTP + JSON contra `Catalogo.Api` |
 | Recorrido | `CatalogoLocal → IRepuestoRepository → EF Core → BD` | `HttpClient → GET /api/repuestos/compatibles → CatalogoLocal (en el otro proceso) → BD` |
 | Serialización | ninguna | JSON de ida y vuelta |
-| Latencia medida (caliente) | **~1,9 ms** | **~12,6 ms** |
+| Latencia en régimen (mediana) | **~2 ms** | **~7 ms** |
 
 La selección se hace en `RepMatch.Web/Servicios/FabricaCatalogo.cs`, leyendo la clave
 `Catalogo:Modo` (o la variable de entorno `Catalogo__Modo`). **No hay recompilación de por medio**, y
 ningún consumidor —ni `FachadaAplicacion`, ni `ObservadorCompatibilidad`— se entera de cuál está enchufada.
 
-En la Segunda Parte se agrega una tercera implementación, `CatalogoSoapClient` sobre CoreWCF, sin
-tocar ni la interfaz ni sus consumidores.
+Para la Segunda Parte está previsto agregar una tercera implementación sobre SOAP (CoreWCF), sin
+tocar ni la interfaz ni sus consumidores. Todavía no existe en el código: hoy solo están
+`CatalogoLocal` y `CatalogoRemoto`.
 
 ## Inversión de dependencias
 
@@ -106,7 +115,10 @@ La flecha que va de `Persistence` a `Domain` dice **implementa**, no "usa": las 
 en el dominio, y la capa de datos las implementa. Por eso `Domain` no depende de nada y puede
 testearse sin base de datos ni contenedores.
 
-## Patrones aplicados (anticipo de la Primera Parte)
+## Patrones aplicados
+
+Resumen. La justificación de cada uno, con el problema concreto que resuelve y la alternativa que se
+descartó, está en [docs/patrones.md](../patrones.md).
 
 | Patrón | Dónde | Para qué |
 |---|---|---|
@@ -114,6 +126,6 @@ testearse sin base de datos ni contenedores.
 | **Strategy** | `ICatalogoRepuestos` con dos implementaciones | Intercambiar el mecanismo de acceso sin tocar consumidores |
 | **Repository** | `I*Repository` en Domain, implementados en Persistence | Aislar el dominio del motor de datos |
 | **Unit of Work** | `IUnitOfWork` / `UnitOfWork` | Confirmar cambios como una transacción |
-| **Adapter** | `CatalogoRemoto` | Adaptar un contrato HTTP a la interfaz del dominio |
+| **Adapter** | `CatalogoRemoto` | Adaptar un contrato HTTP a la interfaz `ICatalogoRepuestos` de `RepMatch.Contracts` |
 | **Observer** | `DespachadorEventos` y `ObservadorCompatibilidad` | `BusquedaCreada` completa los códigos sin que `ServicioBusquedas` conozca el catálogo |
 | **Facade** | `FachadaAplicacion` | Única puerta de la presentación hacia clientes, búsquedas y catálogo |
