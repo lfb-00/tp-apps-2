@@ -557,6 +557,12 @@
             "type": "string",
             "format": "date-time"
           },
+          "motivoFalla": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "codigosObjetivo": {
             "type": "array",
             "items": {
@@ -594,6 +600,46 @@
             "type": "string",
             "format": "date-time"
           },
+          "telefono": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "tieneWhatsApp": {
+            "type": "boolean"
+          },
+          "provincia": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "localidad": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "fotoUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "vehiculoPredeterminadoId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "temaPreferido": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "vehiculos": {
             "type": "array",
             "items": {
@@ -627,7 +673,8 @@
       "CrearClienteDto": {
         "required": [
           "nombre",
-          "email"
+          "email",
+          "contrasena"
         ],
         "type": "object",
         "properties": {
@@ -639,6 +686,11 @@
           "email": {
             "maxLength": 200,
             "minLength": 0,
+            "type": "string"
+          },
+          "contrasena": {
+            "maxLength": 100,
+            "minLength": 8,
             "type": "string"
           }
         }

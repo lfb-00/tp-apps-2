@@ -43,7 +43,7 @@ TP Inicial and Primera Parte are implemented. Do not redo them.
 | Item | State |
 |---|---|
 | .NET 10, Docker, NuGet, 6 library projects, layered app | done |
-| Local vs remote catalog (`FabricaCatalogo`, `ICatalogoRepuestos`) | done. Evidence in `docs/evidencias/` and `GET /evidencia/catalogo`. Blazor-circuit latency numbers in the report are from an older run; the script regenerates the endpoint numbers |
+| Local vs remote catalog (`FabricaCatalogo`, `ICatalogoRepuestos`) | done. Evidence in `docs/evidencias/` and `GET /evidencia/catalogo`, regenerated 2026-10-05 (steady state, median of calls 3-12: Local 2.1 ms, Remote 7.4 ms). The report's old Blazor-circuit table was removed: it came from `/acceso` and cannot be reproduced |
 | Class, component, deployment diagrams | `docs/diagramas/clases.md`, `componentes.md`, `despliegue.md` |
 | Architecture report | `docs/informe-arquitectura.md` |
 | Factory, Repository, Strategy | done |

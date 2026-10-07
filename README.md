@@ -132,7 +132,7 @@ Catalogo__Modo=Remoto  dotnet run --project src/RepMatch.Web
 | | Local | Remoto |
 |---|---|---|
 | Mecanismo | referencia de proyecto, en proceso | HTTP + JSON contra `Catalogo.Api` |
-| Latencia (en caliente) | ~1,9 ms | ~12,6 ms |
+| Latencia (en régimen, mediana) | ~2 ms | ~7 ms |
 
 ## Base de datos
 
@@ -149,8 +149,10 @@ que **no hay migraciones que correr a mano**. Es idempotente: si el catálogo ya
 
 Las entidades persistidas son `Cliente`, `Vehiculo`, `Repuesto`, `AplicacionVehiculo`, `Busqueda` y
 `Oferta`. Ojo con el alcance: la base guarda el **catálogo propio y las búsquedas de los usuarios**,
-no un inventario. RepMatch no almacena stock — las ofertas de las tiendas externas se capturan como
-resultado de una búsqueda, con su fecha de captura, porque los precios envejecen rápido.
+no un inventario. RepMatch no almacena stock — cuando estén los adaptadores a tiendas (Segunda
+Parte), las ofertas externas se van a capturar como resultado de una búsqueda, con su fecha de
+captura, porque los precios envejecen rápido. Hoy la entidad `Oferta` existe, pero no se captura
+ninguna.
 
 Si la base todavía no acepta conexiones cuando arranca un servicio, `InicializarBaseAsync` reintenta
 hasta diez veces con espera creciente. En compose eso además está cubierto por el `healthcheck` de
@@ -178,7 +180,7 @@ Y los puertos del host, vía `.env` (ver `.env.example`): `PUERTO_WEB`, `PUERTO_
 - [Diagrama de componentes](docs/diagramas/componentes.md)
 - [Diagrama de despliegue](docs/diagramas/despliegue.md)
 - [Arquitectura en capas](docs/diagramas/capas.md)
-- [Secuencia de una búsqueda](docs/diagramas/secuencia.md)
+- [Diagramas de secuencia (búsqueda, login, alta de vehículo)](docs/diagramas/secuencia.md)
 
 ## Stack
 
