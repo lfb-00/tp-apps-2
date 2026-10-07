@@ -145,10 +145,14 @@ Sí, usa base de datos, con **dos proveedores intercambiables por configuración
 
 El acceso va por EF Core 10 con Npgsql, detrás de los repositorios declarados en el dominio. El
 esquema y los datos semilla se crean solos al arrancar (`EnsureCreatedAsync` + `DatosSemilla`), así
-que **no hay migraciones que correr a mano**. Es idempotente: si el catálogo ya existe, no lo toca.
+que **no hay migraciones que correr a mano**. Es idempotente: cada grupo de datos semilla se carga
+solo si todavía falta. Al incorporar una tabla nueva (por ejemplo, el catálogo de vehículos), una
+base existente debe recrearse con `docker compose down -v` antes de levantar Compose otra vez.
 
-Las entidades persistidas son `Cliente`, `Vehiculo`, `Repuesto`, `AplicacionVehiculo`, `Busqueda` y
-`Oferta`. Ojo con el alcance: la base guarda el **catálogo propio y las búsquedas de los usuarios**,
+Las entidades persistidas son `Cliente`, `Vehiculo`, `ConfiguracionVehiculo`, `Repuesto`,
+`AplicacionVehiculo`, `Busqueda` y `Oferta`. El catálogo vehicular contiene las combinaciones
+permitidas de marca, modelo, año y motor que consumen los selectores de la Web. Ojo con el alcance:
+la base guarda el **catálogo propio y las búsquedas de los usuarios**,
 no un inventario. RepMatch no almacena stock — cuando estén los adaptadores a tiendas (Segunda
 Parte), las ofertas externas se van a capturar como resultado de una búsqueda, con su fecha de
 captura, porque los precios envejecen rápido. Hoy la entidad `Oferta` existe, pero no se captura

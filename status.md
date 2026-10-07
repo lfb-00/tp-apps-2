@@ -8,7 +8,7 @@ Branch work is uncommitted on `main`. App is a Spanish Blazor Server UI over `Fa
 
 Run: `docker compose up --build --wait` → web `http://localhost:8080`, catalog `http://localhost:8081/salud`, Postgres `localhost:5432`.
 
-Tests: `docker compose --profile test build tests && docker compose --profile test run --rm tests` → 80 passed, 0 failed (2026-10-07). Without the build step, `run` reuses an old `repmatch/tests` image and reports a stale count.
+Tests: `docker compose --profile test build tests && docker compose --profile test run --rm tests` is the canonical verification. Without the build step, `run` reuses an old `repmatch/tests` image and reports a stale count.
 
 Adding a vehicle to an existing client, or an offer to an existing search, works since 2026-10-01. Before, EF Core issued UPDATE instead of INSERT for those children (`DbUpdateConcurrencyException`). Domain ids are now `ValueGeneratedNever` in `RepMatchDbContext`.
 
@@ -16,14 +16,14 @@ Public search and password login implemented 2026-10-03. `/` is now the search f
 
 Profile, default vehicle and light/dark theme implemented 2026-10-05 on branch `feature/perfil-usuario` (uncommitted).
 
-**Existing databases must be recreated.** The schema comes from `EnsureCreatedAsync`, which does not add the new `clientes` columns to an existing volume. There are no EF migrations (do not add them without asking). Run `docker compose down -v` before `docker compose up --build --wait`; seed data is loaded again.
+**Existing databases must be recreated after this change.** The schema comes from `EnsureCreatedAsync`, which does not add the new `configuraciones_vehiculo` table to an existing volume. There are no EF migrations (do not add them without asking). Run `docker compose down -v` before `docker compose up --build --wait`; seed data is loaded again.
 
 Data Protection keys live in the `claves-web` volume (`ProteccionDatos:DirectorioClaves`), so a tab keeps its session when the Web container is recreated. If a stored session cannot be decrypted anyway, `SesionActual` drops it and starts signed out.
 
 ## User-visible
 
-- `/` is a public vehicle search for everyone, signed in or not. Signed-out users enter marca, modelo, año, motor and a problem description and see part cards immediately. No login required to search.
-- `/login` is the new login and registration page. Email + password to sign in. "Crear cuenta" link shows a name field for registration.
+- `/` is a public vehicle search for everyone, signed in or not. Marca, modelo, año y motor se seleccionan de dropdowns dependientes alimentados por el catálogo vehicular. No login required to search.
+- `/login` is the new login and registration page. Email + password to sign in. "Crear cuenta" muestra nombre o apodo y la repetición obligatoria de contraseña.
 - Signed in, `/` shows the garage picker instead of the vehicle form. Results are part cards. Recent searches are only theirs (`ListarBusquedasDelClienteAsync`). A person with no cars gets a link to their garage.
 - Header shows "Ingresar" button when signed out. Signed in, it shows avatar (photo or initials) + name; the dropdown has "Mi perfil", "Mi garage", "Cerrar sesión". The mobile menu shows avatar, name and the same links.
 - A sun/moon button in the header (and in the mobile menu) toggles light/dark on every page. Signed out it is stored in `localStorage` (`repmatch-tema`). Signed in it is also stored in `Cliente.TemaPreferido` (`claro`/`oscuro`); on login or session restore the saved value wins and is copied to `localStorage`. An inline script in `App.razor` sets `data-theme` on `<html>` before first paint (falls back to `prefers-color-scheme`). `wwwroot/tema.js` is called through `TemaActual`.
