@@ -29,9 +29,9 @@
 }
 
 <div class="tarjeta">
-    <SelectorVehiculo @key="selectorVersion" @bind-Valor="vehiculoSeleccionado" Prefijo="catalogo" Deshabilitado="@buscando" />
-    <div class="campos">
-        <div>
+    <div class="formulario-catalogo">
+        <SelectorVehiculo @key="selectorVersion" @bind-Valor="vehiculoSeleccionado" Prefijo="catalogo" Deshabilitado="@buscando" />
+        <div class="campo filtro-catalogo">
             <label for="sistema">Sistema</label>
             <select id="sistema" @bind="sistema">
                 <option value="">Todos</option>
@@ -44,16 +44,16 @@
                 <option value="Direccion">Dirección</option>
             </select>
         </div>
-    </div>
 
-    <p style="margin-top:1rem; display:flex; gap:0.5rem; flex-wrap:wrap">
-        <button @onclick="BuscarAsync" disabled="@buscando">
-            @(buscando ? "Buscando…" : "Buscar compatibles")
-        </button>
-        <button class="secundario" @onclick="ListarTodoAsync" disabled="@buscando">
-            Ver catálogo completo
-        </button>
-    </p>
+        <div class="acciones-formulario">
+            <button @onclick="BuscarAsync" disabled="@buscando">
+                @(buscando ? "Buscando…" : "Buscar compatibles")
+            </button>
+            <button class="secundario" @onclick="ListarTodoAsync" disabled="@buscando">
+                Ver catálogo completo
+            </button>
+        </div>
+    </div>
 </div>
 
 @if (error is not null)

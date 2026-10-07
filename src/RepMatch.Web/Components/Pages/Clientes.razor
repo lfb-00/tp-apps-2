@@ -24,19 +24,19 @@ else
     <div class="tarjeta">
         <h2 style="margin-top:0">Agregar vehículo</h2>
 
-        <div class="campos">
+        <div class="formulario-garage">
             <SelectorVehiculo @key="selectorVersion" @bind-Valor="vehiculoNuevo" Prefijo="garage" Deshabilitado="@guardando" />
-            <div>
+            <div class="campo campo-apodo">
                 <label for="valias">Apodo (opcional)</label>
                 <input id="valias" @bind="alias" @bind:event="oninput" maxlength="120" placeholder="El Gol de la facu" />
             </div>
         </div>
 
-        <p style="margin-top:1rem">
+        <div class="acciones-formulario">
             <button @onclick="AgregarAsync" disabled="@guardando">
                 @(guardando ? "Guardando…" : "Agregar vehículo")
             </button>
-        </p>
+        </div>
 
         @if (errores.Count > 0)
         {

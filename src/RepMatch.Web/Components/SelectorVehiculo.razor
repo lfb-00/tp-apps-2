@@ -1,7 +1,7 @@
 @inject ICatalogoVehiculos CatalogoVehiculos
 
-<div class="campos">
-    <div>
+<div class="campos selector-vehiculo">
+    <div class="campo">
         <label for="@($"{Prefijo}-marca")">Marca</label>
         <select id="@($"{Prefijo}-marca")" value="@marca" @onchange="CambiarMarcaAsync" disabled="@Deshabilitado">
             <option value="">Elegí la marca</option>
@@ -11,7 +11,7 @@
             }
         </select>
     </div>
-    <div>
+    <div class="campo">
         <label for="@($"{Prefijo}-modelo")">Modelo</label>
         <select id="@($"{Prefijo}-modelo")" value="@modelo" @onchange="CambiarModeloAsync" disabled="@(Deshabilitado || string.IsNullOrEmpty(marca))">
             <option value="">Elegí el modelo</option>
@@ -21,7 +21,7 @@
             }
         </select>
     </div>
-    <div>
+    <div class="campo">
         <label for="@($"{Prefijo}-anio")">Año</label>
         <select id="@($"{Prefijo}-anio")" value="@anio" @onchange="CambiarAnioAsync" disabled="@(Deshabilitado || string.IsNullOrEmpty(modelo))">
             <option value="">Elegí el año</option>
@@ -31,7 +31,7 @@
             }
         </select>
     </div>
-    <div>
+    <div class="campo">
         <label for="@($"{Prefijo}-motor")">Motor</label>
         <select id="@($"{Prefijo}-motor")" value="@motor" @onchange="CambiarMotorAsync" disabled="@(Deshabilitado || anio is null)">
             <option value="">Elegí el motor</option>
