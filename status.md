@@ -8,7 +8,7 @@ Branch work is uncommitted on `main`. App is a Spanish Blazor Server UI over `Fa
 
 Run: `docker compose up --build --wait` → web `http://localhost:8080`, catalog `http://localhost:8081/salud`, Postgres `localhost:5432`.
 
-Tests: `docker compose --profile test build tests && docker compose --profile test run --rm tests` → 79 passed, 0 failed (2026-10-05). Without the build step, `run` reuses an old `repmatch/tests` image and reports a stale count.
+Tests: `docker compose --profile test build tests && docker compose --profile test run --rm tests` → 80 passed, 0 failed (2026-10-07). Without the build step, `run` reuses an old `repmatch/tests` image and reports a stale count.
 
 Adding a vehicle to an existing client, or an offer to an existing search, works since 2026-10-01. Before, EF Core issued UPDATE instead of INSERT for those children (`DbUpdateConcurrencyException`). Domain ids are now `ValueGeneratedNever` in `RepMatchDbContext`.
 
@@ -17,6 +17,8 @@ Public search and password login implemented 2026-10-03. `/` is now the search f
 Profile, default vehicle and light/dark theme implemented 2026-10-05 on branch `feature/perfil-usuario` (uncommitted).
 
 **Existing databases must be recreated.** The schema comes from `EnsureCreatedAsync`, which does not add the new `clientes` columns to an existing volume. There are no EF migrations (do not add them without asking). Run `docker compose down -v` before `docker compose up --build --wait`; seed data is loaded again.
+
+Data Protection keys live in the `claves-web` volume (`ProteccionDatos:DirectorioClaves`), so a tab keeps its session when the Web container is recreated. If a stored session cannot be decrypted anyway, `SesionActual` drops it and starts signed out.
 
 ## User-visible
 

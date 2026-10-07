@@ -14,7 +14,7 @@ flowchart TB
 
     subgraph docker["🐳 Docker host — red bridge 'repmatch'"]
         subgraph c1["Contenedor: repmatch-web"]
-            W["RepMatch.Web<br/>ASP.NET Core 10 · Blazor Server<br/><b>:8080</b><br/>Catalogo__Modo=Remoto"]
+            W["RepMatch.Web<br/>ASP.NET Core 10 · Blazor Server<br/><b>:8080</b><br/>Catalogo__Modo=Remoto<br/>volumen claves-web"]
         end
 
         subgraph c2["Contenedor: repmatch-catalogo-api"]
@@ -40,7 +40,7 @@ flowchart TB
 
 | Nodo | Imagen | Puerto host | Rol |
 |---|---|---|---|
-| `repmatch-web` | build desde `src/RepMatch.Web/Dockerfile` | 8080 | Capa de presentación + factory del catálogo |
+| `repmatch-web` | build desde `src/RepMatch.Web/Dockerfile` | 8080 | Capa de presentación + factory del catálogo. Volumen `claves-web` con las claves que cifran la sesión del navegador, para que sobreviva a la recreación del contenedor |
 | `repmatch-catalogo-api` | build desde `src/RepMatch.Catalogo.Api/Dockerfile` | 8081 | Host remoto del componente de catálogo |
 | `repmatch-postgres` | `postgres:17-alpine` | 5432 | Persistencia, con volumen nombrado |
 

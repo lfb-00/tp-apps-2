@@ -68,6 +68,11 @@ services:
       # Acceso REMOTO al componente de catalogo: resuelve por HTTP contra el otro contenedor.
       Catalogo__Modo: Remoto
       Catalogo__UrlBaseRemota: "http://catalogo-api:8080"
+      # Claves que cifran la sesion del navegador: en un volumen, para que una pestania abierta
+      # no pierda la sesion cada vez que el contenedor se recrea.
+      ProteccionDatos__DirectorioClaves: /claves
+    volumes:
+      - claves-web:/claves
     ports:
       - "${PUERTO_WEB:-8080}:8080"
     depends_on:
@@ -92,6 +97,9 @@ services:
       <<: *conexion-postgres
       ASPNETCORE_ENVIRONMENT: Development
       Catalogo__Modo: Local
+      ProteccionDatos__DirectorioClaves: /claves
+    volumes:
+      - claves-web-local:/claves
     ports:
       - "${PUERTO_WEB_LOCAL:-8090}:8080"
     depends_on:
@@ -111,6 +119,8 @@ services:
 
 volumes:
   datos-postgres:
+  claves-web:
+  claves-web-local:
 
 networks:
   repmatch:

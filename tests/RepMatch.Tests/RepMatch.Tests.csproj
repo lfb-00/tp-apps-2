@@ -27,6 +27,9 @@
     <ProjectReference Include="..\..\src\RepMatch.Catalogo.Api\RepMatch.Catalogo.Api.csproj" />
     <ProjectReference Include="..\..\src\RepMatch.Aplicacion\RepMatch.Aplicacion.csproj" />
     <ProjectReference Include="..\..\src\RepMatch.Clientes.Rest\RepMatch.Clientes.Rest.csproj" />
+    <!-- Con alias: Web y Catalogo.Api generan cada uno su clase Program publica, y sin esto
+         WebApplicationFactory<Program> de las pruebas de integracion seria ambiguo. -->
+    <ProjectReference Include="..\..\src\RepMatch.Web\RepMatch.Web.csproj" Aliases="Web" />
   </ItemGroup>
 
 </Project>
