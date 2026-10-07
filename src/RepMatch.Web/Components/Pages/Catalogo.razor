@@ -29,34 +29,8 @@
 }
 
 <div class="tarjeta">
+    <SelectorVehiculo @key="selectorVersion" @bind-Valor="vehiculoSeleccionado" Prefijo="catalogo" Deshabilitado="@buscando" />
     <div class="campos">
-        <div>
-            <label for="marca">Marca</label>
-            <input id="marca" @bind="marca" @bind:event="oninput" placeholder="Volkswagen" />
-        </div>
-        <div>
-            <label for="modelo">Modelo</label>
-            <input id="modelo" @bind="modelo" @bind:event="oninput" placeholder="Gol" />
-        </div>
-        <div>
-            <label for="anio">Año</label>
-            <select id="anio" @bind="anio"
-                    class="@(anio == 0 && errorAnio is not null ? "input-error" : anio == 0 ? "placeholder-activo" : "")">
-                <option value="0" disabled>Elegí el año</option>
-                @for (int y = DateTime.Now.Year + 1; y >= 1980; y--)
-                {
-                    <option value="@y">@y</option>
-                }
-            </select>
-            @if (anio == 0 && errorAnio is not null)
-            {
-                <span class="error-campo" role="alert">@errorAnio</span>
-            }
-        </div>
-        <div>
-            <label for="motor">Motor (opcional)</label>
-            <input id="motor" @bind="motor" @bind:event="oninput" placeholder="1.6" />
-        </div>
         <div>
             <label for="sistema">Sistema</label>
             <select id="sistema" @bind="sistema">
@@ -119,11 +93,7 @@
 }
 
 @code {
-    private string marca = "";
-    private string modelo = "";
-    private int anio = 0;
-    private string? errorAnio;
-    private string motor = "";
+    private VehiculoDto? vehiculoSeleccionado;
     private string sistema = "";
 
     private bool buscando;
@@ -131,6 +101,7 @@
     private IReadOnlyList<RepuestoDto>? repuestos;
     private VehiculoDto? vehiculoConsultado;
     private Guid? vehiculoSeleccionadoId;
+    private int selectorVersion;
 
     private VehiculoDto? VehiculoActual => vehiculoConsultado;
 
@@ -145,47 +116,35 @@
         if (vehiculoSeleccionadoId == vehiculo.Id)
         {
             vehiculoSeleccionadoId = null;
-            marca = "";
-            modelo = "";
-            anio = DateTime.Now.Year;
-            motor = "";
+            vehiculoSeleccionado = null;
         }
         else
         {
             vehiculoSeleccionadoId = vehiculo.Id;
-            marca = vehiculo.Datos.Marca;
-            modelo = vehiculo.Datos.Modelo;
-            anio = vehiculo.Datos.Anio;
-            motor = vehiculo.Datos.Motor ?? "";
+            vehiculoSeleccionado = vehiculo.Datos;
         }
     }
 
     private async Task BuscarAsync()
     {
-        errorAnio = null;
-        if (anio == 0)
+        if (vehiculoSeleccionado is null)
         {
-            errorAnio = "Elegí el año del vehículo.";
+            error = "Elegí marca, modelo, año y motor del vehículo.";
             return;
         }
 
-        var vehiculo = new VehiculoDto
-        {
-            Marca = marca,
-            Modelo = modelo,
-            Anio = anio,
-            Motor = string.IsNullOrWhiteSpace(motor) ? null : motor
-        };
-        vehiculoConsultado = vehiculo;
+        vehiculoConsultado = vehiculoSeleccionado;
 
         await EjecutarAsync(ct => Fachada.BuscarRepuestosAsync(
-            vehiculo, string.IsNullOrWhiteSpace(sistema) ? null : sistema, ct));
+            vehiculoSeleccionado, string.IsNullOrWhiteSpace(sistema) ? null : sistema, ct));
     }
 
     private Task ListarTodoAsync()
     {
         vehiculoConsultado = null;
+        vehiculoSeleccionado = null;
         vehiculoSeleccionadoId = null;
+        selectorVersion++;
         return EjecutarAsync(Fachada.ListarRepuestosAsync);
     }
 
