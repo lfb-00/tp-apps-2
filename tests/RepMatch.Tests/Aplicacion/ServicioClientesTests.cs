@@ -28,10 +28,12 @@ public class ServicioClientesTests
             new BusquedaRepository(contexto),
             new UnitOfWork(contexto),
             new ValidadorCrearCliente(),
+            new ValidadorVehiculo(),
             new ValidadorActualizarPerfil(),
             new ValidadorCambiarContrasena(),
             new ValidadorCambiarFotoPerfil(),
             new ValidadorEliminarCuenta(),
+            new ConfiguracionVehiculoRepository(contexto),
             NullLogger<ServicioClientes>.Instance);
 
     /// <summary>Cliente con dos autos (uno predeterminado) y dos busquedas, mas una busqueda de
@@ -54,6 +56,41 @@ public class ServicioClientesTests
 
         await contexto.SaveChangesAsync();
         return cliente.Id;
+    }
+
+    [Fact]
+    public async Task Registrar_con_contrasenas_distintas_falla()
+    {
+        await using var contexto = CrearContexto();
+
+        var resultado = await CrearServicio(contexto).RegistrarAsync(new CrearClienteDto
+        {
+            Nombre = "Usuario prueba",
+            Email = "usuario@ejemplo.com",
+            Contrasena = "claveSegura123",
+            RepetirContrasena = "otraClave123"
+        });
+
+        Assert.True(resultado.EsFallido);
+        Assert.Contains(resultado.Errores, e => e.Contains("no coinciden"));
+    }
+
+    [Fact]
+    public async Task Agregar_vehiculo_con_marca_demasiado_larga_falla_sin_llegar_a_la_base()
+    {
+        var clienteId = await SembrarClienteAsync();
+        await using var contexto = CrearContexto();
+
+        var resultado = await CrearServicio(contexto).AgregarVehiculoAsync(clienteId, new VehiculoDto
+        {
+            Marca = new string('A', 51),
+            Modelo = "Modelo",
+            Anio = 2020,
+            Motor = "1.6"
+        });
+
+        Assert.True(resultado.EsFallido);
+        Assert.Contains(resultado.Errores, e => e.Contains("50"));
     }
 
     [Fact]

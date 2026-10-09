@@ -35,6 +35,7 @@ public static class FabricaCatalogo
         // Camino LOCAL: referencia de proyecto contra la capa de datos, sin red.
         servicios.AgregarPersistencia(configuracion);
         servicios.AddScoped<CatalogoLocal>();
+        servicios.AddScoped<CatalogoVehiculosLocal>();
 
         // Camino REMOTO: HttpClient tipado contra Catalogo.Api.
         servicios.AgregarCatalogoRemoto(opciones);
@@ -44,6 +45,11 @@ public static class FabricaCatalogo
         {
             ModoAccesoCatalogo.Remoto => sp.GetRequiredService<CatalogoRemoto>(),
             _ => sp.GetRequiredService<CatalogoLocal>()
+        });
+        servicios.AddScoped<ICatalogoVehiculos>(sp => opciones.Modo switch
+        {
+            ModoAccesoCatalogo.Remoto => sp.GetRequiredService<CatalogoVehiculosRemoto>(),
+            _ => sp.GetRequiredService<CatalogoVehiculosLocal>()
         });
 
         servicios.AgregarAplicacion();

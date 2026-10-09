@@ -24,45 +24,19 @@ else
     <div class="tarjeta">
         <h2 style="margin-top:0">Agregar vehículo</h2>
 
-        <div class="campos">
-            <div>
-                <label for="vmarca">Marca</label>
-                <input id="vmarca" @bind="marca" @bind:event="oninput" placeholder="Volkswagen" />
-            </div>
-            <div>
-                <label for="vmodelo">Modelo</label>
-                <input id="vmodelo" @bind="modelo" @bind:event="oninput" placeholder="Gol" />
-            </div>
-            <div>
-                <label for="vanio">Año</label>
-                <select id="vanio" @bind="anio"
-                        class="@(anio == 0 && errorAnio is not null ? "input-error" : anio == 0 ? "placeholder-activo" : "")">
-                    <option value="0" disabled>Elegí el año</option>
-                    @for (int y = DateTime.Now.Year + 1; y >= 1980; y--)
-                    {
-                        <option value="@y">@y</option>
-                    }
-                </select>
-                @if (anio == 0 && errorAnio is not null)
-                {
-                    <span class="error-campo" role="alert">@errorAnio</span>
-                }
-            </div>
-            <div>
-                <label for="vmotor">Motor (opcional)</label>
-                <input id="vmotor" @bind="motor" @bind:event="oninput" placeholder="1.6" />
-            </div>
-            <div>
+        <div class="formulario-garage">
+            <SelectorVehiculo @key="selectorVersion" @bind-Valor="vehiculoNuevo" Prefijo="garage" Deshabilitado="@guardando" />
+            <div class="campo campo-apodo">
                 <label for="valias">Apodo (opcional)</label>
-                <input id="valias" @bind="alias" @bind:event="oninput" placeholder="El Gol de la facu" />
+                <input id="valias" @bind="alias" @bind:event="oninput" maxlength="120" placeholder="El Gol de la facu" />
             </div>
         </div>
 
-        <p style="margin-top:1rem">
+        <div class="acciones-formulario">
             <button @onclick="AgregarAsync" disabled="@guardando">
                 @(guardando ? "Guardando…" : "Agregar vehículo")
             </button>
-        </p>
+        </div>
 
         @if (errores.Count > 0)
         {
@@ -115,12 +89,9 @@ else
 }
 
 @code {
-    private string marca = "";
-    private string modelo = "";
-    private int anio = 0;
-    private string? errorAnio;
-    private string motor = "";
+    private VehiculoDto? vehiculoNuevo;
     private string alias = "";
+    private int selectorVersion;
 
     private bool guardando;
     private List<string> errores = [];
@@ -140,27 +111,17 @@ else
         guardando = true;
         errores = [];
         mensaje = null;
-        errorAnio = null;
-
-        if (anio == 0)
+        if (vehiculoNuevo is null)
         {
-            errorAnio = "Elegí el año del vehículo.";
+            errores = ["Elegí marca, modelo, año y motor del vehículo."];
             guardando = false;
             return;
         }
 
         try
         {
-            var vehiculo = new VehiculoDto
-            {
-                Marca = marca,
-                Modelo = modelo,
-                Anio = anio,
-                Motor = string.IsNullOrWhiteSpace(motor) ? null : motor
-            };
-
             var resultado = await Fachada.AgregarVehiculoAsync(
-                Sesion.Cliente.Id, vehiculo, alias: string.IsNullOrWhiteSpace(alias) ? null : alias);
+                Sesion.Cliente.Id, vehiculoNuevo, alias: string.IsNullOrWhiteSpace(alias) ? null : alias);
 
             if (resultado.EsFallido)
             {
@@ -169,13 +130,11 @@ else
             }
 
             await Sesion.EntrarAsync(resultado.Valor);
-            var nombre = string.IsNullOrWhiteSpace(alias) ? vehiculo.ToString() : alias;
+            var nombre = string.IsNullOrWhiteSpace(alias) ? vehiculoNuevo.ToString() : alias;
             mensaje = $"¡Listo! {nombre} quedó en tu garage.";
-            marca = "";
-            modelo = "";
-            motor = "";
+            vehiculoNuevo = null;
+            selectorVersion++;
             alias = "";
-            anio = 0;
         }
         finally
         {

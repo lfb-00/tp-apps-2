@@ -29,6 +29,6 @@ public sealed class ValidadorCrearBusqueda : AbstractValidator<CrearBusquedaDto>
         RuleFor(b => b.TextoLibre)
             .NotEmpty().WithMessage("Conta que le pasa al vehiculo.")
             .MinimumLength(5).WithMessage("Describi el problema con un poco mas de detalle.")
-            .MaximumLength(1000);
+            .MaximumLength(500).WithMessage("La descripción admite hasta 500 caracteres.");
     }
 }

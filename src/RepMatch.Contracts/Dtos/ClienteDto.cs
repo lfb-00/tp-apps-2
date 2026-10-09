@@ -43,6 +43,9 @@ public sealed record CrearClienteDto
 
     [Required, StringLength(100, MinimumLength = 8)]
     public required string Contrasena { get; init; }
+
+    [Required, Compare(nameof(Contrasena))]
+    public required string RepetirContrasena { get; init; }
 }
 
 public sealed record LoginDto

@@ -9,6 +9,7 @@ namespace RepMatch.Domain.Entidades;
 /// </summary>
 public class Vehiculo : EntidadBase
 {
+    public const int LongitudMaximaAlias = 120;
     private Vehiculo() { Datos = null!; }   // requerido por EF Core
 
     public Vehiculo(Guid clienteId, DatosVehiculo datos, string? vin = null, string? alias = null)
@@ -19,7 +20,7 @@ public class Vehiculo : EntidadBase
         ClienteId = clienteId;
         Datos = datos;
         Vin = NormalizarVin(vin);
-        Alias = string.IsNullOrWhiteSpace(alias) ? datos.ToString() : alias.Trim();
+        Alias = ValidarAlias(string.IsNullOrWhiteSpace(alias) ? datos.ToString() : alias);
     }
 
     public Guid ClienteId { get; private set; }
@@ -34,7 +35,7 @@ public class Vehiculo : EntidadBase
     public void CambiarAlias(string alias)
     {
         ExcepcionDominio.SiNulaOVacia(alias, nameof(alias));
-        Alias = alias.Trim();
+        Alias = ValidarAlias(alias);
     }
 
     /// <summary>Un VIN valido tiene 17 caracteres y no usa las letras I, O ni Q.</summary>
@@ -47,6 +48,13 @@ public class Vehiculo : EntidadBase
         ExcepcionDominio.Si(limpio.Any(c => c is 'I' or 'O' or 'Q'),
             "El VIN no puede contener las letras I, O ni Q.");
         ExcepcionDominio.Si(!limpio.All(char.IsLetterOrDigit), "El VIN solo admite letras y digitos.");
+        return limpio;
+    }
+
+    private static string ValidarAlias(string alias)
+    {
+        var limpio = alias.Trim();
+        ExcepcionDominio.Si(limpio.Length > LongitudMaximaAlias, "El apodo admite hasta 120 caracteres.");
         return limpio;
     }
 }

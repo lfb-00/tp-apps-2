@@ -33,6 +33,15 @@ public static class ExtensionesClienteRest
             })
             .AddHttpMessageHandler<PropagacionCorrelacionHandler>();
 
+        servicios
+            .AddHttpClient<CatalogoVehiculosRemoto>(http =>
+            {
+                http.BaseAddress = new Uri(opciones.UrlBaseRemota.TrimEnd('/') + "/");
+                http.Timeout = TimeSpan.FromSeconds(opciones.TimeoutSegundos);
+                http.DefaultRequestHeaders.Add("User-Agent", "RepMatch.Web");
+            })
+            .AddHttpMessageHandler<PropagacionCorrelacionHandler>();
+
         return servicios;
     }
 }

@@ -13,10 +13,10 @@
         @if (crearCuenta)
         {
             <div class="campo">
-                <label for="nombre">Tu nombre</label>
+                <label for="nombre">Nombre o apodo</label>
                 <input id="nombre" @bind="nombre" @bind:event="oninput" @onblur="ValidarNombre"
                        class="@(errorNombre is not null ? "input-error" : "")"
-                       placeholder="Bruno Lo Faro" autocomplete="name" />
+                       placeholder="Usuario123" autocomplete="nickname" />
                 @if (errorNombre is not null)
                 {
                     <span class="error-campo" role="alert">@errorNombre</span>
@@ -64,15 +64,25 @@
             {
                 <span class="error-campo" role="alert">@errorContrasena</span>
             }
-            @if (crearCuenta)
-            {
-                <div class="requisitos-pass" aria-live="polite">
-                    <span class="req @(contrasena.Length >= 8 ? "cumplido" : "")">
-                        @(contrasena.Length >= 8 ? "✓" : "·") Al menos 8 caracteres
-                    </span>
-                </div>
-            }
         </div>
+        @if (crearCuenta)
+        {
+            <div class="requisitos-pass" aria-live="polite">
+                <span class="req @(contrasena.Length >= 8 ? "cumplido" : "")">
+                    @(contrasena.Length >= 8 ? "✓" : "·") Al menos 8 caracteres
+                </span>
+            </div>
+            <div class="campo">
+                <label for="repetirContrasena">Repetir contraseña</label>
+                <input id="repetirContrasena" type="@(mostrarContrasena ? "text" : "password")"
+                       @bind="repetirContrasena" @bind:event="oninput" @onblur="ValidarRepetirContrasena"
+                       class="@(errorRepetirContrasena is not null ? "input-error" : "")" autocomplete="new-password" />
+                @if (errorRepetirContrasena is not null)
+                {
+                    <span class="error-campo" role="alert">@errorRepetirContrasena</span>
+                }
+            </div>
+        }
     </div>
 
     @if (errores.Count > 0)
@@ -106,6 +116,7 @@
 @code {
     private string email = "";
     private string contrasena = "";
+    private string repetirContrasena = "";
     private string nombre = "";
     private bool crearCuenta;
     private bool cargando;
@@ -115,6 +126,7 @@
     private string? errorEmail;
     private string? errorContrasena;
     private string? errorNombre;
+    private string? errorRepetirContrasena;
 
     protected override void OnInitialized()
     {
@@ -129,6 +141,9 @@
         errorEmail = null;
         errorContrasena = null;
         errorNombre = null;
+        errorRepetirContrasena = null;
+        contrasena = "";
+        repetirContrasena = "";
     }
 
     private void ValidarEmail() =>
@@ -143,14 +158,21 @@
         errorNombre = string.IsNullOrWhiteSpace(nombre) ? "El nombre es obligatorio." :
                       nombre.Trim().Length < 2 ? "Ingresá al menos 2 caracteres." : null;
 
+    private void ValidarRepetirContrasena() =>
+        errorRepetirContrasena = string.IsNullOrWhiteSpace(repetirContrasena) ? "Repetí la contraseña." :
+                                 repetirContrasena != contrasena ? "Las contraseñas no coinciden." : null;
+
     private async Task AccionarAsync()
     {
         ValidarEmail();
         ValidarContrasena();
         if (crearCuenta)
+        {
             ValidarNombre();
+            ValidarRepetirContrasena();
+        }
 
-        if (errorEmail is not null || errorContrasena is not null || (crearCuenta && errorNombre is not null))
+        if (errorEmail is not null || errorContrasena is not null || (crearCuenta && (errorNombre is not null || errorRepetirContrasena is not null)))
             return;
 
         cargando = true;
@@ -188,7 +210,8 @@
         {
             Nombre = nombre,
             Email = email,
-            Contrasena = contrasena
+            Contrasena = contrasena,
+            RepetirContrasena = repetirContrasena
         });
 
         if (resultado.EsFallido)

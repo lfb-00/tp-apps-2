@@ -10,6 +10,7 @@ namespace RepMatch.Domain.ValueObjects;
 public sealed record DatosVehiculo
 {
     public const int AnioMinimo = 1950;
+    public const int LongitudMaximaCampo = 50;
 
     public string Marca { get; }
     public string Modelo { get; }
@@ -22,6 +23,9 @@ public sealed record DatosVehiculo
         ExcepcionDominio.SiNulaOVacia(modelo, nameof(modelo));
         ExcepcionDominio.Si(anio < AnioMinimo || anio > DateTime.UtcNow.Year + 1,
             $"El anio {anio} esta fuera del rango admitido ({AnioMinimo}-{DateTime.UtcNow.Year + 1}).");
+        ExcepcionDominio.Si(marca.Trim().Length > LongitudMaximaCampo, "La marca admite hasta 50 caracteres.");
+        ExcepcionDominio.Si(modelo.Trim().Length > LongitudMaximaCampo, "El modelo admite hasta 50 caracteres.");
+        ExcepcionDominio.Si(motor?.Trim().Length > LongitudMaximaCampo, "El motor admite hasta 50 caracteres.");
 
         Marca = marca.Trim();
         Modelo = modelo.Trim();

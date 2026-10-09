@@ -331,6 +331,30 @@ h2 { font-size: 1.1rem; margin: 1.75rem 0 0.75rem; }
 
 .campo { display: flex; flex-direction: column; gap: 0.25rem; }
 
+.selector-vehiculo,
+.formulario-catalogo,
+.formulario-garage {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.formulario-catalogo,
+.formulario-garage {
+    display: grid;
+    gap: 1rem;
+}
+.formulario-catalogo > .selector-vehiculo,
+.formulario-garage > .selector-vehiculo,
+.formulario-catalogo > .acciones-formulario,
+.formulario-garage > .campo-apodo,
+.formulario-garage > .acciones-formulario {
+    grid-column: 1 / -1;
+}
+.acciones-formulario {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.15rem;
+}
+
 label {
     display: block;
     font-size: 0.82rem;
@@ -349,6 +373,15 @@ input, select, textarea {
     background: var(--color-surface);
     color: var(--color-text);
     transition: border-color 0.12s;
+}
+select {
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 2.75rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='m3 6 5 5 5-5' stroke='%239ca3af' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 1rem center;
+    background-size: 1rem;
 }
 input::placeholder, textarea::placeholder { color: var(--color-placeholder); }
 input:focus, select:focus, textarea:focus {
@@ -771,6 +804,12 @@ button.btn-peligro:hover:not(:disabled) { background: var(--color-error); border
 .modal-acciones { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.25rem; flex-wrap: wrap; }
 
 /* ── Responsive ─────────────────────────────────── */
+@media (max-width: 1100px) {
+    .selector-vehiculo,
+    .formulario-catalogo,
+    .formulario-garage { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 @media (max-width: 767px) {
     .barra { flex-wrap: wrap; gap: 0.75rem; }
     .barra nav { display: none; }
@@ -782,6 +821,9 @@ button.btn-peligro:hover:not(:disabled) { background: var(--color-error); border
     .entrada h1 { font-size: 1.45rem; }
 
     .campos { grid-template-columns: 1fr; }
+    .selector-vehiculo,
+    .formulario-catalogo,
+    .formulario-garage { grid-template-columns: 1fr; }
 
     .piezas { grid-template-columns: 1fr; }
 

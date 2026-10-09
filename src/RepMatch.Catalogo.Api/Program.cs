@@ -19,6 +19,7 @@ builder.Services.AgregarAplicacion();
 
 // Este servicio ES el duenio del catalogo: siempre resuelve en proceso.
 builder.Services.AddScoped<ICatalogoRepuestos, CatalogoLocal>();
+builder.Services.AddScoped<ICatalogoVehiculos, CatalogoVehiculosLocal>();
 
 var app = builder.Build();
 

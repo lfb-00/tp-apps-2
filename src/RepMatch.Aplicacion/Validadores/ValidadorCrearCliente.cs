@@ -21,5 +21,9 @@ public sealed class ValidadorCrearCliente : AbstractValidator<CrearClienteDto>
             .NotEmpty().WithMessage("La contraseña es obligatoria.")
             .MinimumLength(8).WithMessage("La contraseña debe tener al menos 8 caracteres.")
             .MaximumLength(100);
+
+        RuleFor(c => c.RepetirContrasena)
+            .NotEmpty().WithMessage("Repetí la contraseña.")
+            .Equal(c => c.Contrasena).WithMessage("Las contraseñas no coinciden.");
     }
 }

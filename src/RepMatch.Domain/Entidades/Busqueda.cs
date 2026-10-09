@@ -11,6 +11,7 @@ namespace RepMatch.Domain.Entidades;
 /// </summary>
 public class Busqueda : EntidadBase
 {
+    public const int LongitudMaximaTexto = 500;
     private readonly List<Oferta> _ofertas = [];
     private readonly List<string> _codigosObjetivo = [];
 
@@ -23,6 +24,8 @@ public class Busqueda : EntidadBase
         ExcepcionDominio.SiNulaOVacia(textoLibre, nameof(textoLibre));
         ExcepcionDominio.Si(textoLibre.Trim().Length < 5,
             "Describi el problema con un poco mas de detalle (minimo 5 caracteres).");
+        ExcepcionDominio.Si(textoLibre.Trim().Length > LongitudMaximaTexto,
+            "La descripción admite hasta 500 caracteres.");
 
         ClienteId = clienteId;
         Vehiculo = vehiculo;

@@ -1,0 +1,125 @@
+@inject ICatalogoVehiculos CatalogoVehiculos
+
+<div class="campos selector-vehiculo">
+    <div class="campo">
+        <label for="@($"{Prefijo}-marca")">Marca</label>
+        <select id="@($"{Prefijo}-marca")" value="@marca" @onchange="CambiarMarcaAsync" disabled="@Deshabilitado">
+            <option value="">Elegí la marca</option>
+            @foreach (var opcion in Marcas)
+            {
+                <option value="@opcion">@opcion</option>
+            }
+        </select>
+    </div>
+    <div class="campo">
+        <label for="@($"{Prefijo}-modelo")">Modelo</label>
+        <select id="@($"{Prefijo}-modelo")" value="@modelo" @onchange="CambiarModeloAsync" disabled="@(Deshabilitado || string.IsNullOrEmpty(marca))">
+            <option value="">Elegí el modelo</option>
+            @foreach (var opcion in Modelos)
+            {
+                <option value="@opcion">@opcion</option>
+            }
+        </select>
+    </div>
+    <div class="campo">
+        <label for="@($"{Prefijo}-anio")">Año</label>
+        <select id="@($"{Prefijo}-anio")" value="@anio" @onchange="CambiarAnioAsync" disabled="@(Deshabilitado || string.IsNullOrEmpty(modelo))">
+            <option value="">Elegí el año</option>
+            @foreach (var opcion in Anios)
+            {
+                <option value="@opcion">@opcion</option>
+            }
+        </select>
+    </div>
+    <div class="campo">
+        <label for="@($"{Prefijo}-motor")">Motor</label>
+        <select id="@($"{Prefijo}-motor")" value="@motor" @onchange="CambiarMotorAsync" disabled="@(Deshabilitado || anio is null)">
+            <option value="">Elegí el motor</option>
+            @foreach (var opcion in Motores)
+            {
+                <option value="@opcion">@opcion</option>
+            }
+        </select>
+    </div>
+</div>
+
+@code {
+    [Parameter] public VehiculoDto? Valor { get; set; }
+    [Parameter] public EventCallback<VehiculoDto?> ValorChanged { get; set; }
+    [Parameter] public string Prefijo { get; set; } = "vehiculo";
+    [Parameter] public bool Deshabilitado { get; set; }
+
+    private IReadOnlyList<OpcionVehiculoDto> opciones = [];
+    private string marca = "";
+    private string modelo = "";
+    private int? anio;
+    private string motor = "";
+    private bool inicializado;
+
+    private IEnumerable<string> Marcas => opciones.Select(o => o.Marca).Distinct().Order();
+    private IEnumerable<string> Modelos => opciones.Where(o => o.Marca == marca).Select(o => o.Modelo).Distinct().Order();
+    private IEnumerable<int> Anios => opciones.Where(o => o.Marca == marca && o.Modelo == modelo)
+        .SelectMany(o => Enumerable.Range(o.AnioDesde, o.AnioHasta - o.AnioDesde + 1)).Distinct().OrderDescending();
+    private IEnumerable<string> Motores => anio is null
+        ? []
+        : opciones.Where(o => o.Marca == marca && o.Modelo == modelo
+            && o.AnioDesde <= anio.Value && o.AnioHasta >= anio.Value).Select(o => o.Motor).Distinct().Order();
+
+    protected override async Task OnInitializedAsync()
+    {
+        opciones = await CatalogoVehiculos.ListarOpcionesAsync();
+        CopiarValor();
+        inicializado = true;
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (inicializado && Valor is not null && (Valor.Marca != marca || Valor.Modelo != modelo || Valor.Anio != anio || Valor.Motor != motor))
+            CopiarValor();
+    }
+
+    private void CopiarValor()
+    {
+        marca = Valor?.Marca ?? "";
+        modelo = Valor?.Modelo ?? "";
+        anio = Valor?.Anio;
+        motor = Valor?.Motor ?? "";
+    }
+
+    private async Task CambiarMarcaAsync(ChangeEventArgs e)
+    {
+        marca = e.Value?.ToString() ?? "";
+        modelo = motor = "";
+        anio = null;
+        await NotificarAsync();
+    }
+
+    private async Task CambiarModeloAsync(ChangeEventArgs e)
+    {
+        modelo = e.Value?.ToString() ?? "";
+        motor = "";
+        anio = null;
+        await NotificarAsync();
+    }
+
+    private async Task CambiarAnioAsync(ChangeEventArgs e)
+    {
+        anio = int.TryParse(e.Value?.ToString(), out var valor) ? valor : null;
+        motor = "";
+        await NotificarAsync();
+    }
+
+    private async Task CambiarMotorAsync(ChangeEventArgs e)
+    {
+        motor = e.Value?.ToString() ?? "";
+        await NotificarAsync();
+    }
+
+    private Task NotificarAsync()
+    {
+        VehiculoDto? vehiculo = anio is not null && !string.IsNullOrEmpty(marca) && !string.IsNullOrEmpty(modelo) && !string.IsNullOrEmpty(motor)
+            ? new VehiculoDto { Marca = marca, Modelo = modelo, Anio = anio.Value, Motor = motor }
+            : null;
+        return ValorChanged.InvokeAsync(vehiculo);
+    }
+}
