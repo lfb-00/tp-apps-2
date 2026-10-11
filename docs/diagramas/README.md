@@ -1,12 +1,12 @@
 # Diagramas de RepMatch
 
-Los archivos `.mmd` en `fuentes/` son la única fuente editable de los diagramas. Los documentos
+El diagrama de capas se edita en `capas.md`; los demás diagramas se editan en los archivos `.mmd` de `fuentes/`. Los documentos
 muestran las imágenes generadas en `imagenes/`: SVG para ampliar sin perder calidad e
 insertar en documentos o presentaciones. No editar las imágenes a mano.
 
 | Diagrama | Documento | SVG |
 |---|---|---|
-| Arquitectura en capas | [capas.md](capas.md) | [SVG](imagenes/capas.svg) |
+| Arquitectura en capas | [capas.md](capas.md) | — |
 | Clases del dominio | [clases.md](clases.md) | [SVG](imagenes/clases.svg) |
 | Componentes | [componentes.md](componentes.md) | [SVG](imagenes/componentes.svg) |
 | Despliegue actual | [despliegue.md](despliegue.md) | [SVG](imagenes/despliegue-actual.svg) |

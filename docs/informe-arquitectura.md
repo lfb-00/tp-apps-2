@@ -83,9 +83,28 @@ catálogo de repuestos combinado con las consultas a las tiendas.
 
 ## 3. Arquitectura en capas
 
-![Arquitectura en capas](diagramas/imagenes/capas.svg)
+```
+┌──────────────────────────────────────────────────────┐
+│  PRESENTACIÓN    RepMatch.Web (Blazor Server)        │
+│                  Componentes Razor                   │
+└───────────────────────┬──────────────────────────────┘
+                        │  entra por FachadaAplicacion
+┌───────────────────────▼──────────────────────────────┐
+│  LÓGICA DE       RepMatch.Aplicacion                 │
+│  NEGOCIO         FachadaAplicacion · Servicios       │
+│                  Observador · CatalogoLocal          │
+│                  Validadores                         │
+└───────────────────────┬──────────────────────────────┘
+                        │  usa las interfaces declaradas en Domain
+┌───────────────────────▼──────────────────────────────┐
+│  DATOS           RepMatch.Persistence                │
+│                  Repositorios · UnitOfWork · EF Core │
+└───────────────────────┬──────────────────────────────┘
+                        ▼
+                 PostgreSQL / InMemory
 
-[Explicación y fuente del diagrama](diagramas/capas.md).
+   transversales:  RepMatch.Domain · RepMatch.Common · RepMatch.Contracts
+```
 
 Las referencias de proyectos y el uso de sus tipos muestran estas decisiones:
 
