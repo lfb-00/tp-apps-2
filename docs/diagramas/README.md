@@ -15,30 +15,11 @@ insertar en documentos o presentaciones. No editar las imágenes a mano.
 | Login | [secuencia.md](secuencia.md) | [SVG](imagenes/secuencia-login.svg) |
 | Alta de vehículo | [secuencia.md](secuencia.md) | [SVG](imagenes/secuencia-alta-vehiculo.svg) |
 
-## Regenerar imágenes
+## Actualizar diagramas
 
-Desde la raíz del repositorio, con Node.js 22.13 o posterior y npm instalados:
+Editar la fuente `.mmd` correspondiente y exportarla a SVG con una herramienta compatible con
+Mermaid. Reemplazar únicamente la imagen del diagrama modificado. Para agregar un diagrama,
+crear su fuente y enlazar el SVG desde el documento correspondiente.
 
-```powershell
-npm ci --prefix scripts/diagramas
-npm run generar --prefix scripts/diagramas
-```
-
-La instalación descarga el navegador que utiliza Mermaid CLI. El estilo de las imágenes se
-configura en `scripts/diagramas/mermaid.json`. Mermaid CLI queda fijado en `package-lock.json`.
-El generador detecta todos los `.mmd` de `fuentes/`. Para agregar un diagrama, crear su fuente y enlazar sus imágenes desde el documento correspondiente.
-
-## Preparar la entrega
-
-Después de regenerar las imágenes:
-
-```powershell
-npm run entrega --prefix scripts/diagramas
-```
-
-Se crea una carpeta nueva en `artifacts/entrega-repmatch-<fecha>/` con `diagramas/`, `codigo/`
-y un `LEEME.md`. Se copian los archivos actuales del working tree, incluidos cambios sin commit;
-se excluyen `.git`, dependencias instaladas, resultados de compilación y `.env`.
-
-La [revisión contra el código](revision.md) se puede compartir con Claude o Claude Design junto
-con esta carpeta. Los diagramas densos de clases y secuencia conviene abrirlos en SVG y ampliar.
+La [revisión contra el código](revision.md) acompaña los diagramas. Los diagramas densos de clases
+y secuencia conviene abrirlos en SVG y ampliar.

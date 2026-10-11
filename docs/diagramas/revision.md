@@ -24,7 +24,7 @@ con tipografía legible, espacio entre grupos y una paleta consistente de azul, 
 
 Las imágenes SVG se generan desde Mermaid con el mismo estilo. No redibujar las relaciones
 a mano ni usar generación de imágenes para texto técnico. Para cambiar contenido, editar el archivo
-`.mmd` de `fuentes/` y regenerar. Para cambiar la presentación de las imágenes, editar
-`scripts/diagramas/mermaid.json` y regenerar.
+`.mmd` de `fuentes/` y regenerar. Para cambiar la presentación de las imágenes, ajustar
+el estilo al exportar con la herramienta Mermaid utilizada.
 
 Este informe quedó preparado para compartir; no se envió a Claude ni a Claude Design desde esta sesión.
