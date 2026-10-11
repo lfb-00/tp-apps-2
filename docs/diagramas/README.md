@@ -1,22 +1,18 @@
 # Diagramas de RepMatch
 
-El diagrama de capas se edita en `capas.md`; los demás diagramas se editan en los archivos `.mmd` de `fuentes/`. Los documentos
-muestran las imágenes generadas en `imagenes/`: SVG para ampliar sin perder calidad e
-insertar en documentos o presentaciones. No editar las imágenes a mano.
+Los bloques Mermaid de los documentos Markdown son la única fuente editable de los diagramas.
+Se pueden visualizar con un preview de Markdown compatible con Mermaid.
 
-| Diagrama | Documento | SVG |
-|---|---|---|
-| Arquitectura en capas | [capas.md](capas.md) | — |
-| Clases del dominio | [clases.md](clases.md) | [SVG](imagenes/clases.svg) |
-| Componentes | [componentes.md](componentes.md) | [SVG](imagenes/componentes.svg) |
-| Despliegue actual | [despliegue.md](despliegue.md) | [SVG](imagenes/despliegue-actual.svg) |
-| Despliegue previsto | [despliegue.md](despliegue.md) | [SVG](imagenes/despliegue-previsto.svg) |
-| Registrar una búsqueda | [secuencia.md](secuencia.md) | [SVG](imagenes/secuencia-busqueda.svg) |
-| Login | [secuencia.md](secuencia.md) | [SVG](imagenes/secuencia-login.svg) |
-| Alta de vehículo | [secuencia.md](secuencia.md) | [SVG](imagenes/secuencia-alta-vehiculo.svg) |
+| Diagrama | Documento |
+|---|---|
+| Arquitectura en capas | [capas.md](capas.md) |
+| Clases del dominio | [clases.md](clases.md) |
+| Componentes | [componentes.md](componentes.md) |
+| Despliegue actual y previsto | [despliegue.md](despliegue.md) |
+| Búsqueda, login y alta de vehículo | [secuencia.md](secuencia.md) |
 
 ## Actualizar diagramas
 
-Editar la fuente `.mmd` correspondiente y exportarla a SVG con una herramienta compatible con
-Mermaid. Reemplazar únicamente la imagen del diagrama modificado. Para agregar un diagrama,
-crear su fuente y enlazar el SVG desde el documento correspondiente.
+Editar el bloque Mermaid del documento correspondiente y verificarlo en el preview.
+Exportar a SVG únicamente cuando se necesite una imagen para una presentación o entrega;
+no mantener copias de las fuentes ni imágenes generadas en el repositorio.

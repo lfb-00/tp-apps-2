@@ -17,9 +17,61 @@ referencias declaradas.
 
 ## Diagrama
 
-![Diagrama componentes](imagenes/componentes.svg)
+```mermaid
+flowchart TB
+    subgraph host_web["🖥️ Host: RepMatch.Web (Blazor Server)"]
+        UI["Componentes Razor<br/><i>capa de presentación</i>"]
+        FCAT["FabricaCatalogo<br/><i>patrón Factory</i>"]
+    end
 
-[Fuente Mermaid](fuentes/componentes.mmd)
+    subgraph host_api["🖥️ Host: RepMatch.Catalogo.Api (REST)"]
+        CTRL["RepuestosController<br/>ClientesController<br/>BusquedasController<br/>VehiculosController"]
+    end
+
+    subgraph comp["📦 Componentes reutilizables"]
+        subgraph app_sub["RepMatch.Aplicacion"]
+            FACH["FachadaAplicacion<br/><i>patrón Facade</i>"]
+            APP["ServicioClientes · ServicioBusquedas<br/>ObservadorCompatibilidad<br/><b>CatalogoLocal · CatalogoVehiculosLocal</b>"]
+        end
+        REST["RepMatch.Clientes.Rest<br/><b>CatalogoRemoto · CatalogoVehiculosRemoto</b>"]
+        CON["RepMatch.Contracts<br/><b>«interface» ICatalogoRepuestos · ICatalogoVehiculos</b><br/>DTOs · OpcionesCatalogo"]
+        PER["RepMatch.Persistence<br/>RepMatchDbContext · Repositorios · UnitOfWork"]
+        DOM["RepMatch.Domain<br/>Entidades · Value objects<br/><b>«interface» IRepuestoRepository · IConfiguracionVehiculoRepository</b>"]
+        COM["RepMatch.Common<br/>Validación · Logging · Configuración<br/>ResultadoOperacion · Cronometro"]
+    end
+
+    BD[("PostgreSQL<br/><i>o InMemory</i>")]
+
+    UI --> FACH
+    UI -- SelectorVehiculo --> CON
+    FCAT -- registra --> PER
+    FACH --> APP
+    FACH --> CON
+    FCAT -. "Catalogo:Modo = Local" .-> APP
+    FCAT -. "Catalogo:Modo = Remoto" .-> REST
+
+    APP -- implementa --> CON
+    REST -- implementa --> CON
+
+    REST == "HTTP · JSON" ==> CTRL
+    CTRL --> APP
+    CTRL --> CON
+
+    PER -- usa entidades --> DOM
+    APP --> DOM
+    APP --> COM
+    REST --> COM
+    PER -- implementa --> DOM
+    PER -. "referencia declarada, sin uso" .-> COM
+    PER --> BD
+
+    APP -. "usa las interfaces de" .-> DOM
+
+    style CON fill:#eaf2fa,stroke:#1f5f9e,stroke-width:2px
+    style APP fill:#e6f4ec,stroke:#1f7a4d
+    style REST fill:#fbf0e2,stroke:#9a5b13
+    style DOM fill:#f6f7f9,stroke:#5b6472
+```
 
 ## Acceso local vs. remoto
 
