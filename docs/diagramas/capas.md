@@ -7,6 +7,7 @@ y el despacho de eventos entre módulos.
 flowchart TB
     subgraph presentacion["Presentación"]
         WEB["RepMatch.Web<br/>Blazor Server"]
+        SEL["SelectorVehiculo"]
     end
 
     subgraph servicios["Capa de servicios"]
@@ -19,12 +20,13 @@ flowchart TB
 
     subgraph contratos["Contratos"]
         IC["ICatalogoRepuestos"]
+        ICV["ICatalogoVehiculos"]
     end
 
     subgraph dominio["Dominio"]
         ENT["Cliente · Busqueda · Repuesto"]
         EV["BusquedaCreada"]
-        REPO["IClienteRepository · IBusquedaRepository · IRepuestoRepository"]
+        REPO["IClienteRepository · IBusquedaRepository · IRepuestoRepository<br/>IConfiguracionVehiculoRepository"]
     end
 
     subgraph datos["Acceso a datos"]
@@ -33,9 +35,11 @@ flowchart TB
     end
 
     WEB --> FAC
+    SEL --> ICV
     FAC --> SC
     FAC --> SB
     FAC --> IC
+    FAC --> ICV
     SB --> DES
     DES --> OBS
     OBS --> IC
@@ -44,10 +48,13 @@ flowchart TB
     OBS --> REPO
     SB --> EV
     IC --> PER
+    ICV --> PER
     REPO --> PER
     PER --> ENT
     PER --> BD
 ```
 
-La presentación no referencia repositorios ni el despachador. `ServicioBusquedas` persiste la
+La presentación no referencia repositorios ni el despachador. Las páginas entran por la fachada;
+`SelectorVehiculo` consulta `ICatalogoVehiculos` directamente para cargar las opciones, y la fachada
+usa el mismo contrato para validar el vehículo antes de consultar piezas. `ServicioBusquedas` persiste la
 búsqueda y publica `BusquedaCreada`. El observador, no el servicio, consulta el catálogo.

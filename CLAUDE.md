@@ -82,7 +82,8 @@ src/
   RepMatch.Clientes.Rest/  Adaptadores remotos: CatalogoRemoto y CatalogoVehiculosRemoto (HttpClient tipado).
                            → Common, Contracts
   RepMatch.Catalogo.Api/   Host REST del catálogo (controllers, OpenAPI en /openapi/v1.json).
-                           Siempre resuelve ICatalogoRepuestos con CatalogoLocal.
+                           Siempre resuelve ICatalogoRepuestos con CatalogoLocal e
+                           ICatalogoVehiculos con CatalogoVehiculosLocal.
   RepMatch.Web/            Presentación Blazor Server. FabricaCatalogo elige Local/Remoto.
 tests/RepMatch.Tests/      Dominio/, Persistencia/, Aplicacion/, Presentacion/ e Integracion/
                            (WebApplicationFactory sobre Catalogo.Api)

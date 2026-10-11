@@ -170,6 +170,7 @@ Todo se puede sobreescribir por variable de entorno (`Seccion__Clave`).
 |---|---|---|
 | `Catalogo:Modo` | `Local`, `Remoto` | `Local` (en compose: `Remoto`) |
 | `Catalogo:UrlBaseRemota` | URL de `Catalogo.Api` | `http://localhost:5081` |
+| `Catalogo:TimeoutSegundos` | timeout de las llamadas HTTP al catálogo remoto (1 a 120) | `30` |
 | `Persistencia:Proveedor` | `InMemory`, `Postgres` | `InMemory` (en compose: `Postgres`) |
 | `ConnectionStrings:RepMatch` | cadena Npgsql | vacía |
 | `ProteccionDatos:DirectorioClaves` | directorio de las claves que cifran la sesión (solo Web) | vacío: las maneja ASP.NET Core (en compose: `/claves`, en un volumen) |
