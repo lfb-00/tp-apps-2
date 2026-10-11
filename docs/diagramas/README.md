@@ -20,6 +20,3 @@ insertar en documentos o presentaciones. No editar las imágenes a mano.
 Editar la fuente `.mmd` correspondiente y exportarla a SVG con una herramienta compatible con
 Mermaid. Reemplazar únicamente la imagen del diagrama modificado. Para agregar un diagrama,
 crear su fuente y enlazar el SVG desde el documento correspondiente.
-
-La [revisión contra el código](revision.md) acompaña los diagramas. Los diagramas densos de clases
-y secuencia conviene abrirlos en SVG y ampliar.
