@@ -6,7 +6,7 @@
 ### Salud del servicio
 GET {{host}}/salud
 
-### Contrato OpenAPI (solo en entorno Development)
+### Contrato OpenAPI
 GET {{host}}/openapi/v1.json
 
 ### Opciones de marca, modelo, rango de años y motor
