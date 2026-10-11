@@ -185,10 +185,7 @@ Y los puertos del host, vía `.env` (ver `.env.example`): `PUERTO_WEB`, `PUERTO_
 - [Diagrama de componentes](docs/diagramas/componentes.md)
 - [Diagrama de despliegue](docs/diagramas/despliegue.md)
 - [Arquitectura en capas](docs/diagramas/capas.md)
-- [Diagramas de secuencia (búsqueda, login, alta de vehículo)](docs/diagramas/secuencia.md)
-- [Imágenes SVG y carpeta de entrega](docs/diagramas/README.md)
-- [Presentación: funcionalidad, happy path, casos de uso y arquitectura](docs/presentacion/RepMatch-presentacion.pptx)
-- [Guion de exposición y demo](docs/presentacion/Guion-presentacion.md)
+- [Diagramas de secuencia (búsquedas, login, alta de vehículo, catálogo y eliminación de cuenta)](docs/diagramas/secuencia.md)
 
 ## Stack
 

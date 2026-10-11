@@ -395,4 +395,4 @@ demostrado apenas se levanta el entorno.
 | Servicios de negocio e integración por eventos | `ServicioClientes`, `ServicioBusquedas`, `ObservadorCompatibilidad` |
 | Servicio de Inventario | No existe como módulo separado porque RepMatch no almacena stock. El catálogo interno cubre la compatibilidad de piezas; en la Segunda Parte, disponibilidad y precio se consultarán en el momento de cada búsqueda a las APIs de las tiendas. Justificación ampliada en la nota "Sobre el Servicio de Inventario" de la sección 2. |
 | Diagrama de arquitectura en capas | [`docs/diagramas/capas.md`](diagramas/capas.md) |
-| Diagramas de secuencia (búsqueda, login, alta de vehículo) | [`docs/diagramas/secuencia.md`](diagramas/secuencia.md) |
+| Diagramas de secuencia (búsquedas, login, alta de vehículo, catálogo y eliminación de cuenta) | [`docs/diagramas/secuencia.md`](diagramas/secuencia.md) |

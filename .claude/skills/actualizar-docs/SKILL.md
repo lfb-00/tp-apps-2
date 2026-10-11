@@ -1,43 +1,59 @@
 ---
 name: actualizar-docs
-description: Revisar y actualizar documentación de un repositorio contra su código, con cambios mínimos y especial atención a diagramas, contratos y ejemplos. Usar para auditorías de consistencia o revisión del diff de documentación, preservando la intención del producto y la redacción existente.
+description: Revisar y actualizar documentación contra el código con cambios mínimos. Usar para auditorías de consistencia, revisión del diff y actualización de diagramas, contratos y ejemplos, preservando la intención del producto y la redacción correcta.
 ---
 
-# Actualizar documentación con cambios mínimos
+# Actualizar documentación contra el código
 
-El código es la fuente de verdad para describir la implementación. El objetivo es corregir inconsistencias comprobables, preservando el estilo, la estructura y la intención del producto. Esta skill recoge la preferencia del usuario por correcciones puntuales; sus instrucciones del momento prevalecen.
+El código es la fuente de verdad de la implementación. Preservar la intención del producto, el estilo y las frases correctas. Corregir inconsistencias comprobables; ampliar documentación cuando el usuario lo pida. No cambiar código para ajustarlo a los docs: informar los defectos encontrados.
 
-## Criterio para decidir cambios
+## Revisión y cambios
 
-- Cambiar afirmaciones falsas o desactualizadas: clases y contratos inexistentes o faltantes en una descripción exhaustiva, dependencias incorrectas, flujos distintos al código, parámetros erróneos, ejemplos que fallan y comandos o endpoints obsoletos.
-- No reformular una frase correcta por sonar más técnica o precisa. No agregar aclaraciones sobre casos límite, proveedores, excepciones o cobertura de pruebas si no resuelven una contradicción relevante en lo documentado.
-- Distinguir intención del producto, diseño futuro e implementación actual. No reemplazar la visión general por una lista de limitaciones actuales ni reinterpretar el roadmap como una promesa de funcionalidad ya implementada.
-- Respetar el nivel de abstracción del documento. Un diagrama simplificado no necesita representar todos los detalles del código; sí debe mostrar correctamente las relaciones y recorridos que afirma representar.
-- No modificar código para hacerlo coincidir con los docs. Si se encuentra un defecto de código, informarlo sin repararlo salvo autorización del usuario.
+1. Leer las instrucciones del repo e inspeccionar Git, incluidos staged y unstaged. Identificar y conservar trabajo ajeno.
+2. En cada actualización, verificar toda la documentación contra el código, aunque el cambio sea puntual, salvo restricción expresa del usuario. Incluir README, docs, diagramas y explicaciones, patrones, informes, seguimiento, instrucciones de agentes, ejemplos HTTP y contratos publicados.
+3. Seguir los recorridos reales: UI, fachada, servicios, contratos, implementaciones, DI, dominio, eventos, persistencia y configuración. Usar pruebas o ejecución cuando la revisión estática no alcance.
+4. Corregir solo lo necesario y actualizar las menciones relacionadas. Una revisión completa no obliga a modificar archivos correctos. Respetar documentos que el usuario pidió dejar intactos.
+5. Revisar el diff final. Cada corrección debe tener una inconsistencia y evidencia identificables; cada ampliación debe responder a lo solicitado. Si se pidió depurar cambios existentes, aplicar también ese criterio al diff previo.
 
-Ejemplo de cambio innecesario: sustituir «cada grupo de datos semilla se carga solo si todavía falta» por «solo cuando su tabla raíz está vacía». Conservar la primera frase cuando expresa adecuadamente el comportamiento. Ejemplo de corrección necesaria: si un diagrama afirma que toda la presentación pasa por una fachada, pero un selector consulta directamente otro contrato, corregir esa relación y el texto que la describe.
+## Ejemplos para decidir
 
-## Revisión
+| Situación | Acción |
+|---|---|
+| «La semilla se carga solo si todavía falta» describe adecuadamente el código. | Conservarla; no reemplazarla por «solo cuando su tabla raíz está vacía» para hacerla más precisa. |
+| La introducción expresa que el producto compara ofertas de tiendas reales; esas integraciones pertenecen al roadmap. | Mantener la visión. Corregir únicamente una afirmación que presente esa integración como ya implementada. |
+| El diagrama afirma que toda la UI pasa por la fachada, pero un selector usa directamente otro contrato. | Agregar la relación real y corregir la explicación correspondiente. |
+| Un enum se presenta como completo, pero faltan valores del código. | Agregar los valores faltantes sin rehacer el resto del diagrama. |
+| Un diagrama simplificado omite detalles internos sin contradecir su recorrido. | Conservar la abstracción; no convertirlo automáticamente en un inventario exhaustivo. |
+| El usuario pide agregar secuencias completas para explicar la app y sus patrones. | Incorporar los flujos solicitados con participantes, validaciones, alternativas y efectos reales; seguir las pautas siguientes. |
+| Se eliminaron imágenes, fuentes duplicadas o scripts de generación. | Quitar enlaces e instrucciones obsoletos; no recrear esos archivos para satisfacer la documentación vieja. |
+| Una evidencia histórica muestra una cantidad de pruebas anterior. | Conservar su fecha y resultado; agregar una verificación nueva solo si se ejecutó. |
 
-1. Inspeccionar las instrucciones del repositorio y el estado de Git, incluidos los cambios staged y unstaged. Identificar el trabajo existente antes de editar; no sobrescribir cambios ajenos por asumir que todos son propios.
-2. En cada actualización, verificar toda la documentación del repositorio contra el código, aunque el cambio solicitado sea puntual: README, docs, diagramas, informes, documentación de patrones, archivos de seguimiento e instrucciones de agentes, ejemplos HTTP y contratos publicados. Comprobar también los bloques Mermaid de los Markdown, su renderizado y sus explicaciones. No limitar la revisión al archivo editado, salvo que el usuario restrinja expresamente el alcance.
-3. Contrastar cada afirmación técnica pertinente con entidades, servicios, interfaces, implementaciones, registros de dependencias, controladores, persistencia, configuración, UI y pruebas. Seguir los recorridos reales antes de corregir un diagrama. No basarse solamente en nombres de clases o en otros docs.
-4. Aplicar el cambio más pequeño que elimine la inconsistencia. Mantener el resto del párrafo. Actualizar las menciones relacionadas cuando la misma afirmación incorrecta aparezca en varios documentos.
-5. Revisar el diff completo, incluido el que ya existía si el usuario pidió depurarlo. Para cada cambio, poder señalar qué afirmación era incorrecta y qué código lo demuestra. Retirar reformulaciones, precisiones y ampliaciones innecesarias dentro del alcance autorizado.
+## Diagramas
 
-La verificación completa es obligatoria en cada actualización; las modificaciones siguen siendo mínimas. Conservar los archivos que ya sean correctos y aplicar el criterio de regeneración de la sección siguiente. Si alguna parte no se puede verificar, indicarla expresamente al entregar, sin presentar la revisión como completa.
+Los bloques Mermaid de los Markdown son la única fuente en este proyecto. No crear copias `.mmd`, SVG ni PNG en el repo. Exportar imágenes solo si se solicitan para una presentación o entrega; si la comprobación exige exportar, hacerlo en una carpeta temporal.
 
-## Diagramas y evidencias
+Comprobar relaciones, flechas, cardinalidades, contratos, selección local/remota, orden de llamadas, argumentos, eventos y persistencia. Distinguir topología implementada y prevista. Validar sintaxis y renderizado con herramientas disponibles: que Mermaid renderice no demuestra que el contenido coincida con el código.
 
-Comprobar participantes, dirección y significado de flechas, capas, contratos, implementaciones local/remota, cardinalidades, orden de validación, persistencia y eventos, argumentos de las llamadas y separación entre topología implementada y prevista. Mantener consistentes el diagrama y su explicación con pocas palabras.
+### Secuencias completas cuando se soliciten
 
-En una revisión, verificar los bloques Mermaid existentes contra el código y comprobar su renderizado con un preview compatible. Los Markdown son la única fuente de los diagramas: no crear copias `.mmd` ni SVG en el repositorio. Exportar imágenes únicamente cuando el usuario las necesite para una presentación o entrega; para una comprobación que requiera exportar, usar una carpeta temporal. No regenerar imágenes solo para verificar que renderizan ni modificar archivos cuyo contenido ya sea correcto.
+- Cubrir el recorrido desde la acción del usuario hasta el resultado visible, con los participantes que explican la operación y los patrones aplicados.
+- Mostrar validaciones y caminos alternativos relevantes con `alt`, `opt` y `loop`. Distinguir resultados fallidos de excepciones capturadas y propagadas; no inventar manejo de errores.
+- Representar consultas, cambios pendientes, guardados, cascadas y límites de transacción según ocurren. Indicar diferencias de proveedor si afectan el comportamiento descrito.
+- Usar nombres de operaciones y contratos; evitar copiar cuerpos de métodos o firmas extensas. Enlazar el código de referencia y describir cada flujo en pocas palabras.
+- Actualizar índices y menciones relacionados cuando se agreguen secuencias. No agregar una secuencia por cada método solo para aumentar cobertura.
 
-Actualizar ejemplos ejecutables y contratos generados cuando estén desactualizados. Preferir regenerar OpenAPI desde la aplicación. No inventar resultados de ejecución ni reemplazar logs históricos por datos nuevos manteniendo la fecha vieja. Actualizar cantidades de pruebas solo con evidencia verificable y conservar el contexto temporal de las evidencias existentes.
+Ejemplos de RepMatch que deben contrastarse nuevamente con el código al actualizar:
 
-## Verificación y entrega
+| Flujo | Qué debe reflejar |
+|---|---|
+| Búsqueda sin sesión | Selector vía `ICatalogoVehiculos`, validación del formulario y consulta por fachada. El texto no se envía ni persiste; no se crea `Busqueda` ni se despacha `BusquedaCreada`. |
+| Consulta local/remota | Factory elige las implementaciones; el consumidor usa contratos. Local accede al repositorio y dominio; Remoto adapta HTTP/JSON y llega al catálogo local de la API. Separar validación vehicular de consulta de repuestos. |
+| Eliminación de cuenta | Validación de contraseña, carga del cliente y BCrypt antes de borrar. Liberar el predeterminado si existe, borrar búsquedas y cliente, confirmar y cerrar sesión tras el éxito. La transacción relacional y el trabajo directo en InMemory no tienen las mismas garantías. |
+| Búsqueda con cuenta | Guardar antes de despachar el evento; Observer asigna códigos y confirma después. La fachada obtiene el detalle de las piezas. No dibujar todo como una sola transacción. |
 
-- Ejecutar `git diff --check`, verificar enlaces y validar la sintaxis de diagramas o formatos generados afectados cuando haya herramientas disponibles. No agregar tests de código para cambios exclusivamente de redacción.
-- Usar pruebas o ejecuciones cuando sean necesarias para comprobar una afirmación; distinguir lo ejecutado de la revisión estática y de resultados históricos.
-- No hacer commits ni stage por defecto. Si el usuario pide dejar todo unstaged, quitar todo del index conservando los archivos del working tree y comprobar que `git diff --cached` esté vacío. No descartar trabajo para lograrlo.
-- Resumir brevemente qué inconsistencias se corrigieron, qué se verificó y si quedó algo pendiente. Confirmar el estado unstaged y la ausencia de commits cuando corresponda.
+## Contratos, evidencias y entrega
+
+- Actualizar ejemplos ejecutables y contratos desactualizados; preferir generar OpenAPI desde la aplicación. No inventar ejecuciones, conteos de pruebas ni resultados de logs.
+- Ejecutar `git diff --check`, comprobar enlaces y validar los formatos afectados. No agregar tests de código para cambios exclusivamente documentales.
+- No hacer commits ni stage por defecto. Si se pide todo unstaged, vaciar el index conservando el working tree y comprobar `git diff --cached`.
+- Informar qué se cambió y verificó, distinguiendo revisión estática, sintaxis, renderizado y ejecución. Explicitar lo que no pudo verificarse sin presentar la revisión como completa.

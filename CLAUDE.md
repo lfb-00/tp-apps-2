@@ -156,7 +156,7 @@ La solución compila **sin advertencias**; mantenerlo así.
 
 - **Docs**: `docs/informe-arquitectura.md` (incluye la tabla de la sección 7 "cómo recibe las
   entregas siguientes" y la de entregables), `docs/diagramas/*.md`, `docs/patrones.md` y
-  `README.md`. Los diagramas se editan en `docs/diagramas/fuentes/*.mmd`; los Markdown muestran las imágenes generadas. Regenerarlas con `npm run generar --prefix scripts/diagramas`.
+  `README.md`. Los diagramas se editan en los bloques Mermaid de los Markdown, que son su única fuente. Verificar su renderizado con un preview compatible.
 - **Cantidad de pruebas**: está escrita literal en la sección 5.4 del informe (la salida de
   `dotnet test`) y en `status.md` ("84 passed", ejecución Docker del 2026-10-11). `docker-compose.yml` y
   `tests/RepMatch.Tests/Dockerfile` dicen "las pruebas" sin número, a propósito. Si agregás o quitás
