@@ -1,40 +1,14 @@
 # Diagrama de despliegue — RepMatch
 
-Dos topologías: la del **TP Inicial**, que es la que está implementada y se levanta con
+Dos topologías: la del **TP Inicial y Primera Parte**, que es la que está implementada y se levanta con
 `docker compose up`, y la **prevista** para las entregas siguientes, que se documenta acá para
 mostrar que la arquitectura actual la admite sin rediseño.
 
-## TP Inicial — implementado
+## TP Inicial y Primera Parte — implementados
 
-```mermaid
-flowchart TB
-    subgraph nav["💻 Navegador"]
-        BR["Cliente web<br/><i>HTTP + WebSocket (Blazor Server)</i>"]
-    end
+![Diagrama despliegue-actual](imagenes/despliegue-actual.svg)
 
-    subgraph docker["🐳 Docker host — red bridge 'repmatch'"]
-        subgraph c1["Contenedor: repmatch-web"]
-            W["RepMatch.Web<br/>ASP.NET Core 10 · Blazor Server<br/><b>:8080</b><br/>Catalogo__Modo=Remoto<br/>volumen claves-web"]
-        end
-
-        subgraph c2["Contenedor: repmatch-catalogo-api"]
-            A["RepMatch.Catalogo.Api<br/>ASP.NET Core 10 · REST + OpenAPI<br/><b>:8080</b> → host :8081"]
-        end
-
-        subgraph c3["Contenedor: repmatch-postgres"]
-            P[("PostgreSQL 17<br/><b>:5432</b><br/>volumen datos-postgres")]
-        end
-    end
-
-    BR -- "http://localhost:8080" --> W
-    W == "HTTP/JSON<br/>http://catalogo-api:8080<br/><b>acceso REMOTO</b>" ==> A
-    W -- "Npgsql" --> P
-    A -- "Npgsql" --> P
-
-    style W fill:#eaf2fa,stroke:#1f5f9e
-    style A fill:#fbf0e2,stroke:#9a5b13
-    style P fill:#e6f4ec,stroke:#1f7a4d
-```
+[Fuente Mermaid](fuentes/despliegue-actual.mmd)
 
 ### Nodos
 
@@ -70,52 +44,14 @@ dotnet run --project src/RepMatch.Catalogo.Api --urls http://localhost:5081
 dotnet run --project src/RepMatch.Web --urls http://localhost:5080
 ```
 
-## Topología prevista — Primera, Segunda Parte e Integrador
+## Topología prevista — Segunda Parte e Integrador
 
 Ninguno de los nodos nuevos obliga a cambiar los componentes ya construidos: `search-api` consume el
-mismo `ICatalogoRepuestos`, y `catalogo-soap` será una tercera implementación de esa interfaz.
+mismo `ICatalogoRepuestos`, y el cliente de `catalogo-soap` será una tercera implementación de esa interfaz.
 
-```mermaid
-flowchart TB
-    subgraph implementado["Ya implementado (TP Inicial)"]
-        W["web :8080<br/>Blazor + BFF"]
-        A["catalogo-api :8081<br/>REST"]
-        P[("postgres :5432")]
-    end
+![Diagrama despliegue-previsto](imagenes/despliegue-previsto.svg)
 
-    subgraph previsto["Previsto"]
-        S["search-api :8083<br/>agregador de ofertas"]
-        SOAP["catalogo-soap :8082<br/>CoreWCF · WSDL"]
-        IA["ai-api :8084<br/>diagnóstico por texto libre"]
-        WK["notificaciones-worker<br/>consumidores"]
-        MQ{{"rabbitmq :5672<br/>UI :15672"}}
-        R[("redis :6379<br/>caché de ofertas")]
-    end
-
-    subgraph externo["🌐 Fuentes externas reales"]
-        EB["eBay Browse API<br/><i>OAuth2 client_credentials</i>"]
-        VT["VTEX Catalog API<br/><i>easy.com.ar · fravega.com</i>"]
-        VP["NHTSA vPIC<br/><i>decodificación de VIN</i>"]
-    end
-
-    W --> A
-    W --> S
-    W --> IA
-    A --> P
-    S --> R
-    S --> EB
-    S --> VT
-    SOAP --> P
-    SOAP --> VP
-    IA --> MQ
-    W -- "BusquedaCreada" --> MQ
-    MQ --> WK
-    MQ --> S
-
-    style W fill:#eaf2fa,stroke:#1f5f9e
-    style A fill:#fbf0e2,stroke:#9a5b13
-    style P fill:#e6f4ec,stroke:#1f7a4d
-```
+[SVG](imagenes/despliegue-previsto.svg) · [Fuente Mermaid](fuentes/despliegue-previsto.mmd)
 
 ### Requisitos externos de la topología prevista
 

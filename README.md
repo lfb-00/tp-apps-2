@@ -20,7 +20,7 @@ docker compose up --build --wait
 ```
 
 - Web → **http://localhost:8080**
-- Catálogo (REST + OpenAPI) → **http://localhost:8081/salud**
+- API REST → **http://localhost:8081/salud**; contrato OpenAPI → **http://localhost:8081/openapi/v1.json** (Development)
 - PostgreSQL → `localhost:5432`
 
 La misma consulta por los dos caminos queda en `docs/evidencias/` (la genera
@@ -105,10 +105,10 @@ Así arranca con el proveedor `InMemory`, sin necesidad de PostgreSQL.
 src/
   RepMatch.Domain/          componente de dominio      · sin dependencias
   RepMatch.Common/          componente de utilidad     · validación, logging, configuración
-  RepMatch.Contracts/       DTOs e ICatalogoRepuestos
+  RepMatch.Contracts/       DTOs, ICatalogoRepuestos e ICatalogoVehiculos
   RepMatch.Persistence/     componente de acceso a datos · EF Core
-  RepMatch.Aplicacion/      lógica de negocio          · incluye CatalogoLocal
-  RepMatch.Clientes.Rest/   adaptador remoto           · incluye CatalogoRemoto
+  RepMatch.Aplicacion/      lógica de negocio          · incluye CatalogoLocal y CatalogoVehiculosLocal
+  RepMatch.Clientes.Rest/   adaptador remoto           · incluye CatalogoRemoto y CatalogoVehiculosRemoto
   RepMatch.Catalogo.Api/    host REST del catálogo
   RepMatch.Web/             presentación (Blazor Server)
 tests/RepMatch.Tests/       pruebas
@@ -118,7 +118,7 @@ scripts/evidencias.sh        genera las evidencias del entregable
 
 ## Acceso local vs. remoto
 
-Una interfaz, `ICatalogoRepuestos`, con dos implementaciones intercambiables **por configuración,
+Dos interfaces, `ICatalogoRepuestos` e `ICatalogoVehiculos`, cada una con implementaciones local y remota intercambiables **por configuración,
 sin recompilar**:
 
 ```bash
@@ -186,6 +186,9 @@ Y los puertos del host, vía `.env` (ver `.env.example`): `PUERTO_WEB`, `PUERTO_
 - [Diagrama de despliegue](docs/diagramas/despliegue.md)
 - [Arquitectura en capas](docs/diagramas/capas.md)
 - [Diagramas de secuencia (búsqueda, login, alta de vehículo)](docs/diagramas/secuencia.md)
+- [Imágenes SVG y carpeta de entrega](docs/diagramas/README.md)
+- [Presentación: funcionalidad, happy path, casos de uso y arquitectura](docs/presentacion/RepMatch-presentacion.pptx)
+- [Guion de exposición y demo](docs/presentacion/Guion-presentacion.md)
 
 ## Stack
 

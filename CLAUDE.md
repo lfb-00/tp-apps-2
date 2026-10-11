@@ -73,18 +73,19 @@ src/
                            interfaces I*Repository e IUnitOfWork. SIN dependencias.
   RepMatch.Common/         Utilidad: Serilog + CorrelacionMiddleware, validación, opciones,
                            ResultadoOperacion<T>, ResultadoMedido/Cronometro. SIN refs internas.
-  RepMatch.Contracts/      DTOs, ICatalogoRepuestos, OpcionesCatalogo. SIN refs internas.
+  RepMatch.Contracts/      DTOs, ICatalogoRepuestos, ICatalogoVehiculos, OpcionesCatalogo. SIN refs internas.
   RepMatch.Persistence/    Acceso a datos: RepMatchDbContext, Configuraciones/ (todo el mapeo EF),
                            repositorios, UnitOfWork, DatosSemilla. → Domain, Common
   RepMatch.Aplicacion/     Lógica de negocio: FachadaAplicacion, ServicioClientes, ServicioBusquedas,
                            DespachadorEventos, ObservadorCompatibilidad, validadores, mapeadores,
-                           CatalogoLocal. → Domain, Common, Contracts
-  RepMatch.Clientes.Rest/  Adaptador remoto: CatalogoRemoto (HttpClient tipado + correlación).
+                           CatalogoLocal, CatalogoVehiculosLocal. → Domain, Common, Contracts
+  RepMatch.Clientes.Rest/  Adaptadores remotos: CatalogoRemoto y CatalogoVehiculosRemoto (HttpClient tipado).
                            → Common, Contracts
   RepMatch.Catalogo.Api/   Host REST del catálogo (controllers, OpenAPI en /openapi/v1.json).
                            Siempre resuelve ICatalogoRepuestos con CatalogoLocal.
   RepMatch.Web/            Presentación Blazor Server. FabricaCatalogo elige Local/Remoto.
-tests/RepMatch.Tests/      Dominio/, Persistencia/, Integracion/ (WebApplicationFactory sobre Catalogo.Api)
+tests/RepMatch.Tests/      Dominio/, Persistencia/, Aplicacion/, Presentacion/ e Integracion/
+                           (WebApplicationFactory sobre Catalogo.Api)
 docs/                      informe-arquitectura.md, patrones.md, diagramas/*.md (Mermaid), evidencias/
 scripts/evidencias.sh      regenera docs/evidencias/ (logs + mediciones local vs. remoto)
 ```
@@ -108,6 +109,9 @@ scripts/evidencias.sh      regenera docs/evidencias/ (logs + mediciones local vs
   Observer) es de la Primera Parte. En la Segunda se registrará otra implementación de
   `IDespachadorEventos` que publique a través de un `IEventBus` propio (sobre `RabbitMQ.Client`
   directo, no MassTransit), sin tocar `ServicioBusquedas`.
+- **Catálogo vehicular**: `ICatalogoVehiculos` tiene estrategias local y remota elegidas por
+  la misma fábrica. `SelectorVehiculo` lo consulta directamente. La fachada valida la configuración
+  antes de buscar piezas.
 - **Punto de extensión de la IA**: hoy `ObservadorCompatibilidad`, al recibir `BusquedaCreada`, llena
   `CodigosObjetivo` por compatibilidad de vehículo; la IA lo reemplazará o complementará leyendo
   `Busqueda.TextoLibre`, sin cambiar la firma pública de `ServicioBusquedas.CrearAsync`.
@@ -152,9 +156,9 @@ La solución compila **sin advertencias**; mantenerlo así.
 
 - **Docs**: `docs/informe-arquitectura.md` (incluye la tabla de la sección 7 "cómo recibe las
   entregas siguientes" y la de entregables), `docs/diagramas/*.md`, `docs/patrones.md` y
-  `README.md`. Los diagramas son Mermaid y deben renderizar en GitHub.
+  `README.md`. Los diagramas se editan en `docs/diagramas/fuentes/*.mmd`; los Markdown muestran las imágenes generadas. Regenerarlas con `npm run generar --prefix scripts/diagramas`.
 - **Cantidad de pruebas**: está escrita literal en la sección 5.4 del informe (la salida de
-  `dotnet test`) y en `status.md` ("79 passed"). `docker-compose.yml` y
+  `dotnet test`) y en `status.md` ("84 passed", ejecución Docker del 2026-10-11). `docker-compose.yml` y
   `tests/RepMatch.Tests/Dockerfile` dicen "las pruebas" sin número, a propósito. Si agregás o quitás
   pruebas, corré `dotnet test` y actualizá los dos.
 - **Proyecto nuevo**: sumarlo a `RepMatch.slnx` **y** a los `COPY` de `.csproj` de cada

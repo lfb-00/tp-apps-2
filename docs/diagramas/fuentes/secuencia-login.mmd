@@ -1,0 +1,43 @@
+sequenceDiagram
+    actor Usuario
+    participant Web as Login.razor
+    participant Fachada as FachadaAplicacion
+    participant Clientes as ServicioClientes
+    participant Repo as IClienteRepository
+    participant BCrypt
+    participant Sesion as SesionActual
+    participant Storage as ProtectedSessionStorage
+
+    Usuario->>Web: email + contraseña
+
+    alt datos inválidos (email vacío o sin @, contraseña de menos de 8 caracteres)
+        Web-->>Usuario: errores en el formulario, no llama a la fachada
+    else datos válidos
+        Web->>Fachada: AutenticarAsync(email, contraseña)
+        Fachada->>Clientes: AutenticarAsync
+        Note over Clientes: si email o contraseña vienen vacíos devuelve null
+        Clientes->>Repo: ObtenerPorEmailAsync(email)
+        Repo-->>Clientes: Cliente con HashContrasena (o null)
+
+        alt email no encontrado o sin hash
+            Clientes-->>Fachada: null
+            Fachada-->>Web: null
+            Web-->>Usuario: "Email o contraseña incorrectos"
+        else email encontrado
+            Clientes->>BCrypt: Verify(contraseña, hash)
+            BCrypt-->>Clientes: true / false
+
+            alt contraseña incorrecta
+                Clientes-->>Fachada: null
+                Fachada-->>Web: null
+                Web-->>Usuario: "Email o contraseña incorrectos"
+            else contraseña correcta
+                Clientes-->>Fachada: ClienteDto
+                Fachada-->>Web: ClienteDto
+                Web->>Sesion: EntrarAsync(cliente)
+                Sesion->>Storage: SetAsync("clienteId", cliente.Id)
+                Note over Sesion: dispara Cambio → MainLayout aplica el tema guardado y actualiza el header
+                Web-->>Usuario: redirige a / (Home.OnInitializedAsync carga las búsquedas del cliente)
+            end
+        end
+    end

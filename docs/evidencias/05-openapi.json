@@ -482,6 +482,28 @@
           }
         }
       }
+    },
+    "/api/vehiculos/opciones": {
+      "get": {
+        "tags": [
+          "Vehiculos"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OpcionVehiculoDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -674,7 +696,8 @@
         "required": [
           "nombre",
           "email",
-          "contrasena"
+          "contrasena",
+          "repetirContrasena"
         ],
         "type": "object",
         "properties": {
@@ -691,6 +714,9 @@
           "contrasena": {
             "maxLength": 100,
             "minLength": 8,
+            "type": "string"
+          },
+          "repetirContrasena": {
             "type": "string"
           }
         }
@@ -755,6 +781,43 @@
           "capturadaEn": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "OpcionVehiculoDto": {
+        "required": [
+          "marca",
+          "modelo",
+          "anioDesde",
+          "anioHasta",
+          "motor"
+        ],
+        "type": "object",
+        "properties": {
+          "marca": {
+            "type": "string"
+          },
+          "modelo": {
+            "type": "string"
+          },
+          "anioDesde": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "anioHasta": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "motor": {
+            "type": "string"
           }
         }
       },
@@ -916,6 +979,9 @@
     },
     {
       "name": "Repuestos"
+    },
+    {
+      "name": "Vehiculos"
     }
   ]
 }

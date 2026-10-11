@@ -1,0 +1,189 @@
+classDiagram
+    direction LR
+
+    class EntidadBase {
+        <<abstract>>
+        +Guid Id
+        +IReadOnlyCollection~IEventoDominio~ EventosDominio
+        #RegistrarEvento(evento)
+        +LimpiarEventos()
+    }
+
+    class DatosVehiculo {
+        <<value object>>
+        +string Marca
+        +string Modelo
+        +int Anio
+        +string? Motor
+    }
+
+    class Dinero {
+        <<value object>>
+        +decimal Monto
+        +string Moneda
+        +Pesos(monto)$ Dinero
+        +Dolares(monto)$ Dinero
+        +operator+(a, b) Dinero
+        +EsMasBaratoQue(otro) bool
+    }
+
+    class Cliente {
+        +string Nombre
+        +string Email
+        +string? HashContrasena
+        +DateTimeOffset FechaAlta
+        +string? Telefono
+        +bool TieneWhatsApp
+        +string? Provincia
+        +string? Localidad
+        +byte[]? FotoPerfil
+        +string? FotoTipoContenido
+        +Guid? VehiculoPredeterminadoId
+        +string? TemaPreferido
+        +IReadOnlyCollection~Vehiculo~ Vehiculos
+        +EstablecerContrasena(hash)
+        +CambiarNombre(nombre)
+        +ActualizarContacto(telefono, tieneWhatsApp, provincia, localidad)
+        +CambiarFotoPerfil(datos, tipoContenido)
+        +QuitarFotoPerfil()
+        +EstablecerVehiculoPredeterminado(vehiculoId)
+        +CambiarTema(tema)
+        +AgregarVehiculo(datos, vin, alias) Vehiculo
+        +QuitarVehiculo(vehiculoId)
+    }
+
+    class Vehiculo {
+        +Guid ClienteId
+        +DatosVehiculo Datos
+        +string? Vin
+        +string Alias
+        +CambiarAlias(alias)
+    }
+
+    class ConfiguracionVehiculo {
+        +string Marca
+        +string Modelo
+        +int AnioDesde
+        +int AnioHasta
+        +string Motor
+        +Incluye(marca, modelo, anio, motor) bool
+    }
+
+    class Repuesto {
+        +string CodigoCanonico
+        +string Nombre
+        +string? Descripcion
+        +SistemaVehiculo Sistema
+        +IReadOnlyCollection~string~ CodigosEquivalentes
+        +IReadOnlyCollection~AplicacionVehiculo~ Aplicaciones
+        +EsCompatibleCon(vehiculo) bool
+        +AgregarAplicacion(aplicacion)
+        +AgregarEquivalencia(codigo)
+        +TerminosDeBusqueda() IReadOnlyList~string~
+    }
+
+    class AplicacionVehiculo {
+        +Guid RepuestoId
+        +string Marca
+        +string Modelo
+        +int AnioDesde
+        +int AnioHasta
+        +string? Motor
+        +EsCompatibleCon(vehiculo) bool
+    }
+
+    class Busqueda {
+        +Guid ClienteId
+        +DatosVehiculo Vehiculo
+        +string TextoLibre
+        +EstadoBusqueda Estado
+        +DateTimeOffset FechaCreacion
+        +string? MotivoFalla
+        +IReadOnlyCollection~string~ CodigosObjetivo
+        +IReadOnlyCollection~Oferta~ Ofertas
+        +AsignarCodigosObjetivo(codigos)
+        +RegistrarOfertas(ofertas)
+        +Fallar(motivo)
+        +OfertasOrdenadasPorPrecio(moneda) IReadOnlyList~Oferta~
+    }
+
+    class Oferta {
+        +Guid BusquedaId
+        +string CodigoRepuesto
+        +string NombreTienda
+        +string Titulo
+        +Dinero Precio
+        +Dinero? CostoEnvio
+        +string UrlOriginal
+        +bool Disponible
+        +DateTimeOffset CapturadaEn
+        +Dinero PrecioTotal
+        +EstaVencida(antiguedadMaxima) bool
+    }
+
+    class SistemaVehiculo {
+        <<enumeration>>
+        Desconocido
+        Frenos
+        Suspension
+        Motor
+        Transmision
+        Electrico
+        Refrigeracion
+        Escape
+        Direccion
+        Carroceria
+        Neumaticos
+    }
+
+    class IEventoDominio {
+        <<interface>>
+        +DateTimeOffset OcurridoEn
+    }
+
+    class BusquedaCreada {
+        +Guid BusquedaId
+        +Guid ClienteId
+        +DatosVehiculo Vehiculo
+        +string TextoLibre
+        +DateTimeOffset OcurridoEn
+    }
+
+    class NivelUrgencia {
+        <<enumeration>>
+        Desconocida
+        Baja
+        Media
+        Alta
+        Critica
+    }
+
+    class EstadoBusqueda {
+        <<enumeration>>
+        Borrador
+        Pendiente
+        Diagnosticada
+        Completada
+        Fallida
+    }
+
+    EntidadBase <|-- ConfiguracionVehiculo
+    EntidadBase <|-- Cliente
+    EntidadBase <|-- Vehiculo
+    EntidadBase <|-- Repuesto
+    EntidadBase <|-- AplicacionVehiculo
+    EntidadBase <|-- Busqueda
+    EntidadBase <|-- Oferta
+
+    Cliente "1" *-- "0..*" Vehiculo : garage
+    Cliente "0..1" --> "0..1" Vehiculo : predeterminado
+    Vehiculo *-- "1" DatosVehiculo : datos
+    Repuesto "1" *-- "0..*" AplicacionVehiculo : compatibilidad
+    Repuesto --> SistemaVehiculo
+    Busqueda *-- "1" DatosVehiculo : snapshot
+    Busqueda "1" *-- "0..*" Oferta : resultados
+    Busqueda --> EstadoBusqueda
+    IEventoDominio <|.. BusquedaCreada
+    EntidadBase o-- IEventoDominio : eventos acumulados
+    Busqueda ..> BusquedaCreada : registra al crearse
+    Oferta *-- "1..2" Dinero : precio / envio
