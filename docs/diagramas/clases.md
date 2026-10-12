@@ -13,7 +13,7 @@ Como la aplicación es un comparador y no un e-shop, esos tres conceptos se mate
 |---|---|---|
 | Cliente | `Cliente` | Igual: quien usa el comparador, con su garage de vehículos. |
 | Producto | `Repuesto` + `Oferta` | `Repuesto` es la pieza como concepto (código canónico, equivalencias, compatibilidad); `Oferta` es esa pieza publicada por una tienda concreta a un precio concreto. Separarlos es lo que permite comparar la misma pieza entre sitios. |
-| Pedido | `Busqueda` | El agregado que atraviesa todo el sistema. No se compra nada: lo que se "despacha" es la consulta a las tiendas. |
+| Pedido | `Busqueda` | El agregado de la consulta: vehículo, texto libre, estado y códigos objetivo. `Oferta` es el tipo preparado para el resultado de una tienda; esta entrega no captura ofertas. |
 
 ## Diagrama
 
@@ -138,7 +138,6 @@ classDiagram
         +bool Disponible
         +DateTimeOffset CapturadaEn
         +Dinero PrecioTotal
-        +EstaVencida(antiguedadMaxima) bool
     }
 
     class SistemaVehiculo {
@@ -169,18 +168,8 @@ classDiagram
         +DateTimeOffset OcurridoEn
     }
 
-    class NivelUrgencia {
-        <<enumeration>>
-        Desconocida
-        Baja
-        Media
-        Alta
-        Critica
-    }
-
     class EstadoBusqueda {
         <<enumeration>>
-        Borrador
         Pendiente
         Diagnosticada
         Completada
@@ -201,6 +190,7 @@ classDiagram
     Repuesto "1" *-- "0..*" AplicacionVehiculo : compatibilidad
     Repuesto --> SistemaVehiculo
     Busqueda *-- "1" DatosVehiculo : snapshot
+    Busqueda ..> Cliente : ClienteId sin navegacion
     Busqueda "1" *-- "0..*" Oferta : resultados
     Busqueda --> EstadoBusqueda
     IEventoDominio <|.. BusquedaCreada
@@ -219,8 +209,16 @@ mañana el cliente borra el auto, la búsqueda histórica sigue siendo interpret
 ARS (tiendas VTEX argentinas) y en USD (eBay). Sumarlas sin cotización daría un ranking mentiroso,
 así que el tipo lo prohíbe y lanza `ExcepcionDominio`.
 
-**`Oferta.PrecioTotal` incluye el envío.** Ordenar por precio de lista haría ganar a una oferta
-barata con envío carísimo. El ranking usa siempre el total.
+**`Oferta.PrecioTotal` incluye el envío.** `OfertasOrdenadasPorPrecio` ordena por ese total y
+rechaza mezclar monedas. La aplicación no llama `RegistrarOfertas` ni ese ranking: la colección de
+ofertas queda vacía. Las pruebas de dominio y de persistencia sí ejercen el método.
+
+**Estados que la aplicación alcanza.** El constructor deja la búsqueda en `Pendiente`.
+`AsignarCodigosObjetivo` pasa a `Diagnosticada` y `Fallar` a `Fallida`. `Completada` solo la asigna
+`RegistrarOfertas`.
+
+**La búsqueda guarda `ClienteId` y no una navegación hacia `Cliente`.** No hay clave foránea. Si el
+cliente borra la cuenta, las búsquedas se eliminan en el servicio, no por cascada de la base.
 
 **El perfil del cliente protege sus invariantes.** La foto no puede estar vacía, tiene que ser JPG,
 PNG o WEBP y no puede superar 5 MB. El teléfono admite dígitos, espacios, guiones, paréntesis y un

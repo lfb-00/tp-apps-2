@@ -46,7 +46,7 @@ Los docs son entregables evaluados tanto como el código. Cada etapa suma sobre 
 - Mensajería con colas (RabbitMQ decidido), productores y consumidores (ej. `BusquedaCreada`).
 - Integración SOA / microservicios ligeros.
 - ≥1 **API externa real** (planeado: eBay y VTEX vía APIs oficiales, nunca scraping).
-- **Componente de IA** (acá: texto libre del problema → diagnóstico, urgencia y repuestos
+- **Componente de IA** (acá: texto libre del problema → diagnóstico y repuestos
   candidatos), expuesto por REST o invocado asincrónicamente por la cola.
 - **Entregable:** servicios documentados + productores/consumidores + API externa + IA funcional +
   evidencias de prueba.

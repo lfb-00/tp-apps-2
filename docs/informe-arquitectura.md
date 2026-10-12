@@ -12,7 +12,7 @@ stock. El recorrido completo, cuando esté terminado, es:
 
 1. El usuario identifica su vehículo (marca/modelo/año, o pegando el VIN).
 2. Describe el problema **en lenguaje natural**: *"cuando freno vibra el volante y chilla"*.
-3. El componente de IA propone un diagnóstico, un nivel de urgencia y los repuestos candidatos.
+3. El componente de IA propone un diagnóstico y los repuestos candidatos.
 4. La aplicación consulta **varios sitios reales en paralelo**, normaliza las ofertas y las compara
    por precio total, disponibilidad y tienda.
 5. El usuario elige y **se va al sitio del vendedor**. RepMatch no cobra, no reserva ni almacena
