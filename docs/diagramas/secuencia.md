@@ -29,8 +29,15 @@ sequenceDiagram
     else datos válidos
         Web->>Fachada: BuscarAsync(CrearBusquedaDto)
         Fachada->>Vehiculos: EsConfiguracionValidaAsync(dto.Vehiculo)
-        Note over Fachada,Vehiculos: si no existe devuelve Falla y no crea búsqueda
-        Fachada->>Busquedas: CrearAsync
+        alt argumento nulo o fallo HTTP al cargar las opciones
+            Note over Fachada: la llamada está antes de ConsultarAsync<br/>la excepción se propaga y no se crea la búsqueda
+        else configuración inexistente
+            Vehiculos-->>Fachada: false
+            Fachada-->>Web: Falla, sin crear búsqueda
+            Web-->>Usuario: mensaje de error
+        else configuración válida
+            Vehiculos-->>Fachada: true
+            Fachada->>Busquedas: CrearAsync
         Note over Busquedas: valida el DTO con FluentValidation y verifica que el cliente exista<br/>(si falla → ResultadoOperacion Falla)<br/>una ExcepcionDominio dentro de CrearAsync también vuelve como Falla
         Busquedas->>Dominio: new Busqueda
         Dominio-->>Busquedas: encola BusquedaCreada
@@ -42,34 +49,38 @@ sequenceDiagram
         Busquedas->>Despacho: DespacharAsync
         Despacho->>Obs: ObservarAsync(BusquedaCreada)
         Obs->>Repo: ObtenerPorIdAsync(BusquedaId)
-        Note over Obs: si no la encuentra registra un warning<br/>y retorna sin confirmar
-        Obs->>Catalogo: BuscarCompatiblesAsync
-        alt hay piezas compatibles
-            Catalogo-->>Obs: piezas compatibles
-            Obs->>Dominio: AsignarCodigosObjetivo
-        else sin piezas compatibles
-            Obs->>Dominio: Fallar
-        else error HTTP o timeout del catálogo remoto (HttpRequestException / TaskCanceledException)
-            Obs->>Dominio: Fallar
-        end
-        Obs->>UoW: ConfirmarAsync
-        Busquedas->>Repo: ObtenerPorIdAsync(busqueda.Id)
-        Note over Busquedas: vuelve a leer la búsqueda persistida
-        Busquedas-->>Fachada: ResultadoOperacion#lt;BusquedaDto#gt;
-        alt quedaron códigos asignados
-            Fachada->>Catalogo: BuscarCompatiblesAsync (vía ConsultarAsync)
-            alt el catálogo responde
-                Catalogo-->>Fachada: repuestos del vehículo
-                Note over Fachada: arma las piezas de los códigos asignados
-                Fachada-->>Web: ResultadoOperacion#lt;ResultadoBusquedaDto#gt; (búsqueda + piezas)
-            else falla el catálogo (HttpRequestException / TaskCanceledException)
-                Note over Fachada: ConsultarAsync atrapa la excepción<br/>la búsqueda ya quedó guardada, pero no se arman las piezas
-                Fachada-->>Web: ResultadoOperacion Falla ("No se pudo consultar el catálogo…")
+        alt no encuentra la búsqueda
+            Note over Obs: registra un warning y retorna<br/>sin consultar el catálogo ni confirmar
+        else la encuentra
+            Obs->>Catalogo: BuscarCompatiblesAsync
+            alt hay piezas compatibles
+                Catalogo-->>Obs: piezas compatibles
+                Obs->>Dominio: AsignarCodigosObjetivo
+            else sin piezas compatibles
+                Obs->>Dominio: Fallar
+            else error HTTP o timeout del catálogo remoto (HttpRequestException / TaskCanceledException)
+                Obs->>Dominio: Fallar
             end
-        else sin códigos (búsqueda Fallida)
-            Fachada-->>Web: ResultadoOperacion#lt;ResultadoBusquedaDto#gt; (búsqueda sin piezas)
+            Obs->>UoW: ConfirmarAsync
+            Busquedas->>Repo: ObtenerPorIdAsync(busqueda.Id)
+            Note over Busquedas: vuelve a leer la búsqueda persistida
+            Busquedas-->>Fachada: ResultadoOperacion#lt;BusquedaDto#gt;
+            alt quedaron códigos asignados
+                Fachada->>Catalogo: BuscarCompatiblesAsync (vía ConsultarAsync)
+                alt el catálogo responde
+                    Catalogo-->>Fachada: repuestos del vehículo
+                    Note over Fachada: arma las piezas de los códigos asignados
+                    Fachada-->>Web: ResultadoOperacion#lt;ResultadoBusquedaDto#gt; (búsqueda + piezas)
+                else falla el catálogo (HttpRequestException / TaskCanceledException)
+                    Note over Fachada: ConsultarAsync atrapa la excepción<br/>la búsqueda ya quedó guardada, pero no se arman las piezas
+                    Fachada-->>Web: ResultadoOperacion Falla ("No se pudo consultar el catálogo…")
+                end
+            else sin códigos (búsqueda Fallida)
+                Fachada-->>Web: ResultadoOperacion#lt;ResultadoBusquedaDto#gt; (búsqueda sin piezas)
+            end
+            Web-->>Usuario: búsqueda con estado y piezas, o mensaje de error
         end
-        Web-->>Usuario: búsqueda con estado y piezas, o mensaje de error
+        end
     end
 ```
 
@@ -308,11 +319,11 @@ sequenceDiagram
 
     Usuario->>Web: consultar vehículo y sistema opcional
     Web->>Fachada: BuscarRepuestosAsync
-    Fachada->>Vehiculos: validar configuración
-    Note over Vehiculos: Local consulta IConfiguracionVehiculoRepository<br/>Remoto descarga GET /api/vehiculos/opciones y comprueba la configuración
-    alt falla la validación vehicular
-        Vehiculos-->>Fachada: excepción
-        Note over Fachada,Web: se propaga fuera de ConsultarAsync
+    Fachada->>Vehiculos: EsConfiguracionValidaAsync
+    Note over Vehiculos: Local consulta IConfiguracionVehiculoRepository<br/>Remoto descarga GET /api/vehiculos/opciones y comprueba la configuración<br/>esta llamada ocurre antes de ConsultarAsync
+    alt argumento nulo o fallo al cargar las opciones
+        Vehiculos-->>Fachada: ArgumentNullException o excepción de HTTP
+        Note over Fachada: no entra a ConsultarAsync y la excepción se propaga
     else configuración inexistente
         Vehiculos-->>Fachada: false
         Fachada-->>Web: Falla de validación, sin consultar repuestos
@@ -369,7 +380,10 @@ sequenceDiagram
     end
 ```
 
-Las excepciones que no sean HTTP o timeout no las captura `ConsultarAsync`, se propagan.
+`EsConfiguracionValidaAsync` corre antes de `ConsultarAsync`. Una configuración desconocida devuelve
+`false` y la fachada responde `Falla`. Un argumento nulo o un fallo al cargar las opciones lanza y
+esa excepción no entra al `catch` de `ConsultarAsync`. Adentro de `ConsultarAsync`, solo
+`HttpRequestException` y `TaskCanceledException` se convierten en `Falla`; el resto se propaga.
 Esta secuencia es de consulta: no crea búsquedas ni escribe datos. En la búsqueda con cuenta,
 el observador y la fachada consumen el mismo contrato, como muestra la secuencia 1.
 
