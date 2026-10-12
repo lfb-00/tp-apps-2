@@ -1,10 +1,10 @@
 # Diagrama de despliegue — RepMatch
 
-Dos topologías: la del **TP Inicial**, que es la que está implementada y se levanta con
+Dos topologías: la del **TP Inicial y Primera Parte**, que es la que está implementada y se levanta con
 `docker compose up`, y la **prevista** para las entregas siguientes, que se documenta acá para
 mostrar que la arquitectura actual la admite sin rediseño.
 
-## TP Inicial — implementado
+## TP Inicial y Primera Parte — implementados
 
 ```mermaid
 flowchart TB
@@ -70,14 +70,14 @@ dotnet run --project src/RepMatch.Catalogo.Api --urls http://localhost:5081
 dotnet run --project src/RepMatch.Web --urls http://localhost:5080
 ```
 
-## Topología prevista — Primera, Segunda Parte e Integrador
+## Topología prevista — Segunda Parte e Integrador
 
 Ninguno de los nodos nuevos obliga a cambiar los componentes ya construidos: `search-api` consume el
-mismo `ICatalogoRepuestos`, y `catalogo-soap` será una tercera implementación de esa interfaz.
+mismo `ICatalogoRepuestos`, y el cliente de `catalogo-soap` será una tercera implementación de esa interfaz.
 
 ```mermaid
 flowchart TB
-    subgraph implementado["Ya implementado (TP Inicial)"]
+    subgraph implementado["Ya implementado (TP Inicial y Primera Parte)"]
         W["web :8080<br/>Blazor + BFF"]
         A["catalogo-api :8081<br/>REST"]
         P[("postgres :5432")]
@@ -101,6 +101,7 @@ flowchart TB
     W --> A
     W --> S
     W --> IA
+    W --> P
     A --> P
     S --> R
     S --> EB

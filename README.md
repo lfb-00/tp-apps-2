@@ -20,7 +20,7 @@ docker compose up --build --wait
 ```
 
 - Web → **http://localhost:8080**
-- Catálogo (REST + OpenAPI) → **http://localhost:8081/salud**
+- API REST → **http://localhost:8081/salud**; contrato OpenAPI → **http://localhost:8081/openapi/v1.json** (Development)
 - PostgreSQL → `localhost:5432`
 
 La misma consulta por los dos caminos queda en `docs/evidencias/` (la genera
@@ -105,10 +105,10 @@ Así arranca con el proveedor `InMemory`, sin necesidad de PostgreSQL.
 src/
   RepMatch.Domain/          componente de dominio      · sin dependencias
   RepMatch.Common/          componente de utilidad     · validación, logging, configuración
-  RepMatch.Contracts/       DTOs e ICatalogoRepuestos
+  RepMatch.Contracts/       DTOs, ICatalogoRepuestos e ICatalogoVehiculos
   RepMatch.Persistence/     componente de acceso a datos · EF Core
-  RepMatch.Aplicacion/      lógica de negocio          · incluye CatalogoLocal
-  RepMatch.Clientes.Rest/   adaptador remoto           · incluye CatalogoRemoto
+  RepMatch.Aplicacion/      lógica de negocio          · incluye CatalogoLocal y CatalogoVehiculosLocal
+  RepMatch.Clientes.Rest/   adaptador remoto           · incluye CatalogoRemoto y CatalogoVehiculosRemoto
   RepMatch.Catalogo.Api/    host REST del catálogo
   RepMatch.Web/             presentación (Blazor Server)
 tests/RepMatch.Tests/       pruebas
@@ -118,7 +118,7 @@ scripts/evidencias.sh        genera las evidencias del entregable
 
 ## Acceso local vs. remoto
 
-Una interfaz, `ICatalogoRepuestos`, con dos implementaciones intercambiables **por configuración,
+Dos interfaces, `ICatalogoRepuestos` e `ICatalogoVehiculos`, cada una con implementaciones local y remota intercambiables **por configuración,
 sin recompilar**:
 
 ```bash
@@ -170,6 +170,7 @@ Todo se puede sobreescribir por variable de entorno (`Seccion__Clave`).
 |---|---|---|
 | `Catalogo:Modo` | `Local`, `Remoto` | `Local` (en compose: `Remoto`) |
 | `Catalogo:UrlBaseRemota` | URL de `Catalogo.Api` | `http://localhost:5081` |
+| `Catalogo:TimeoutSegundos` | timeout de las llamadas HTTP al catálogo remoto (1 a 120) | `30` |
 | `Persistencia:Proveedor` | `InMemory`, `Postgres` | `InMemory` (en compose: `Postgres`) |
 | `ConnectionStrings:RepMatch` | cadena Npgsql | vacía |
 | `ProteccionDatos:DirectorioClaves` | directorio de las claves que cifran la sesión (solo Web) | vacío: las maneja ASP.NET Core (en compose: `/claves`, en un volumen) |
@@ -185,7 +186,7 @@ Y los puertos del host, vía `.env` (ver `.env.example`): `PUERTO_WEB`, `PUERTO_
 - [Diagrama de componentes](docs/diagramas/componentes.md)
 - [Diagrama de despliegue](docs/diagramas/despliegue.md)
 - [Arquitectura en capas](docs/diagramas/capas.md)
-- [Diagramas de secuencia (búsqueda, login, alta de vehículo)](docs/diagramas/secuencia.md)
+- [Diagramas de secuencia (búsquedas, login, alta de vehículo, catálogo y eliminación de cuenta)](docs/diagramas/secuencia.md)
 
 ## Stack
 

@@ -26,7 +26,7 @@ eje de la materia— en vez de un ABM con carrito.
 
 El TP Inicial cubre la **arquitectura de componentes**: los componentes reutilizables, la aplicación
 multicapa y el ejercicio de acceso local y remoto. La Primera Parte suma los patrones **Factory,
-Repository, Strategy, Observer y Facade**, la fachada como única puerta de la presentación, los
+Repository, Strategy, Observer y Facade**, la fachada para las operaciones de clientes, búsquedas y repuestos, los
 eventos de dominio internos (`BusquedaCreada`) y el modelado con diagramas de capas y de secuencia.
 El diagnóstico por IA, el servicio SOAP, la mensajería y los adaptadores a tiendas externas
 corresponden a las entregas siguientes, y la arquitectura está preparada para recibirlos sin
@@ -43,9 +43,9 @@ La consigna pide un mínimo de tres componentes reutilizables independientes. Se
 | 1 | `RepMatch.Domain` | **Dominio** | Entidades, value objects, eventos de dominio e interfaces de repositorio |
 | 2 | `RepMatch.Persistence` | **Acceso a datos** | `DbContext`, mapeos, repositorios y unidad de trabajo sobre EF Core |
 | 3 | `RepMatch.Common` | **Utilidad** | Validación, logging, configuración externalizada, `ResultadoOperacion<T>`, medición de latencia y correlación |
-| 4 | `RepMatch.Contracts` | Contratos | DTOs, `ICatalogoRepuestos` y `OpcionesCatalogo` |
-| 5 | `RepMatch.Aplicacion` | Lógica de negocio | `FachadaAplicacion`, `ServicioClientes`, `ServicioBusquedas`, `DespachadorEventos`, `ObservadorCompatibilidad`, mapeadores, validadores y `CatalogoLocal` |
-| 6 | `RepMatch.Clientes.Rest` | Adaptador remoto | `CatalogoRemoto` y propagación de correlación |
+| 4 | `RepMatch.Contracts` | Contratos | DTOs, `ICatalogoRepuestos`, `ICatalogoVehiculos` y `OpcionesCatalogo` |
+| 5 | `RepMatch.Aplicacion` | Lógica de negocio | `FachadaAplicacion`, `ServicioClientes`, `ServicioBusquedas`, `DespachadorEventos`, `ObservadorCompatibilidad`, mapeadores, validadores y los catálogos locales de repuestos y vehículos |
+| 6 | `RepMatch.Clientes.Rest` | Adaptador remoto | `CatalogoRemoto`, `CatalogoVehiculosRemoto` y propagación de correlación |
 
 Más dos hosts ejecutables: `RepMatch.Web` (presentación) y `RepMatch.Catalogo.Api` (host REST del
 componente de catálogo).
@@ -106,26 +106,31 @@ catálogo de repuestos combinado con las consultas a las tiendas.
    transversales:  RepMatch.Domain · RepMatch.Common · RepMatch.Contracts
 ```
 
-Reglas que se respetan y que son verificables leyendo los `.csproj`:
+Las referencias de proyectos y el uso de sus tipos muestran estas decisiones:
 
-- La presentación **nunca** referencia un repositorio: habla con `FachadaAplicacion`.
+- La presentación no llama repositorios: habla con `FachadaAplicacion` y, para los selectores,
+  con `ICatalogoVehiculos`.
 - La capa de datos **no contiene reglas de negocio**. `RepuestoRepository.BuscarCompatiblesAsync`
-  filtra en la base por marca, modelo y rango de años —lo que el motor puede resolver con índice— y
+  filtra en la base por marca, modelo y rango de años —el filtro que EF traduce a SQL— y
   delega la regla fina de motorización a `Repuesto.EsCompatibleCon`, que vive en el dominio. Así la
   consulta es eficiente sin duplicar la lógica.
 - La inversión de dependencias es real: `IRepuestoRepository` está declarada en `Domain` e
   implementada en `Persistence`, no al revés.
 
-### Fachada como única puerta de la presentación (Primera Parte)
+### Fachada y consulta de opciones vehiculares (Primera Parte)
 
-`FachadaAplicacion` es el único objeto que las páginas Razor inyectan de la capa de negocio. Agrupa
-los métodos de `ServicioClientes`, `ServicioBusquedas` e `ICatalogoRepuestos` en una superficie
+Las páginas usan `FachadaAplicacion` para clientes, búsquedas y repuestos. Agrupa
+los métodos de `ServicioClientes`, `ServicioBusquedas`, `ICatalogoRepuestos` e `ICatalogoVehiculos` en una superficie
 única y estable. Las páginas no conocen qué servicio interno maneja cada operación, ni si el
 catálogo está en proceso o detrás de una API: esa decisión queda encapsulada. Además, `BuscarAsync`
 es una operación compuesta que la fachada resuelve en un solo llamado —crear la búsqueda y resolver
 las piezas compatibles—, coordinación que no le corresponde hacer a ninguna página. El observador ya
 consultó el catálogo para decidir los códigos; la fachada lo vuelve a consultar para traer el detalle
 de esas piezas.
+
+`SelectorVehiculo.razor` inyecta directamente `ICatalogoVehiculos` para obtener las opciones.
+La fábrica selecciona este contrato entre `CatalogoVehiculosLocal` y `CatalogoVehiculosRemoto`.
+`BuscarAsync` y `BuscarRepuestosAsync` validan la configuración antes de consultar piezas.
 
 ### Despacho de eventos de dominio (Primera Parte)
 
@@ -152,21 +157,12 @@ implementación de `IDespachadorEventos` que publique el evento a través de `IE
 
 ## 4. Acceso local vs. remoto entre componentes
 
-Es el ejercicio central del TP Inicial. La solución adoptada es **una interfaz con dos
-implementaciones intercambiables por configuración**.
+Es el ejercicio central del TP Inicial. Cada contrato, `ICatalogoRepuestos` e `ICatalogoVehiculos`, tiene
+**dos implementaciones intercambiables por configuración**. A continuación se muestra el de repuestos.
 
 ### El contrato
 
-```csharp
-// RepMatch.Contracts/ICatalogoRepuestos.cs
-public interface ICatalogoRepuestos
-{
-    string Modo { get; }   // "Local" | "Remoto" — se registra en cada log
-    Task<IReadOnlyList<RepuestoDto>> BuscarCompatiblesAsync(VehiculoDto v, string? sistema, CancellationToken ct);
-    Task<RepuestoDto?> ObtenerPorCodigoAsync(string codigoCanonico, CancellationToken ct);
-    Task<IReadOnlyList<RepuestoDto>> ListarAsync(CancellationToken ct);
-}
-```
+Ver [ICatalogoRepuestos.cs](../src/RepMatch.Contracts/ICatalogoRepuestos.cs).
 
 ### Las dos implementaciones
 
@@ -175,7 +171,7 @@ public interface ICatalogoRepuestos
 | Clase | `Aplicacion.Catalogo.CatalogoLocal` | `Clientes.Rest.CatalogoRemoto` |
 | Mecanismo | Invocación directa en proceso, por referencia de proyecto | HTTP + JSON contra `Catalogo.Api` |
 | Recorrido | `CatalogoLocal → IRepuestoRepository → EF Core → BD` | `HttpClient → GET /api/repuestos/compatibles → CatalogoLocal (otro proceso) → BD` |
-| Serialización | ninguna | JSON de ida y vuelta |
+| Serialización | ninguna | query string de entrada y JSON de respuesta |
 | Frontera de fallas | excepciones del dominio | además: timeouts, DNS, códigos HTTP |
 
 ### La selección
@@ -183,13 +179,7 @@ public interface ICatalogoRepuestos
 `RepMatch.Web/Servicios/FabricaCatalogo.cs` (patrón **Factory**) lee la configuración y enlaza la
 interfaz:
 
-```csharp
-servicios.AddScoped<ICatalogoRepuestos>(sp => opciones.Modo switch
-{
-    ModoAccesoCatalogo.Remoto => sp.GetRequiredService<CatalogoRemoto>(),
-    _                         => sp.GetRequiredService<CatalogoLocal>()
-});
-```
+Ver [FabricaCatalogo.cs](../src/RepMatch.Web/Servicios/FabricaCatalogo.cs).
 
 Se cambia con `Catalogo:Modo` en `appsettings.json` o con la variable de entorno `Catalogo__Modo`.
 **Sin recompilar**, y sin que `FachadaAplicacion` ni las páginas se enteren de cuál quedó enchufada.
@@ -262,14 +252,16 @@ adaptadores externos, es lo único que permite reconstruir el recorrido completo
 
 `tests/RepMatch.Tests/Integracion/AccesoLocalVsRemotoTests.cs` es la versión ejecutable de esta
 evidencia: hospeda `Catalogo.Api` en memoria con `WebApplicationFactory` y verifica que las dos
-implementaciones devuelvan **exactamente lo mismo** para cinco vehículos distintos, para el listado
-completo campo por campo, para códigos existentes e inexistentes y para el filtro por sistema.
+implementaciones coincidan para cinco configuraciones de vehículo, el listado completo,
+códigos existentes e inexistentes y el filtro por sistema. También compara las opciones vehiculares
+completas y comprueba que los modelos de la semilla tengan piezas compatibles.
 
 ```
-Correctas! - Con error: 0, Superado: 80, Omitido: 0, Total: 80
+Passed! - Failed: 0, Passed: 84, Skipped: 0, Total: 84
 ```
 
-Si algún día las dos implementaciones divergen, esto falla antes que la demo.
+Verificación del 2026-10-11 con `docker compose --profile test run --build --rm tests`:
+84 pruebas correctas y compilación sin advertencias.
 
 ---
 
@@ -334,7 +326,7 @@ circulares, CVSS 7.5). Se fijó la versión **2.12.2**, posterior al parche 2.7.
 
 | Entrega | Qué agrega | Dónde se enchufa | Qué NO hay que tocar |
 |---|---|---|---|
-| **Primera** | Patrones formalizados, fachada, eventos de dominio internos | `DespachadorEventos` publica `BusquedaCreada` a `ObservadorCompatibilidad`. La presentación entra por `FachadaAplicacion` | Dominio, contratos |
+| **Primera** | Patrones formalizados, fachada, eventos de dominio internos | `DespachadorEventos` publica `BusquedaCreada` a `ObservadorCompatibilidad`. Las operaciones pasan por `FachadaAplicacion`; `SelectorVehiculo` consulta `ICatalogoVehiculos` directamente | Dominio, contratos |
 | **Segunda** | SOAP `ConsultaCompatibilidad` (CoreWCF + WSDL) | Tercera implementación de `ICatalogoRepuestos` | Presentación, lógica de negocio |
 | **Segunda** | REST documentados con OpenAPI | Ya publicado en `/openapi/v1.json` | — |
 | **Segunda** | RabbitMQ, productores y consumidores | Implementación de `IDespachadorEventos` sobre `IEventBus`; `BusquedaCreada` ya existe como evento de dominio | Entidades |
@@ -403,4 +395,4 @@ demostrado apenas se levanta el entorno.
 | Servicios de negocio e integración por eventos | `ServicioClientes`, `ServicioBusquedas`, `ObservadorCompatibilidad` |
 | Servicio de Inventario | No existe como módulo separado porque RepMatch no almacena stock. El catálogo interno cubre la compatibilidad de piezas; en la Segunda Parte, disponibilidad y precio se consultarán en el momento de cada búsqueda a las APIs de las tiendas. Justificación ampliada en la nota "Sobre el Servicio de Inventario" de la sección 2. |
 | Diagrama de arquitectura en capas | [`docs/diagramas/capas.md`](diagramas/capas.md) |
-| Diagramas de secuencia (búsqueda, login, alta de vehículo) | [`docs/diagramas/secuencia.md`](diagramas/secuencia.md) |
+| Diagramas de secuencia (búsquedas, login, alta de vehículo, catálogo y eliminación de cuenta) | [`docs/diagramas/secuencia.md`](diagramas/secuencia.md) |

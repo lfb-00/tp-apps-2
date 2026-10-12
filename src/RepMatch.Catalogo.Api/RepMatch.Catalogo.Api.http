@@ -9,6 +9,9 @@ GET {{host}}/salud
 ### Contrato OpenAPI
 GET {{host}}/openapi/v1.json
 
+### Opciones de marca, modelo, rango de años y motor
+GET {{host}}/api/vehiculos/opciones
+
 ### Catalogo completo
 GET {{host}}/api/repuestos
 
@@ -33,7 +36,9 @@ Content-Type: application/json
 
 {
   "nombre": "Ana Diaz",
-  "email": "ana.diaz@ejemplo.com"
+  "email": "ana.diaz@ejemplo.com",
+  "contrasena": "repMatch123!",
+  "repetirContrasena": "repMatch123!"
 }
 
 ### Busquedas recientes

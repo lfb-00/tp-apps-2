@@ -80,6 +80,15 @@ classDiagram
         +CambiarAlias(alias)
     }
 
+    class ConfiguracionVehiculo {
+        +string Marca
+        +string Modelo
+        +int AnioDesde
+        +int AnioHasta
+        +string Motor
+        +Incluye(marca, modelo, anio, motor) bool
+    }
+
     class Repuesto {
         +string CodigoCanonico
         +string Nombre
@@ -88,6 +97,8 @@ classDiagram
         +IReadOnlyCollection~string~ CodigosEquivalentes
         +IReadOnlyCollection~AplicacionVehiculo~ Aplicaciones
         +EsCompatibleCon(vehiculo) bool
+        +AgregarAplicacion(aplicacion)
+        +AgregarEquivalencia(codigo)
         +TerminosDeBusqueda() IReadOnlyList~string~
     }
 
@@ -132,6 +143,7 @@ classDiagram
 
     class SistemaVehiculo {
         <<enumeration>>
+        Desconocido
         Frenos
         Suspension
         Motor
@@ -144,6 +156,28 @@ classDiagram
         Neumaticos
     }
 
+    class IEventoDominio {
+        <<interface>>
+        +DateTimeOffset OcurridoEn
+    }
+
+    class BusquedaCreada {
+        +Guid BusquedaId
+        +Guid ClienteId
+        +DatosVehiculo Vehiculo
+        +string TextoLibre
+        +DateTimeOffset OcurridoEn
+    }
+
+    class NivelUrgencia {
+        <<enumeration>>
+        Desconocida
+        Baja
+        Media
+        Alta
+        Critica
+    }
+
     class EstadoBusqueda {
         <<enumeration>>
         Borrador
@@ -153,6 +187,7 @@ classDiagram
         Fallida
     }
 
+    EntidadBase <|-- ConfiguracionVehiculo
     EntidadBase <|-- Cliente
     EntidadBase <|-- Vehiculo
     EntidadBase <|-- Repuesto
@@ -161,13 +196,16 @@ classDiagram
     EntidadBase <|-- Oferta
 
     Cliente "1" *-- "0..*" Vehiculo : garage
-    Cliente "0..*" --> "0..1" Vehiculo : predeterminado
+    Cliente "0..1" --> "0..1" Vehiculo : predeterminado
     Vehiculo *-- "1" DatosVehiculo : datos
-    Repuesto "1" *-- "1..*" AplicacionVehiculo : compatibilidad
+    Repuesto "1" *-- "0..*" AplicacionVehiculo : compatibilidad
     Repuesto --> SistemaVehiculo
     Busqueda *-- "1" DatosVehiculo : snapshot
     Busqueda "1" *-- "0..*" Oferta : resultados
     Busqueda --> EstadoBusqueda
+    IEventoDominio <|.. BusquedaCreada
+    EntidadBase o-- IEventoDominio : eventos acumulados
+    Busqueda ..> BusquedaCreada : registra al crearse
     Oferta *-- "1..2" Dinero : precio / envio
 ```
 

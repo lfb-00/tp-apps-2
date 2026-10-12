@@ -11,9 +11,9 @@ referencias declaradas.
 | `RepMatch.Domain` | **Dominio** | Entidades, value objects, eventos e interfaces de repositorio | *nada* |
 | `RepMatch.Persistence` | **Acceso a datos** | `DbContext`, mapeos, repositorios, unidad de trabajo | Domain (y una referencia declarada a Common que hoy ningún archivo usa) |
 | `RepMatch.Common` | **Utilidad** | Validación, logging, configuración, `ResultadoOperacion<T>`, medición de latencia, correlación | *nada del proyecto* |
-| `RepMatch.Contracts` | Contratos | DTOs, `ICatalogoRepuestos`, `OpcionesCatalogo` | *nada del proyecto* |
-| `RepMatch.Aplicacion` | Lógica de negocio | Servicios, `FachadaAplicacion`, despacho y observadores de eventos, mapeadores, validadores, `CatalogoLocal` | Domain, Common, Contracts |
-| `RepMatch.Clientes.Rest` | Adaptador remoto | `CatalogoRemoto`, propagación de correlación | Common, Contracts |
+| `RepMatch.Contracts` | Contratos | DTOs, `ICatalogoRepuestos`, `ICatalogoVehiculos`, `OpcionesCatalogo` | *nada del proyecto* |
+| `RepMatch.Aplicacion` | Lógica de negocio | Servicios, `FachadaAplicacion`, despacho y observadores de eventos, mapeadores, validadores, `CatalogoLocal`, `CatalogoVehiculosLocal` | Domain, Common, Contracts |
+| `RepMatch.Clientes.Rest` | Adaptador remoto | `CatalogoRemoto`, `CatalogoVehiculosRemoto`, propagación de correlación | Common, Contracts |
 
 ## Diagrama
 
@@ -25,24 +25,26 @@ flowchart TB
     end
 
     subgraph host_api["🖥️ Host: RepMatch.Catalogo.Api (REST)"]
-        CTRL["RepuestosController<br/>ClientesController<br/>BusquedasController"]
+        CTRL["RepuestosController<br/>ClientesController<br/>BusquedasController<br/>VehiculosController"]
     end
 
     subgraph comp["📦 Componentes reutilizables"]
         subgraph app_sub["RepMatch.Aplicacion"]
             FACH["FachadaAplicacion<br/><i>patrón Facade</i>"]
-            APP["ServicioClientes · ServicioBusquedas<br/>ObservadorCompatibilidad<br/><b>CatalogoLocal</b>"]
+            APP["ServicioClientes · ServicioBusquedas<br/>ObservadorCompatibilidad<br/><b>CatalogoLocal · CatalogoVehiculosLocal</b>"]
         end
-        REST["RepMatch.Clientes.Rest<br/><b>CatalogoRemoto</b>"]
-        CON["RepMatch.Contracts<br/><b>«interface» ICatalogoRepuestos</b><br/>DTOs · OpcionesCatalogo"]
+        REST["RepMatch.Clientes.Rest<br/><b>CatalogoRemoto · CatalogoVehiculosRemoto</b>"]
+        CON["RepMatch.Contracts<br/><b>«interface» ICatalogoRepuestos · ICatalogoVehiculos</b><br/>DTOs · OpcionesCatalogo"]
         PER["RepMatch.Persistence<br/>RepMatchDbContext · Repositorios · UnitOfWork"]
-        DOM["RepMatch.Domain<br/>Entidades · Value objects<br/><b>«interface» IRepuestoRepository</b>"]
+        DOM["RepMatch.Domain<br/>Entidades · Value objects<br/><b>«interface» IRepuestoRepository · IConfiguracionVehiculoRepository</b>"]
         COM["RepMatch.Common<br/>Validación · Logging · Configuración<br/>ResultadoOperacion · Cronometro"]
     end
 
     BD[("PostgreSQL<br/><i>o InMemory</i>")]
 
     UI --> FACH
+    UI -- SelectorVehiculo --> CON
+    FCAT -- registra --> PER
     FACH --> APP
     FACH --> CON
     FCAT -. "Catalogo:Modo = Local" .-> APP
@@ -55,6 +57,7 @@ flowchart TB
     CTRL --> APP
     CTRL --> CON
 
+    PER -- usa entidades --> DOM
     APP --> DOM
     APP --> COM
     REST --> COM
@@ -75,29 +78,16 @@ flowchart TB
 Éste es el ejercicio central del TP Inicial, y el diagrama lo muestra en el par de flechas punteadas
 que salen de `FabricaCatalogo`.
 
-**Una sola interfaz, dos implementaciones:**
+**Para repuestos: una interfaz, dos implementaciones:**
 
-```csharp
-// src/RepMatch.Contracts/ICatalogoRepuestos.cs (fragmento, sin comentarios XML)
-public interface ICatalogoRepuestos
-{
-    string Modo { get; }
-
-    Task<IReadOnlyList<RepuestoDto>> BuscarCompatiblesAsync(
-        VehiculoDto vehiculo, string? sistema = null, CancellationToken ct = default);
-
-    Task<RepuestoDto?> ObtenerPorCodigoAsync(string codigoCanonico, CancellationToken ct = default);
-
-    Task<IReadOnlyList<RepuestoDto>> ListarAsync(CancellationToken ct = default);
-}
-```
+Ver [ICatalogoRepuestos.cs](../../src/RepMatch.Contracts/ICatalogoRepuestos.cs).
 
 | | Local | Remoto |
 |---|---|---|
 | Implementación | `Aplicacion.Catalogo.CatalogoLocal` | `Clientes.Rest.CatalogoRemoto` |
 | Mecanismo | Invocación directa en proceso, por referencia de proyecto | HTTP + JSON contra `Catalogo.Api` |
 | Recorrido | `CatalogoLocal → IRepuestoRepository → EF Core → BD` | `HttpClient → GET /api/repuestos/compatibles → CatalogoLocal (en el otro proceso) → BD` |
-| Serialización | ninguna | JSON de ida y vuelta |
+| Serialización | ninguna | query string de entrada y JSON de respuesta |
 | Latencia en régimen (mediana) | **~2 ms** | **~7 ms** |
 
 La selección se hace en `RepMatch.Web/Servicios/FabricaCatalogo.cs`, leyendo la clave
@@ -108,10 +98,15 @@ Para la Segunda Parte está previsto agregar una tercera implementación sobre S
 tocar ni la interfaz ni sus consumidores. Todavía no existe en el código: hoy solo están
 `CatalogoLocal` y `CatalogoRemoto`.
 
+También hay dos implementaciones de `ICatalogoVehiculos`: `CatalogoVehiculosLocal` consulta
+`IConfiguracionVehiculoRepository` y `CatalogoVehiculosRemoto` consume `GET /api/vehiculos/opciones`.
+`SelectorVehiculo` accede directamente al contrato para cargar los selectores; la fachada
+lo usa para validar el vehículo antes de consultar piezas.
+
 ## Inversión de dependencias
 
-La flecha que va de `Persistence` a `Domain` dice **implementa**, no "usa": las interfaces
-`IRepuestoRepository`, `IClienteRepository`, `IBusquedaRepository` e `IUnitOfWork` están declaradas
+Las flechas de `Persistence` a `Domain` distinguen la implementación de interfaces y el uso de entidades. Las interfaces
+`IRepuestoRepository`, `IConfiguracionVehiculoRepository`, `IClienteRepository`, `IBusquedaRepository` e `IUnitOfWork` están declaradas
 en el dominio, y la capa de datos las implementa. Por eso `Domain` no depende de nada y puede
 testearse sin base de datos ni contenedores.
 
@@ -128,4 +123,4 @@ descartó, está en [docs/patrones.md](../patrones.md).
 | **Unit of Work** | `IUnitOfWork` / `UnitOfWork` | Confirmar cambios como una transacción |
 | **Adapter** | `CatalogoRemoto` | Adaptar un contrato HTTP a la interfaz `ICatalogoRepuestos` de `RepMatch.Contracts` |
 | **Observer** | `DespachadorEventos` y `ObservadorCompatibilidad` | `BusquedaCreada` completa los códigos sin que `ServicioBusquedas` conozca el catálogo |
-| **Facade** | `FachadaAplicacion` | Única puerta de la presentación hacia clientes, búsquedas y catálogo |
+| **Facade** | `FachadaAplicacion` | Coordina clientes, búsquedas y repuestos; el selector consulta opciones vehiculares directamente |
