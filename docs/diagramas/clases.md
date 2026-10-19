@@ -1,8 +1,10 @@
 # Diagrama de clases — RepMatch
 
-Modelo del componente de dominio (`RepMatch.Domain`). No tiene dependencias externas: ni EF Core,
-ni ASP.NET, ni atributos de persistencia. El mapeo relacional vive aparte, en
-`RepMatch.Persistence/Configuraciones/`.
+Dos diagramas. El primero es el modelo del componente de dominio (`RepMatch.Domain`), que no tiene
+dependencias externas: ni EF Core, ni ASP.NET, ni atributos de persistencia. El mapeo relacional vive
+aparte, en `RepMatch.Persistence/Configuraciones/`. El segundo muestra las clases de las otras capas
+donde viven los patrones que pide la Primera Parte (Factory, Repository, Strategy, Observer y Facade),
+más Unit of Work y Adapter.
 
 ## Mapeo con la consigna
 
@@ -15,7 +17,7 @@ Como la aplicación es un comparador y no un e-shop, esos tres conceptos se mate
 | Producto | `Repuesto` + `Oferta` | `Repuesto` es la pieza como concepto (código canónico, equivalencias, compatibilidad); `Oferta` es esa pieza publicada por una tienda concreta a un precio concreto. Separarlos es lo que permite comparar la misma pieza entre sitios. |
 | Pedido | `Busqueda` | El agregado de la consulta: vehículo, texto libre, estado y códigos objetivo. `Oferta` es el tipo preparado para el resultado de una tienda; esta entrega no captura ofertas. |
 
-## Diagrama
+## Modelo de dominio
 
 ```mermaid
 classDiagram
@@ -138,6 +140,7 @@ classDiagram
         +bool Disponible
         +DateTimeOffset CapturadaEn
         +Dinero PrecioTotal
+        +EstaVencida(antiguedadMaxima) bool
     }
 
     class SistemaVehiculo {
@@ -170,10 +173,26 @@ classDiagram
 
     class EstadoBusqueda {
         <<enumeration>>
+        Borrador
         Pendiente
         Diagnosticada
         Completada
         Fallida
+    }
+
+    class NivelUrgencia {
+        <<enumeration>>
+        Desconocida
+        Baja
+        Media
+        Alta
+        Critica
+    }
+
+    class ExcepcionDominio {
+        <<exception>>
+        +Si(condicion, mensaje)$
+        +SiNulaOVacia(valor, campo)$
     }
 
     EntidadBase <|-- ConfiguracionVehiculo
@@ -197,6 +216,7 @@ classDiagram
     EntidadBase o-- IEventoDominio : eventos acumulados
     Busqueda ..> BusquedaCreada : registra al crearse
     Oferta *-- "1..2" Dinero : precio / envio
+    Dinero ..> ExcepcionDominio : monedas distintas
 ```
 
 ## Decisiones que el diagrama refleja
@@ -215,7 +235,16 @@ ofertas queda vacía. Las pruebas de dominio y de persistencia sí ejercen el m�
 
 **Estados que la aplicación alcanza.** El constructor deja la búsqueda en `Pendiente`.
 `AsignarCodigosObjetivo` pasa a `Diagnosticada` y `Fallar` a `Fallida`. `Completada` solo la asigna
-`RegistrarOfertas`.
+`RegistrarOfertas`. `Borrador` existe en la enumeración, pero ningún método lo asigna.
+
+**Tipos declarados que la aplicación todavía no usa.** `NivelUrgencia` no lo referencia ninguna
+entidad ni servicio, y `Oferta.EstaVencida` no lo llama nadie. Se dibujan porque están en el
+componente, aunque hoy no los use ningún flujo.
+
+**Las invariantes se rompen con `ExcepcionDominio`.** Todas las entidades y value objects la lanzan
+desde sus constructores y métodos (`Si`, `SiNulaOVacia`); en el diagrama se dibuja una sola
+dependencia, la de `Dinero`, para no cruzar todo el modelo de flechas. Los servicios de aplicación
+la atrapan y la convierten en `ResultadoOperacion`.
 
 **La búsqueda guarda `ClienteId` y no una navegación hacia `Cliente`.** No hay clave foránea. Si el
 cliente borra la cuenta, las búsquedas se eliminan en el servicio, no por cascada de la base.
@@ -233,3 +262,186 @@ guarda solo el `Id` (sin navegación); en la base es una FK opcional con `ON DEL
 **Las colecciones se exponen como `IReadOnlyCollection`.** Modificarlas obliga a pasar por un método
 de la entidad, que es donde viven las invariantes. EF Core escribe directamente los campos privados
 de respaldo (`PropertyAccessMode.Field`).
+
+## Clases de los patrones
+
+El modelo de dominio no muestra los patrones de la Primera Parte: viven en `Aplicacion`,
+`Persistence`, `Clientes.Rest`, `Contracts` y `Web`, y operan sobre las entidades de arriba. Este
+diagrama muestra solo esas clases, con los miembros que intervienen en cada patrón. El detalle de
+cada uno (qué problema resuelve, qué pasaría sin él, código) está en [patrones.md](../patrones.md).
+
+```mermaid
+classDiagram
+    direction TB
+
+    class FachadaAplicacion {
+        <<Facade>>
+        +RegistrarClienteAsync(dto) ResultadoOperacion~ClienteDto~
+        +AutenticarAsync(email, contrasena) ClienteDto?
+        +RegistrarBusquedaAsync(dto) ResultadoOperacion~BusquedaDto~
+        +BuscarAsync(dto) ResultadoOperacion~ResultadoBusquedaDto~
+        +BuscarRepuestosAsync(vehiculo, sistema) ResultadoOperacion
+        +ListarRepuestosAsync() ResultadoOperacion
+    }
+
+    class ServicioClientes {
+        +RegistrarAsync(dto) ResultadoOperacion~ClienteDto~
+        +AgregarVehiculoAsync(clienteId, vehiculo, vin, alias) ResultadoOperacion~ClienteDto~
+        +ActualizarPerfilAsync(clienteId, dto) ResultadoOperacion~ClienteDto~
+        +EliminarCuentaAsync(clienteId, dto) ResultadoOperacion
+    }
+
+    class ServicioBusquedas {
+        +CrearAsync(dto) ResultadoOperacion~BusquedaDto~
+        +ListarPorClienteAsync(clienteId) IReadOnlyList~BusquedaDto~
+        +ListarRecientesAsync(cantidad) IReadOnlyList~BusquedaDto~
+    }
+
+    class FabricaCatalogo {
+        <<Factory>>
+        +AgregarCatalogo(servicios, configuracion)$ IServiceCollection
+    }
+
+    class ICatalogoRepuestos {
+        <<interface>>
+        +string Modo
+        +BuscarCompatiblesAsync(vehiculo, sistema) IReadOnlyList~RepuestoDto~
+        +ObtenerPorCodigoAsync(codigo) RepuestoDto?
+        +ListarAsync() IReadOnlyList~RepuestoDto~
+    }
+
+    class CatalogoLocal {
+        <<Strategy>>
+    }
+
+    class CatalogoRemoto {
+        <<Strategy / Adapter>>
+        -HttpClient http
+    }
+
+    class ICatalogoVehiculos {
+        <<interface>>
+        +ListarOpcionesAsync() IReadOnlyList~OpcionVehiculoDto~
+        +EsConfiguracionValidaAsync(vehiculo) bool
+    }
+
+    class CatalogoVehiculosLocal {
+        <<Strategy>>
+    }
+
+    class CatalogoVehiculosRemoto {
+        <<Strategy / Adapter>>
+        -HttpClient http
+    }
+
+    class IDespachadorEventos {
+        <<interface>>
+        +DespacharAsync(eventos)
+    }
+
+    class DespachadorEventos {
+        <<Observer: sujeto>>
+        -IEnumerable~IObservadorEventoDominio~ observadores
+    }
+
+    class IObservadorEventoDominio {
+        <<interface>>
+        +PuedeObservar(evento) bool
+        +ObservarAsync(evento)
+    }
+
+    class ObservadorCompatibilidad {
+        <<Observer: observador>>
+    }
+
+    class IClienteRepository {
+        <<interface>>
+    }
+    class IBusquedaRepository {
+        <<interface>>
+    }
+    class IRepuestoRepository {
+        <<interface>>
+    }
+    class IConfiguracionVehiculoRepository {
+        <<interface>>
+    }
+    class ClienteRepository {
+        <<Repository>>
+    }
+    class BusquedaRepository {
+        <<Repository>>
+    }
+    class RepuestoRepository {
+        <<Repository>>
+    }
+    class ConfiguracionVehiculoRepository {
+        <<Repository>>
+    }
+
+    class IUnitOfWork {
+        <<interface>>
+        +ConfirmarAsync() int
+        +EjecutarEnTransaccionAsync(trabajo)
+    }
+
+    class UnitOfWork {
+        <<Unit of Work>>
+    }
+
+    FachadaAplicacion --> ServicioClientes
+    FachadaAplicacion --> ServicioBusquedas
+    FachadaAplicacion --> ICatalogoRepuestos
+    FachadaAplicacion --> ICatalogoVehiculos
+
+    FabricaCatalogo ..> CatalogoLocal : registra
+    FabricaCatalogo ..> CatalogoRemoto : registra
+    FabricaCatalogo ..> CatalogoVehiculosLocal : registra
+    FabricaCatalogo ..> CatalogoVehiculosRemoto : registra
+    FabricaCatalogo ..> ICatalogoRepuestos : enlaza segun Catalogo Modo
+    FabricaCatalogo ..> ICatalogoVehiculos : enlaza segun Catalogo Modo
+
+    ICatalogoRepuestos <|.. CatalogoLocal
+    ICatalogoRepuestos <|.. CatalogoRemoto
+    ICatalogoVehiculos <|.. CatalogoVehiculosLocal
+    ICatalogoVehiculos <|.. CatalogoVehiculosRemoto
+
+    ServicioBusquedas --> IDespachadorEventos : BusquedaCreada
+    IDespachadorEventos <|.. DespachadorEventos
+    DespachadorEventos o-- "0..*" IObservadorEventoDominio : notifica
+    IObservadorEventoDominio <|.. ObservadorCompatibilidad
+    ObservadorCompatibilidad --> ICatalogoRepuestos
+
+    ServicioClientes --> IClienteRepository
+    ServicioClientes --> IConfiguracionVehiculoRepository
+    ServicioClientes --> IBusquedaRepository : borra al eliminar cuenta
+    ServicioBusquedas --> IBusquedaRepository
+    ServicioBusquedas --> IClienteRepository
+    ObservadorCompatibilidad --> IBusquedaRepository
+    CatalogoLocal --> IRepuestoRepository
+    CatalogoVehiculosLocal --> IConfiguracionVehiculoRepository
+
+    IClienteRepository <|.. ClienteRepository
+    IBusquedaRepository <|.. BusquedaRepository
+    IRepuestoRepository <|.. RepuestoRepository
+    IConfiguracionVehiculoRepository <|.. ConfiguracionVehiculoRepository
+
+    ServicioClientes --> IUnitOfWork
+    ServicioBusquedas --> IUnitOfWork
+    ObservadorCompatibilidad --> IUnitOfWork
+    IUnitOfWork <|.. UnitOfWork
+```
+
+| Patrón | Clases en el diagrama | Proyecto |
+|---|---|---|
+| Factory | `FabricaCatalogo.AgregarCatalogo` | `RepMatch.Web` |
+| Strategy | `ICatalogoRepuestos` / `ICatalogoVehiculos` con sus implementaciones `*Local` y `*Remoto` | `Contracts`, `Aplicacion`, `Clientes.Rest` |
+| Adapter | `CatalogoRemoto`, `CatalogoVehiculosRemoto` (HTTP → contrato) | `RepMatch.Clientes.Rest` |
+| Repository | `I*Repository` (interfaces) y `*Repository` (EF Core) | `Domain` y `Persistence` |
+| Unit of Work | `IUnitOfWork` / `UnitOfWork` | `Domain` y `Persistence` |
+| Observer | `IDespachadorEventos`, `DespachadorEventos`, `IObservadorEventoDominio`, `ObservadorCompatibilidad`; el evento `BusquedaCreada` está en el modelo de dominio | `Aplicacion` y `Domain` |
+| Facade | `FachadaAplicacion` | `RepMatch.Aplicacion` |
+
+Las interfaces de repositorio y de unidad de trabajo pertenecen al componente de dominio aunque se
+dibujen acá: el dominio declara qué necesita y `Persistence` lo implementa, por eso la flecha de
+dependencia apunta de la capa de datos hacia el dominio y no al revés.
