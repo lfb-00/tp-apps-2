@@ -267,126 +267,148 @@ de respaldo (`PropertyAccessMode.Field`).
 
 El modelo de dominio no muestra los patrones de la Primera Parte: viven en `Aplicacion`,
 `Persistence`, `Clientes.Rest`, `Contracts` y `Web`, y operan sobre las entidades de arriba. Este
-diagrama muestra solo esas clases, con los miembros que intervienen en cada patrón. El detalle de
-cada uno (qué problema resuelve, qué pasaría sin él, código) está en [patrones.md](../patrones.md).
+diagrama muestra solo esas clases, con los miembros que intervienen en cada patrón. Cada patrón
+está en un recuadro con su nombre (un `namespace` de Mermaid) y sus clases llevan el color de la
+tabla de abajo. Mermaid no permite colorear el fondo de los recuadros de un diagrama de clases, por
+eso el color va en las clases. `CatalogoRemoto` y `CatalogoVehiculosRemoto` están en el recuadro de
+Adapter, aunque también son estrategias de `ICatalogoRepuestos` / `ICatalogoVehiculos`: una clase solo
+puede estar en un recuadro. Las clases grises son la capa de servicios, que no implementa ningún
+patrón por sí misma. El detalle de cada patrón (qué problema resuelve, qué pasaría sin él, código)
+está en [patrones.md](../patrones.md).
 
 ```mermaid
 classDiagram
     direction TB
 
-    class FachadaAplicacion {
-        <<Facade>>
-        +RegistrarClienteAsync(dto) ResultadoOperacion~ClienteDto~
-        +AutenticarAsync(email, contrasena) ClienteDto?
-        +RegistrarBusquedaAsync(dto) ResultadoOperacion~BusquedaDto~
-        +BuscarAsync(dto) ResultadoOperacion~ResultadoBusquedaDto~
-        +BuscarRepuestosAsync(vehiculo, sistema) ResultadoOperacion
-        +ListarRepuestosAsync() ResultadoOperacion
+    namespace Facade {
+        class FachadaAplicacion {
+            <<Facade>>
+            +RegistrarClienteAsync(dto) ResultadoOperacion~ClienteDto~
+            +AutenticarAsync(email, contrasena) ClienteDto?
+            +RegistrarBusquedaAsync(dto) ResultadoOperacion~BusquedaDto~
+            +BuscarAsync(dto) ResultadoOperacion~ResultadoBusquedaDto~
+            +BuscarRepuestosAsync(vehiculo, sistema) ResultadoOperacion
+            +ListarRepuestosAsync() ResultadoOperacion
+        }
     }
 
-    class ServicioClientes {
-        +RegistrarAsync(dto) ResultadoOperacion~ClienteDto~
-        +AgregarVehiculoAsync(clienteId, vehiculo, vin, alias) ResultadoOperacion~ClienteDto~
-        +ActualizarPerfilAsync(clienteId, dto) ResultadoOperacion~ClienteDto~
-        +EliminarCuentaAsync(clienteId, dto) ResultadoOperacion
+    namespace Servicios {
+        class ServicioClientes {
+            +RegistrarAsync(dto) ResultadoOperacion~ClienteDto~
+            +AgregarVehiculoAsync(clienteId, vehiculo, vin, alias) ResultadoOperacion~ClienteDto~
+            +ActualizarPerfilAsync(clienteId, dto) ResultadoOperacion~ClienteDto~
+            +EliminarCuentaAsync(clienteId, dto) ResultadoOperacion
+        }
+
+        class ServicioBusquedas {
+            +CrearAsync(dto) ResultadoOperacion~BusquedaDto~
+            +ListarPorClienteAsync(clienteId) IReadOnlyList~BusquedaDto~
+            +ListarRecientesAsync(cantidad) IReadOnlyList~BusquedaDto~
+        }
     }
 
-    class ServicioBusquedas {
-        +CrearAsync(dto) ResultadoOperacion~BusquedaDto~
-        +ListarPorClienteAsync(clienteId) IReadOnlyList~BusquedaDto~
-        +ListarRecientesAsync(cantidad) IReadOnlyList~BusquedaDto~
+    namespace Factory {
+        class FabricaCatalogo {
+            <<Factory>>
+            +AgregarCatalogo(servicios, configuracion)$ IServiceCollection
+        }
     }
 
-    class FabricaCatalogo {
-        <<Factory>>
-        +AgregarCatalogo(servicios, configuracion)$ IServiceCollection
+    namespace Strategy {
+        class ICatalogoRepuestos {
+            <<interface>>
+            +string Modo
+            +BuscarCompatiblesAsync(vehiculo, sistema) IReadOnlyList~RepuestoDto~
+            +ObtenerPorCodigoAsync(codigo) RepuestoDto?
+            +ListarAsync() IReadOnlyList~RepuestoDto~
+        }
+
+        class CatalogoLocal {
+            <<Strategy>>
+        }
+
+        class ICatalogoVehiculos {
+            <<interface>>
+            +ListarOpcionesAsync() IReadOnlyList~OpcionVehiculoDto~
+            +EsConfiguracionValidaAsync(vehiculo) bool
+        }
+
+        class CatalogoVehiculosLocal {
+            <<Strategy>>
+        }
     }
 
-    class ICatalogoRepuestos {
-        <<interface>>
-        +string Modo
-        +BuscarCompatiblesAsync(vehiculo, sistema) IReadOnlyList~RepuestoDto~
-        +ObtenerPorCodigoAsync(codigo) RepuestoDto?
-        +ListarAsync() IReadOnlyList~RepuestoDto~
+    namespace Adapter {
+        class CatalogoRemoto {
+            <<Strategy / Adapter>>
+            -HttpClient http
+        }
+
+        class CatalogoVehiculosRemoto {
+            <<Strategy / Adapter>>
+            -HttpClient http
+        }
     }
 
-    class CatalogoLocal {
-        <<Strategy>>
+    namespace Observer {
+        class IDespachadorEventos {
+            <<interface>>
+            +DespacharAsync(eventos)
+        }
+
+        class DespachadorEventos {
+            <<Observer: sujeto>>
+            -IEnumerable~IObservadorEventoDominio~ observadores
+        }
+
+        class IObservadorEventoDominio {
+            <<interface>>
+            +PuedeObservar(evento) bool
+            +ObservarAsync(evento)
+        }
+
+        class ObservadorCompatibilidad {
+            <<Observer: observador>>
+        }
     }
 
-    class CatalogoRemoto {
-        <<Strategy / Adapter>>
-        -HttpClient http
+    namespace Repository {
+        class IClienteRepository {
+            <<interface>>
+        }
+        class IBusquedaRepository {
+            <<interface>>
+        }
+        class IRepuestoRepository {
+            <<interface>>
+        }
+        class IConfiguracionVehiculoRepository {
+            <<interface>>
+        }
+        class ClienteRepository {
+            <<Repository>>
+        }
+        class BusquedaRepository {
+            <<Repository>>
+        }
+        class RepuestoRepository {
+            <<Repository>>
+        }
+        class ConfiguracionVehiculoRepository {
+            <<Repository>>
+        }
     }
 
-    class ICatalogoVehiculos {
-        <<interface>>
-        +ListarOpcionesAsync() IReadOnlyList~OpcionVehiculoDto~
-        +EsConfiguracionValidaAsync(vehiculo) bool
-    }
+    namespace Unit_of_Work {
+        class IUnitOfWork {
+            <<interface>>
+            +ConfirmarAsync() int
+            +EjecutarEnTransaccionAsync(trabajo)
+        }
 
-    class CatalogoVehiculosLocal {
-        <<Strategy>>
-    }
-
-    class CatalogoVehiculosRemoto {
-        <<Strategy / Adapter>>
-        -HttpClient http
-    }
-
-    class IDespachadorEventos {
-        <<interface>>
-        +DespacharAsync(eventos)
-    }
-
-    class DespachadorEventos {
-        <<Observer: sujeto>>
-        -IEnumerable~IObservadorEventoDominio~ observadores
-    }
-
-    class IObservadorEventoDominio {
-        <<interface>>
-        +PuedeObservar(evento) bool
-        +ObservarAsync(evento)
-    }
-
-    class ObservadorCompatibilidad {
-        <<Observer: observador>>
-    }
-
-    class IClienteRepository {
-        <<interface>>
-    }
-    class IBusquedaRepository {
-        <<interface>>
-    }
-    class IRepuestoRepository {
-        <<interface>>
-    }
-    class IConfiguracionVehiculoRepository {
-        <<interface>>
-    }
-    class ClienteRepository {
-        <<Repository>>
-    }
-    class BusquedaRepository {
-        <<Repository>>
-    }
-    class RepuestoRepository {
-        <<Repository>>
-    }
-    class ConfiguracionVehiculoRepository {
-        <<Repository>>
-    }
-
-    class IUnitOfWork {
-        <<interface>>
-        +ConfirmarAsync() int
-        +EjecutarEnTransaccionAsync(trabajo)
-    }
-
-    class UnitOfWork {
-        <<Unit of Work>>
+        class UnitOfWork {
+            <<Unit of Work>>
+        }
     }
 
     FachadaAplicacion --> ServicioClientes
@@ -430,17 +452,42 @@ classDiagram
     ServicioBusquedas --> IUnitOfWork
     ObservadorCompatibilidad --> IUnitOfWork
     IUnitOfWork <|.. UnitOfWork
+
+    style FachadaAplicacion fill:#fce7f3,stroke:#be185d,stroke-width:2px,color:#111
+    style ServicioClientes fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
+    style ServicioBusquedas fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
+    style FabricaCatalogo fill:#fee2e2,stroke:#b91c1c,stroke-width:2px,color:#111
+    style ICatalogoRepuestos fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#111
+    style CatalogoLocal fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#111
+    style ICatalogoVehiculos fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#111
+    style CatalogoVehiculosLocal fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#111
+    style CatalogoRemoto fill:#ede9fe,stroke:#6d28d9,stroke-width:2px,color:#111
+    style CatalogoVehiculosRemoto fill:#ede9fe,stroke:#6d28d9,stroke-width:2px,color:#111
+    style IDespachadorEventos fill:#fef3c7,stroke:#b45309,stroke-width:2px,color:#111
+    style DespachadorEventos fill:#fef3c7,stroke:#b45309,stroke-width:2px,color:#111
+    style IObservadorEventoDominio fill:#fef3c7,stroke:#b45309,stroke-width:2px,color:#111
+    style ObservadorCompatibilidad fill:#fef3c7,stroke:#b45309,stroke-width:2px,color:#111
+    style IClienteRepository fill:#dcfce7,stroke:#15803d,stroke-width:2px,color:#111
+    style IBusquedaRepository fill:#dcfce7,stroke:#15803d,stroke-width:2px,color:#111
+    style IRepuestoRepository fill:#dcfce7,stroke:#15803d,stroke-width:2px,color:#111
+    style IConfiguracionVehiculoRepository fill:#dcfce7,stroke:#15803d,stroke-width:2px,color:#111
+    style ClienteRepository fill:#dcfce7,stroke:#15803d,stroke-width:2px,color:#111
+    style BusquedaRepository fill:#dcfce7,stroke:#15803d,stroke-width:2px,color:#111
+    style RepuestoRepository fill:#dcfce7,stroke:#15803d,stroke-width:2px,color:#111
+    style ConfiguracionVehiculoRepository fill:#dcfce7,stroke:#15803d,stroke-width:2px,color:#111
+    style IUnitOfWork fill:#ccfbf1,stroke:#0f766e,stroke-width:2px,color:#111
+    style UnitOfWork fill:#ccfbf1,stroke:#0f766e,stroke-width:2px,color:#111
 ```
 
-| Patrón | Clases en el diagrama | Proyecto |
-|---|---|---|
-| Factory | `FabricaCatalogo.AgregarCatalogo` | `RepMatch.Web` |
-| Strategy | `ICatalogoRepuestos` / `ICatalogoVehiculos` con sus implementaciones `*Local` y `*Remoto` | `Contracts`, `Aplicacion`, `Clientes.Rest` |
-| Adapter | `CatalogoRemoto`, `CatalogoVehiculosRemoto` (HTTP → contrato) | `RepMatch.Clientes.Rest` |
-| Repository | `I*Repository` (interfaces) y `*Repository` (EF Core) | `Domain` y `Persistence` |
-| Unit of Work | `IUnitOfWork` / `UnitOfWork` | `Domain` y `Persistence` |
-| Observer | `IDespachadorEventos`, `DespachadorEventos`, `IObservadorEventoDominio`, `ObservadorCompatibilidad`; el evento `BusquedaCreada` está en el modelo de dominio | `Aplicacion` y `Domain` |
-| Facade | `FachadaAplicacion` | `RepMatch.Aplicacion` |
+| Patrón | Color | Clases en el diagrama | Proyecto |
+|---|---|---|---|
+| Factory | Rojo | `FabricaCatalogo.AgregarCatalogo` | `RepMatch.Web` |
+| Strategy | Azul | `ICatalogoRepuestos` / `ICatalogoVehiculos` con sus implementaciones `*Local` y `*Remoto` | `Contracts`, `Aplicacion`, `Clientes.Rest` |
+| Adapter | Violeta | `CatalogoRemoto`, `CatalogoVehiculosRemoto` (HTTP → contrato) | `RepMatch.Clientes.Rest` |
+| Repository | Verde | `I*Repository` (interfaces) y `*Repository` (EF Core) | `Domain` y `Persistence` |
+| Unit of Work | Turquesa | `IUnitOfWork` / `UnitOfWork` | `Domain` y `Persistence` |
+| Observer | Ámbar | `IDespachadorEventos`, `DespachadorEventos`, `IObservadorEventoDominio`, `ObservadorCompatibilidad`; el evento `BusquedaCreada` está en el modelo de dominio | `Aplicacion` y `Domain` |
+| Facade | Rosa | `FachadaAplicacion` | `RepMatch.Aplicacion` |
 
 Las interfaces de repositorio y de unidad de trabajo pertenecen al componente de dominio aunque se
 dibujen acá: el dominio declara qué necesita y `Persistence` lo implementa, por eso la flecha de
