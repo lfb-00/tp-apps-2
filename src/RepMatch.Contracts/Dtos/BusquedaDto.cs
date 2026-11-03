@@ -13,10 +13,19 @@ public sealed record BusquedaDto
     public string? MotivoFalla { get; init; }
     public IReadOnlyList<string> CodigosObjetivo { get; init; } = [];
     public IReadOnlyList<OfertaDto> Ofertas { get; init; } = [];
+
+    public Guid? MecanicoId { get; init; }
+    public DateTimeOffset? CompartidaEn { get; init; }
+
+    /// <summary>null mientras el mecanico no la reviso.</summary>
+    public RevisionDto? Revision { get; init; }
 }
 
 public sealed record OfertaDto
 {
+    /// <summary>Lo usa el enlace de derivacion (/derivar/{id}) para registrar la salida a la tienda.</summary>
+    public Guid Id { get; init; }
+
     public required string CodigoRepuesto { get; init; }
     public required string NombreTienda { get; init; }
     public required string Titulo { get; init; }

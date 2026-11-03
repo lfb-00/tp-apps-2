@@ -31,7 +31,7 @@ flowchart TB
     subgraph comp["📦 Componentes reutilizables"]
         subgraph app_sub["RepMatch.Aplicacion"]
             FACH["FachadaAplicacion<br/><i>patrón Facade</i>"]
-            APP["ServicioClientes · ServicioBusquedas<br/>ObservadorCompatibilidad<br/><b>CatalogoLocal · CatalogoVehiculosLocal</b>"]
+            APP["ServicioClientes · ServicioBusquedas<br/>ServicioMecanicos · ServicioRevisiones · ServicioDerivaciones<br/>ObservadorCompatibilidad<br/><b>CatalogoLocal · CatalogoVehiculosLocal</b>"]
         end
         REST["RepMatch.Clientes.Rest<br/><b>CatalogoRemoto · CatalogoVehiculosRemoto</b>"]
         CON["RepMatch.Contracts<br/><b>«interface» ICatalogoRepuestos · ICatalogoVehiculos</b><br/>DTOs · OpcionesCatalogo"]
@@ -106,7 +106,7 @@ lo usa para validar el vehículo antes de consultar piezas.
 ## Inversión de dependencias
 
 Las flechas de `Persistence` a `Domain` distinguen la implementación de interfaces y el uso de entidades. Las interfaces
-`IRepuestoRepository`, `IConfiguracionVehiculoRepository`, `IClienteRepository`, `IBusquedaRepository` e `IUnitOfWork` están declaradas
+`IRepuestoRepository`, `IConfiguracionVehiculoRepository`, `IClienteRepository`, `IBusquedaRepository`, `IDerivacionRepository` e `IUnitOfWork` están declaradas
 en el dominio, y la capa de datos las implementa. Por eso `Domain` no depende de nada y puede
 testearse sin base de datos ni contenedores.
 
@@ -122,5 +122,5 @@ descartó, está en [docs/patrones.md](../patrones.md).
 | **Repository** | `I*Repository` en Domain, implementados en Persistence | Aislar el dominio del motor de datos |
 | **Unit of Work** | `IUnitOfWork` / `UnitOfWork` | Confirmar cambios como una transacción |
 | **Adapter** | `CatalogoRemoto` | Adaptar un contrato HTTP a la interfaz `ICatalogoRepuestos` de `RepMatch.Contracts` |
-| **Observer** | `DespachadorEventos` y `ObservadorCompatibilidad` | `BusquedaCreada` completa los códigos sin que `ServicioBusquedas` conozca el catálogo |
-| **Facade** | `FachadaAplicacion` | Coordina clientes, búsquedas y repuestos; el selector consulta opciones vehiculares directamente |
+| **Observer** | `DespachadorEventos` y `ObservadorCompatibilidad` | `BusquedaCreada` completa los códigos sin que `ServicioBusquedas` conozca el catálogo. `BusquedaCompartida`, `DiagnosticoValidado` y `DerivacionATienda` se despachan igual y todavía no tienen observadores |
+| **Facade** | `FachadaAplicacion` | Coordina clientes, mecánicos, búsquedas, revisiones, derivaciones y repuestos; el selector consulta opciones vehiculares directamente |

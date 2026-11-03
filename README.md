@@ -11,6 +11,25 @@ tienda de origen.
 > Diagramas, informe, evidencias y patrones están en `docs/`. El seguimiento del trabajo está
 > en `plan.md` y `status.md`.
 
+## Roles y modelo de negocio
+
+Al crear la cuenta se elige un rol:
+
+- **Cliente**: busca piezas para su auto y puede compartir una consulta (`/consultas/{id}`) con un
+  mecánico del directorio para que revise el diagnóstico.
+- **Mecánico**: además tiene `/taller`, con la bandeja de consultas que le compartieron, los datos
+  del taller y su plan. Confirma o corrige el diagnóstico y deja una nota.
+
+El cliente nunca paga. RepMatch gana por **comisión de afiliado** en cada salida a una tienda
+(`GET /derivar/{ofertaId}` registra la derivación y redirige) y por el **plan Pro** del mecánico
+(bandeja sin límite y perfil destacado; el gratuito admite 5 consultas sin revisar). El cambio de
+plan no cobra: el pago queda fuera de alcance. El orden de las ofertas depende solo del precio.
+Detalle en la sección 1 del [informe](docs/informe-arquitectura.md).
+
+Cuentas de la semilla (contraseña `repMatch123!`): `blofaro@uade.edu.ar` (cliente),
+`contacto@tallersanmartin.com.ar` (mecánico, plan gratuito) y `carla@motoresbenitez.com.ar`
+(mecánica, plan Pro).
+
 ## Arranque rápido — solo hace falta Docker
 
 No necesitás .NET ni PostgreSQL instalados: el SDK vive dentro de la imagen de build.
@@ -146,11 +165,12 @@ Sí, usa base de datos, con **dos proveedores intercambiables por configuración
 El acceso va por EF Core 10 con Npgsql, detrás de los repositorios declarados en el dominio. El
 esquema y los datos semilla se crean solos al arrancar (`EnsureCreatedAsync` + `DatosSemilla`), así
 que **no hay migraciones que correr a mano**. Es idempotente: cada grupo de datos semilla se carga
-solo si todavía falta. Al incorporar una tabla nueva (por ejemplo, el catálogo de vehículos), una
-base existente debe recrearse con `docker compose down -v` antes de levantar Compose otra vez.
+solo si todavía falta. Al incorporar una tabla o columna nueva (por ejemplo, el catálogo de
+vehículos, o los roles y la tabla `derivaciones`), una base existente debe recrearse con
+`docker compose down -v` antes de levantar Compose otra vez.
 
 Las entidades persistidas son `Cliente`, `Vehiculo`, `ConfiguracionVehiculo`, `Repuesto`,
-`AplicacionVehiculo`, `Busqueda` y `Oferta`. El catálogo vehicular contiene las combinaciones
+`AplicacionVehiculo`, `Busqueda`, `Oferta` y `Derivacion`. El catálogo vehicular contiene las combinaciones
 permitidas de marca, modelo, año y motor que consumen los selectores de la Web. Ojo con el alcance:
 la base guarda el **catálogo propio y las búsquedas de los usuarios**,
 no un inventario. RepMatch no almacena stock — cuando estén los adaptadores a tiendas (Segunda

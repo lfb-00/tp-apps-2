@@ -22,12 +22,40 @@ Ese último punto es deliberado: es lo que mantiene la aplicación fuera del e-s
 descartó, y lo que la convierte en un problema genuino de **integración de aplicaciones** —que es el
 eje de la materia— en vez de un ABM con carrito.
 
+### Roles y modelo de negocio
+
+Hay dos roles, que se eligen al crear la cuenta:
+
+- **Cliente.** Busca piezas para su auto y puede compartir una consulta con un mecánico del
+  directorio para que revise el diagnóstico. Nunca paga.
+- **Mecánico.** También tiene garage y busca, pero además aparece en el directorio con su taller,
+  zona y especialidades, recibe en una bandeja las consultas que le comparten y las revisa:
+  confirma las piezas propuestas o recomienda otras, con una nota para el cliente.
+
+Como RepMatch no vende ni cobra la transacción, el ingreso sale de dos lugares que no lo
+contradicen:
+
+1. **Comisión de afiliado.** Cada "Ir a la tienda" pasa por `GET /derivar/{ofertaId}`, que registra
+   una `Derivacion` y redirige al sitio de origen. La tienda paga por las derivaciones que terminan
+   en compra. Si la oferta es de una pieza que recomendó el mecánico que revisó la consulta, la
+   derivación se le atribuye: el mecánico es el canal que decide qué se compra.
+2. **Plan Pro del mecánico (freemium).** El plan gratuito admite hasta 5 consultas sin revisar en la
+   bandeja; el Pro no tiene límite y aparece primero en el directorio. El cambio de plan no cobra:
+   en producción el pago lo procesaría un proveedor externo y RepMatch solo aplica los límites.
+
+La regla que sostiene el modelo: **el orden de las ofertas depende solo del precio total**, nunca de
+quién paga. La comisión no altera el ranking, y la recomendación del mecánico se muestra como
+recomendación suya, no como resultado patrocinado. El "perfil destacado" del Pro ordena el
+directorio de mecánicos, no las ofertas.
+
 ### Alcance de esta entrega
 
 El TP Inicial cubre la **arquitectura de componentes**: los componentes reutilizables, la aplicación
 multicapa y el ejercicio de acceso local y remoto. La Primera Parte suma los patrones **Factory,
 Repository, Strategy, Observer y Facade**, la fachada para las operaciones de clientes, búsquedas y repuestos, los
 eventos de dominio internos (`BusquedaCreada`) y el modelado con diagramas de capas y de secuencia.
+Sobre esa base se agregaron los roles cliente y mecánico, la revisión del diagnóstico y el registro
+de derivaciones del modelo de negocio.
 El diagnóstico por IA, el servicio SOAP, la mensajería y los adaptadores a tiendas externas
 corresponden a las entregas siguientes, y la arquitectura está preparada para recibirlos sin
 rediseño (sección 7).
@@ -44,7 +72,7 @@ La consigna pide un mínimo de tres componentes reutilizables independientes. Se
 | 2 | `RepMatch.Persistence` | **Acceso a datos** | `DbContext`, mapeos, repositorios y unidad de trabajo sobre EF Core |
 | 3 | `RepMatch.Common` | **Utilidad** | Validación, logging, configuración externalizada, `ResultadoOperacion<T>`, medición de latencia y correlación |
 | 4 | `RepMatch.Contracts` | Contratos | DTOs, `ICatalogoRepuestos`, `ICatalogoVehiculos` y `OpcionesCatalogo` |
-| 5 | `RepMatch.Aplicacion` | Lógica de negocio | `FachadaAplicacion`, `ServicioClientes`, `ServicioBusquedas`, `DespachadorEventos`, `ObservadorCompatibilidad`, mapeadores, validadores y los catálogos locales de repuestos y vehículos |
+| 5 | `RepMatch.Aplicacion` | Lógica de negocio | `FachadaAplicacion`, `ServicioClientes`, `ServicioBusquedas`, `ServicioMecanicos`, `ServicioRevisiones`, `ServicioDerivaciones`, `DespachadorEventos`, `ObservadorCompatibilidad`, mapeadores, validadores y los catálogos locales de repuestos y vehículos |
 | 6 | `RepMatch.Clientes.Rest` | Adaptador remoto | `CatalogoRemoto`, `CatalogoVehiculosRemoto` y propagación de correlación |
 
 Más dos hosts ejecutables: `RepMatch.Web` (presentación) y `RepMatch.Catalogo.Api` (host REST del
@@ -62,7 +90,7 @@ materializan así:
 
 | Consigna | RepMatch | Justificación |
 |---|---|---|
-| Cliente | `Cliente` | Igual: quien busca, con su garage de vehículos. |
+| Cliente | `Cliente` | Igual: quien busca, con su garage de vehículos. La misma entidad representa al mecánico, con `Rol = Mecanico`, datos de taller y plan. |
 | Producto | `Repuesto` + `Oferta` | `Repuesto` es la pieza como concepto (código canónico, equivalencias, tabla de compatibilidad). `Oferta` es esa pieza publicada por una tienda a un precio. **Separarlos es lo que hace posible comparar la misma pieza entre sitios distintos**, que es el corazón de la aplicación. |
 | Pedido | `Busqueda` | El agregado que atraviesa el sistema: vehículo + texto libre + estado + resultados. Cumple el mismo rol estructural que un pedido, pero lo que se "despacha" es la consulta a las tiendas. |
 | Inventario | _(no aplica)_ | RepMatch no gestiona stock; ver la nota debajo de la tabla. |
@@ -119,9 +147,12 @@ Las referencias de proyectos y el uso de sus tipos muestran estas decisiones:
 
 ### Fachada y consulta de opciones vehiculares (Primera Parte)
 
-Las páginas usan `FachadaAplicacion` para clientes, búsquedas y repuestos. Agrupa
-los métodos de `ServicioClientes`, `ServicioBusquedas`, `ICatalogoRepuestos` e `ICatalogoVehiculos` en una superficie
-única y estable. Las páginas no conocen qué servicio interno maneja cada operación, ni si el
+Las páginas usan `FachadaAplicacion` para clientes, mecánicos, búsquedas y repuestos. Agrupa
+los métodos de `ServicioClientes`, `ServicioBusquedas`, `ServicioMecanicos`, `ServicioRevisiones`,
+`ServicioDerivaciones`, `ICatalogoRepuestos` e `ICatalogoVehiculos` en una superficie
+única y estable. Los permisos por rol se chequean en esos servicios —quién puede ver una consulta,
+compartirla o revisarla, y el límite del plan—, no en las páginas: la presentación solo decide qué
+mostrar. Las páginas no conocen qué servicio interno maneja cada operación, ni si el
 catálogo está en proceso o detrás de una API: esa decisión queda encapsulada. Además, `BuscarAsync`
 es una operación compuesta que la fachada resuelve en un solo llamado —crear la búsqueda y resolver
 las piezas compatibles—, coordinación que no le corresponde hacer a ninguna página. El observador ya
@@ -152,6 +183,10 @@ despachador: se propaga a `ServicioBusquedas.CrearAsync`, que lo devuelve como
 atrapar. Y `IDespachadorEventos` es una interfaz: en la Segunda Parte se registrará otra
 implementación de `IDespachadorEventos` que publique el evento a través de `IEventBus` (sobre
 `RabbitMQ.Client`, sección 6.5), sin tocar `ServicioBusquedas`.
+
+`ServicioRevisiones` y `ServicioDerivaciones` siguen el mismo orden —confirmar y después
+despachar— con `BusquedaCompartida`, `DiagnosticoValidado` y `DerivacionATienda`. Hoy ningún
+observador los acepta; quedan como hechos publicables para la Segunda Parte.
 
 ---
 
@@ -257,11 +292,13 @@ códigos existentes e inexistentes y el filtro por sistema. También compara las
 completas y comprueba que los modelos de la semilla tengan piezas compatibles.
 
 ```
-Passed! - Failed: 0, Passed: 84, Skipped: 0, Total: 84
+Correctas! - Con error:     0, Superado:    98, Omitido:     0, Total:    98
 ```
 
-Verificación del 2026-10-11 con `docker compose --profile test run --build --rm tests`:
-84 pruebas correctas y compilación sin advertencias.
+Verificación del 2026-11-03 con `dotnet test` (SDK local, sin Docker): 98 pruebas correctas y
+compilación sin advertencias. La última corrida en Docker, del 2026-10-11 con
+`docker compose --profile test run --build --rm tests`, dio 84 pruebas correctas, antes de agregar
+los roles.
 
 ---
 
@@ -329,10 +366,10 @@ circulares, CVSS 7.5). Se fijó la versión **2.12.2**, posterior al parche 2.7.
 | **Primera** | Patrones formalizados, fachada, eventos de dominio internos | `DespachadorEventos` publica `BusquedaCreada` a `ObservadorCompatibilidad`. Las operaciones pasan por `FachadaAplicacion`; `SelectorVehiculo` consulta `ICatalogoVehiculos` directamente | Dominio, contratos |
 | **Segunda** | SOAP `ConsultaCompatibilidad` (CoreWCF + WSDL) | Tercera implementación de `ICatalogoRepuestos` | Presentación, lógica de negocio |
 | **Segunda** | REST documentados con OpenAPI | Ya publicado en `/openapi/v1.json` | — |
-| **Segunda** | RabbitMQ, productores y consumidores | Implementación de `IDespachadorEventos` sobre `IEventBus`; `BusquedaCreada` ya existe como evento de dominio | Entidades |
+| **Segunda** | RabbitMQ, productores y consumidores | Implementación de `IDespachadorEventos` sobre `IEventBus`; `BusquedaCreada`, `BusquedaCompartida` (aviso al mecánico) y `DerivacionATienda` (conteo de comisiones) ya existen como eventos de dominio | Entidades |
 | **Segunda** | Adaptadores a eBay y VTEX | Nueva interfaz `IFuenteOfertas`, consumida por `search-api` | Catálogo, dominio |
 | **Segunda** | Componente de IA (texto libre → repuestos) | Reemplaza o complementa a `ObservadorCompatibilidad` (que hoy asigna los códigos solo por compatibilidad de vehículo), leyendo `Busqueda.TextoLibre` | Contrato público del servicio |
-| **Integrador** | Métricas de IA, pruebas de carga, despliegue | — | — |
+| **Integrador** | Métricas de IA, pruebas de carga, despliegue | `DiagnosticoValidado` trae, por cada revisión, los códigos propuestos y los que recomendó el mecánico: el dataset etiquetado para medir exactitud | — |
 
 El punto de extensión queda en el evento: `ServicioBusquedas.CrearAsync` persiste la búsqueda y
 despacha `BusquedaCreada`. `ObservadorCompatibilidad` llena `CodigosObjetivo` consultando el
@@ -392,7 +429,7 @@ demostrado apenas se levanta el entorno.
 |---|---|
 | Aplicación sobre framework empresarial | `src/RepMatch.Web`, `src/RepMatch.Catalogo.Api` |
 | Patrones Factory, Repository, Strategy, Observer, Facade | [`docs/patrones.md`](patrones.md) |
-| Servicios de negocio e integración por eventos | `ServicioClientes`, `ServicioBusquedas`, `ObservadorCompatibilidad` |
+| Servicios de negocio e integración por eventos | `ServicioClientes`, `ServicioBusquedas`, `ServicioMecanicos`, `ServicioRevisiones`, `ServicioDerivaciones`, `ObservadorCompatibilidad` |
 | Servicio de Inventario | No existe como módulo separado porque RepMatch no almacena stock. El catálogo interno cubre la compatibilidad de piezas; en la Segunda Parte, disponibilidad y precio se consultarán en el momento de cada búsqueda a las APIs de las tiendas. Justificación ampliada en la nota "Sobre el Servicio de Inventario" de la sección 2. |
 | Diagrama de arquitectura en capas | [`docs/diagramas/capas.md`](diagramas/capas.md) |
 | Diagramas de secuencia (búsquedas, login, alta de vehículo, catálogo y eliminación de cuenta) | [`docs/diagramas/secuencia.md`](diagramas/secuencia.md) |

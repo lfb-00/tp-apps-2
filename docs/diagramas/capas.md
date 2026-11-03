@@ -15,6 +15,7 @@ flowchart TB
         FAC["FachadaAplicacion"]
         SC["ServicioClientes"]
         SB["ServicioBusquedas"]
+        SM["ServicioMecanicos · ServicioRevisiones<br/>ServicioDerivaciones"]
         DES["DespachadorEventos"]
         OBS["ObservadorCompatibilidad"]
         LOC["CatalogoLocal · CatalogoVehiculosLocal"]
@@ -34,9 +35,9 @@ flowchart TB
     end
 
     subgraph dominio["Dominio · RepMatch.Domain"]
-        ENT["Cliente · Busqueda · Repuesto"]
-        EV["BusquedaCreada"]
-        REPO["IClienteRepository · IBusquedaRepository · IRepuestoRepository<br/>IConfiguracionVehiculoRepository"]
+        ENT["Cliente · Busqueda · Repuesto · Derivacion"]
+        EV["BusquedaCreada · BusquedaCompartida<br/>DiagnosticoValidado · DerivacionATienda"]
+        REPO["IClienteRepository · IBusquedaRepository · IRepuestoRepository<br/>IConfiguracionVehiculoRepository · IDerivacionRepository"]
     end
 
     subgraph datos["Acceso a datos · RepMatch.Persistence"]
@@ -50,16 +51,20 @@ flowchart TB
     FAB -. "Catalogo:Modo elige una implementación" .-> REM
     FAC --> SC
     FAC --> SB
+    FAC --> SM
     FAC --> IC
     FAC --> ICV
     FAC --> COM
     SB --> DES
+    SM --> DES
     DES --> OBS
     OBS --> IC
     SC --> REPO
     SB --> REPO
     OBS --> REPO
+    SM --> REPO
     SB --> EV
+    SM --> EV
     LOC -. implementa .-> IC
     LOC -. implementa .-> ICV
     REM -. implementa .-> IC
@@ -80,4 +85,7 @@ La presentación no referencia repositorios ni el despachador. Las páginas entr
 `SelectorVehiculo` consulta `ICatalogoVehiculos` para cargar las opciones, y la fachada usa el mismo
 contrato para validar el vehículo antes de consultar piezas. `ServicioBusquedas` persiste la
 búsqueda y publica `BusquedaCreada`. El observador, no el servicio, consulta el catálogo.
+`ServicioRevisiones` y `ServicioDerivaciones` siguen el mismo orden —confirmar y después despachar—
+con `BusquedaCompartida`, `DiagnosticoValidado` y `DerivacionATienda`, que hoy no tienen
+observadores. El endpoint `GET /derivar/{ofertaId}` de la Web también entra por la fachada.
 `Aplicacion` y `Clientes.Rest` usan `Common`.

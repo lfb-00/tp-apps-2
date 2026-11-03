@@ -1,0 +1,206 @@
+@page "/taller"
+@using RepMatch.Aplicacion.Fachada
+@inject FachadaAplicacion Fachada
+@inject SesionActual Sesion
+
+<PageTitle>Mi taller — RepMatch</PageTitle>
+
+@if (Sesion.Cliente is null)
+{
+    <section class="entrada">
+        <h1>Mi taller</h1>
+        <p>Ingresá con tu cuenta de mecánico.</p>
+    </section>
+    <p><a class="boton" href="/login">Ingresar</a></p>
+}
+else if (!Sesion.EsMecanico)
+{
+    <section class="entrada">
+        <h1>Mi taller</h1>
+        <p>Esta sección es para mecánicos. Tu cuenta es de cliente.</p>
+    </section>
+}
+else
+{
+    <section class="entrada">
+        <h1>@(Sesion.Cliente.NombreTaller ?? "Mi taller")</h1>
+        <p>Las consultas que te comparten tus clientes, para que confirmes o corrijas el diagnóstico.</p>
+    </section>
+
+    @if (mensaje is not null)
+    {
+        <div class="alerta alerta-exito" role="status" aria-live="polite">@mensaje</div>
+    }
+    @if (errores.Count > 0)
+    {
+        <div class="alerta alerta-error" role="alert" aria-live="polite">
+            @foreach (var error in errores)
+            {
+                <div>@error</div>
+            }
+        </div>
+    }
+
+    @if (bandeja is not null)
+    {
+        <div class="resumen-taller">
+            <div class="tarjeta">
+                <small>Sin revisar</small>
+                <strong>@bandeja.Pendientes@(bandeja.LimitePendientes is { } limite ? $" / {limite}" : "")</strong>
+            </div>
+            <div class="tarjeta">
+                <small>Derivaciones por tus recomendaciones</small>
+                <strong>@bandeja.DerivacionesGeneradas</strong>
+            </div>
+            <div class="tarjeta">
+                <small>Plan</small>
+                <strong>@(EsPro ? "Pro" : "Gratuito")</strong>
+            </div>
+        </div>
+
+        <div class="tarjeta">
+            <h2 style="margin-top:0">Bandeja</h2>
+            @if (bandeja.Consultas.Count == 0)
+            {
+                <p class="vacio">Todavía nadie te compartió una consulta. Completá los datos del taller para aparecer mejor en el directorio.</p>
+            }
+            else
+            {
+                <ul class="recientes">
+                    @foreach (var consulta in bandeja.Consultas)
+                    {
+                        <li>
+                            <strong>
+                                @consulta.Busqueda.Vehiculo
+                                <span class="etiqueta @(consulta.Busqueda.Revision is null ? "etiqueta-pendiente" : "etiqueta-ok")">
+                                    @(consulta.Busqueda.Revision is null ? "Sin revisar" : "Revisada")
+                                </span>
+                            </strong>
+                            <span>@consulta.NombreCliente: @consulta.Busqueda.TextoLibre</span>
+                            <a class="link-marca" href="/consultas/@consulta.Busqueda.Id">
+                                @(consulta.Busqueda.Revision is null ? "Revisar" : "Ver revisión")
+                            </a>
+                        </li>
+                    }
+                </ul>
+            }
+        </div>
+    }
+
+    <div class="tarjeta">
+        <h2 style="margin-top:0">Datos del taller</h2>
+        <p class="texto-ayuda">Así te ven los clientes en el directorio. El teléfono y la zona se editan en <a class="link-marca" href="/perfil">tu perfil</a>.</p>
+
+        <div class="campo" style="max-width:28rem">
+            <label for="taller">Nombre del taller (opcional)</label>
+            <input id="taller" maxlength="120" @bind="nombreTaller" placeholder="Ej: Taller San Martín" />
+        </div>
+
+        <p style="margin:0.85rem 0 0.25rem"><strong>Especialidades</strong></p>
+        <div class="grilla-checks">
+            @foreach (var sistema in NombresSistema.Todos)
+            {
+                <label class="campo-check">
+                    <input type="checkbox" checked="@especialidades.Contains(sistema)"
+                           @onchange="e => Alternar(sistema, (bool)e.Value!)" />
+                    @NombresSistema.Etiqueta(sistema)
+                </label>
+            }
+        </div>
+
+        <p style="margin-bottom:0">
+            <button @onclick="GuardarTallerAsync" disabled="@trabajando">Guardar</button>
+        </p>
+    </div>
+
+    <div class="tarjeta">
+        <h2 style="margin-top:0">Plan</h2>
+        @if (EsPro)
+        {
+            <p>Tenés el plan <strong>Pro</strong>: bandeja sin límite y perfil destacado, que aparece primero en el directorio.</p>
+            <button class="secundario" @onclick="() => CambiarPlanAsync(PlanesMecanico.Gratuito)" disabled="@trabajando">Volver al plan gratuito</button>
+        }
+        else
+        {
+            <p>Con el plan gratuito podés tener hasta @(bandeja?.LimitePendientes ?? 5) consultas sin revisar. El plan <strong>Pro</strong> no tiene límite y destaca tu perfil en el directorio.</p>
+            <button @onclick="() => CambiarPlanAsync(PlanesMecanico.Pro)" disabled="@trabajando">Pasar a Pro</button>
+        }
+        <p class="texto-ayuda" style="margin-bottom:0">
+            Demo del TP: el cambio no cobra nada. En producción el pago lo procesaría un proveedor externo; RepMatch no maneja pagos.
+        </p>
+    </div>
+}
+
+@code {
+    private BandejaMecanicoDto? bandeja;
+    private bool trabajando;
+    private string? mensaje;
+    private List<string> errores = [];
+
+    private string nombreTaller = "";
+    private HashSet<string> especialidades = [];
+
+    private bool EsPro => Sesion.Cliente?.Plan == PlanesMecanico.Pro;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Sesion.EsMecanico)
+            return;
+
+        nombreTaller = Sesion.Cliente!.NombreTaller ?? "";
+        especialidades = [.. Sesion.Cliente.Especialidades];
+        await CargarBandejaAsync();
+    }
+
+    private async Task CargarBandejaAsync()
+    {
+        var resultado = await Fachada.ObtenerBandejaAsync(Sesion.Cliente!.Id);
+        if (resultado.EsFallido)
+            errores = [.. resultado.Errores];
+        else
+            bandeja = resultado.Valor;
+    }
+
+    private void Alternar(string sistema, bool elegido)
+    {
+        if (elegido) especialidades.Add(sistema);
+        else especialidades.Remove(sistema);
+    }
+
+    private Task GuardarTallerAsync() =>
+        EjecutarAsync(() => Fachada.ActualizarTallerAsync(Sesion.Cliente!.Id, new ActualizarTallerDto
+            {
+                NombreTaller = nombreTaller,
+                Especialidades = [.. NombresSistema.Todos.Where(especialidades.Contains)]
+            }),
+            "Datos del taller guardados.");
+
+    private Task CambiarPlanAsync(string plan) =>
+        EjecutarAsync(() => Fachada.CambiarPlanAsync(Sesion.Cliente!.Id, plan),
+            plan == PlanesMecanico.Pro ? "Ya tenés el plan Pro." : "Volviste al plan gratuito.");
+
+    private async Task EjecutarAsync(Func<Task<RepMatch.Common.Resultados.ResultadoOperacion<ClienteDto>>> accion, string exito)
+    {
+        trabajando = true;
+        errores = [];
+        mensaje = null;
+
+        try
+        {
+            var resultado = await accion();
+            if (resultado.EsFallido)
+            {
+                errores = [.. resultado.Errores];
+                return;
+            }
+
+            await Sesion.RefrescarAsync();
+            await CargarBandejaAsync();
+            mensaje = exito;
+        }
+        finally
+        {
+            trabajando = false;
+        }
+    }
+}

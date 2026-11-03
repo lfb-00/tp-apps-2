@@ -30,10 +30,22 @@ public static class DatosSemilla
             clientePrincipal.AgregarVehiculo(new DatosVehiculo("Peugeot", "208", 2019, "1.6"), alias: "El 208");
             await contexto.Clientes.AddAsync(clientePrincipal, ct);
 
-            var otro = new Cliente("Taller San Martin", "contacto@tallersanmartin.com.ar");
-            otro.EstablecerContrasena(BCrypt.Net.BCrypt.HashPassword("repMatch123!"));
-            otro.AgregarVehiculo(new DatosVehiculo("Toyota", "Corolla", 2018, "1.8"));
-            await contexto.Clientes.AddAsync(otro, ct);
+            // Dos mecanicos para que el directorio muestre el orden por plan: el Pro primero.
+            var taller = new Cliente("Taller San Martin", "contacto@tallersanmartin.com.ar", RolUsuario.Mecanico);
+            taller.EstablecerContrasena(BCrypt.Net.BCrypt.HashPassword("repMatch123!"));
+            taller.ActualizarContacto("+54 9 11 4567-8901", tieneWhatsApp: true,
+                "Ciudad Autónoma de Buenos Aires", "San Nicolás");
+            taller.ActualizarTaller("Taller San Martín", [SistemaVehiculo.Frenos, SistemaVehiculo.Suspension]);
+            taller.AgregarVehiculo(new DatosVehiculo("Toyota", "Corolla", 2018, "1.8"));
+            await contexto.Clientes.AddAsync(taller, ct);
+
+            var mecanicoPro = new Cliente("Carla Benítez", "carla@motoresbenitez.com.ar", RolUsuario.Mecanico);
+            mecanicoPro.EstablecerContrasena(BCrypt.Net.BCrypt.HashPassword("repMatch123!"));
+            mecanicoPro.ActualizarContacto("+54 9 11 2345-6789", tieneWhatsApp: true,
+                "Ciudad Autónoma de Buenos Aires", "Caballito");
+            mecanicoPro.ActualizarTaller("Motores Benítez", [SistemaVehiculo.Motor, SistemaVehiculo.Refrigeracion]);
+            mecanicoPro.CambiarPlan(PlanMecanico.Pro);
+            await contexto.Clientes.AddAsync(mecanicoPro, ct);
         }
 
         await contexto.SaveChangesAsync(ct);

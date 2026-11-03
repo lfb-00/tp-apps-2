@@ -82,6 +82,26 @@
                     <span class="error-campo" role="alert">@errorRepetirContrasena</span>
                 }
             </div>
+
+            <fieldset class="opciones-rol">
+                <legend>¿Cómo vas a usar RepMatch?</legend>
+                <label class="opcion-rol @(rol == RolesUsuario.Cliente ? "elegida" : "")">
+                    <input type="radio" name="rol" checked="@(rol == RolesUsuario.Cliente)"
+                           @onchange="() => rol = RolesUsuario.Cliente" />
+                    <span>
+                        <strong>Para mi auto</strong>
+                        <small>Buscás piezas y, si querés, le pedís a un mecánico que revise el diagnóstico.</small>
+                    </span>
+                </label>
+                <label class="opcion-rol @(rol == RolesUsuario.Mecanico ? "elegida" : "")">
+                    <input type="radio" name="rol" checked="@(rol == RolesUsuario.Mecanico)"
+                           @onchange="() => rol = RolesUsuario.Mecanico" />
+                    <span>
+                        <strong>Soy mecánico</strong>
+                        <small>Aparecés en el directorio y revisás las consultas que te comparten tus clientes.</small>
+                    </span>
+                </label>
+            </fieldset>
         }
     </div>
 
@@ -118,6 +138,7 @@
     private string contrasena = "";
     private string repetirContrasena = "";
     private string nombre = "";
+    private string rol = RolesUsuario.Cliente;
     private bool crearCuenta;
     private bool cargando;
     private bool mostrarContrasena;
@@ -211,7 +232,8 @@
             Nombre = nombre,
             Email = email,
             Contrasena = contrasena,
-            RepetirContrasena = repetirContrasena
+            RepetirContrasena = repetirContrasena,
+            Rol = rol
         });
 
         if (resultado.EsFallido)
@@ -221,6 +243,6 @@
         }
 
         await Sesion.EntrarAsync(resultado.Valor);
-        Navegacion.NavigateTo("/");
+        Navegacion.NavigateTo(resultado.Valor.EsMecanico ? "/taller" : "/");
     }
 }

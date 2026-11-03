@@ -21,6 +21,10 @@
             {
                 <NavLink href="/clientes">Mi garage</NavLink>
             }
+            @if (Sesion.EsMecanico)
+            {
+                <NavLink href="/taller">Mi taller</NavLink>
+            }
         </nav>
 
         <button type="button" class="btn-tema" @onclick="Tema.AlternarAsync" aria-label="@EtiquetaTema" title="@EtiquetaTema">
@@ -42,6 +46,10 @@
                     <div class="user-dropdown">
                         <a href="/perfil" @onclick="CerrarDropdown">Mi perfil</a>
                         <a href="/clientes" @onclick="CerrarDropdown">Mi garage</a>
+                        @if (Sesion.EsMecanico)
+                        {
+                            <a href="/taller" @onclick="CerrarDropdown">Mi taller</a>
+                        }
                         <hr />
                         <button class="salir" @onclick="SalirAsync">Cerrar sesión</button>
                     </div>
@@ -74,6 +82,10 @@
         {
             <NavLink href="/perfil">Mi perfil</NavLink>
             <NavLink href="/clientes">Mi garage</NavLink>
+            @if (Sesion.EsMecanico)
+            {
+                <NavLink href="/taller">Mi taller</NavLink>
+            }
             <hr class="divider" />
             <button class="salir" @onclick="SalirAsync">Cerrar sesión</button>
         }

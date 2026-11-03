@@ -1,6 +1,6 @@
 # Status
 
-Read this first. Snapshot 2026-10-11. English. Facts only. Intent and the next slice are in `plan.md`.
+Read this first. Snapshot 2026-11-03. English. Facts only. Intent and the next slice are in `plan.md`.
 
 ## Now
 
@@ -16,7 +16,9 @@ Public search and password login implemented 2026-10-03. `/` is now the search f
 
 Profile, default vehicle and light/dark theme implemented 2026-10-05.
 
-**Existing databases must be recreated after this change.** The schema comes from `EnsureCreatedAsync`, which does not add the new `configuraciones_vehiculo` table to an existing volume. There are no EF migrations (do not add them without asking). Run `docker compose down -v` before `docker compose up --build --wait`; seed data is loaded again.
+Roles implemented 2026-11-03. `Cliente.Rol` is `Cliente` or `Mecanico`, chosen at sign-up and never changed. A mechanic also has `NombreTaller`, `Especialidades` (`SistemaVehiculo` list) and `Plan` (`Gratuito`/`Pro`). Business model: affiliate commission per `Derivacion` + Pro plan for mechanics; changing plan charges nothing. Free plan: at most 5 unreviewed searches in the inbox (`Cliente.MaximoPendientesPlanGratuito`). Role and plan checks live in `ServicioRevisiones`/`ServicioMecanicos`, not in pages. New events `BusquedaCompartida`, `DiagnosticoValidado`, `DerivacionATienda` are dispatched after commit and have no observers yet.
+
+**Existing databases must be recreated after this change.** The schema comes from `EnsureCreatedAsync`, which does not add new tables or columns (`configuraciones_vehiculo`; since 2026-11-03 also `derivaciones` and the role/review columns) to an existing volume. There are no EF migrations (do not add them without asking). Run `docker compose down -v` before `docker compose up --build --wait`; seed data is loaded again.
 
 Data Protection keys live in the `claves-web` volume (`ProteccionDatos:DirectorioClaves`), so a tab keeps its session when the Web container is recreated. If a stored session cannot be decrypted anyway, `SesionActual` drops it and starts signed out.
 
@@ -35,8 +37,12 @@ Data Protection keys live in the `claves-web` volume (`ProteccionDatos:Directori
 - `/acceso` returns 404. Do not restore it.
 - Free text is stored for signed-in searches and ignored when choosing parts. Anonymous queries do not send or persist it.
 - No shop offers. `Busqueda.RegistrarOfertas` has no caller.
+- Sign-up asks "Para mi auto" (client) or "Soy mecánico". A new mechanic lands on `/taller`; sign-in still goes to `/`.
+- Each item in "Tus consultas" on `/` links to `/consultas/{id}`. The owner sees the proposed parts and either a mechanic directory (province filter, Pro first) with "Compartir", the shared mechanic with "Dejar de compartir", or the review. The assigned mechanic sees a form: confirm, or pick other parts from the catalog, plus an optional note. Anyone else gets "No encontramos esa consulta".
+- `/taller` (mechanics only; header and menus show "Mi taller"): counters (unreviewed / limit, derivations attributed, plan), inbox, workshop name and specialties, "Pasar a Pro" / "Volver al plan gratuito".
+- `GET /derivar/{ofertaId}` records a `Derivacion` and redirects to the shop; with no captured offers it returns 404 `{"error":"La oferta ya no existe."}`. `/consultas/{id}` only renders the offers list when offers exist.
 
-Seed data: Bruno Lo Faro `blofaro@uade.edu.ar` (Gol 2015 "El Gol" as default, Peugeot 208 2019 "El 208"; phone `+54 9 11 1234-5678` with WhatsApp, Ciudad Autónoma de Buenos Aires, Monserrat), Taller San Martin `contacto@tallersanmartin.com.ar` (Toyota Corolla 2018). All seed accounts use password `repMatch123!`.
+Seed data: Bruno Lo Faro `blofaro@uade.edu.ar` (Gol 2015 "El Gol" as default, Peugeot 208 2019 "El 208"; phone `+54 9 11 1234-5678` with WhatsApp, Ciudad Autónoma de Buenos Aires, Monserrat), Taller San Martin `contacto@tallersanmartin.com.ar` (mechanic, free plan, "Taller San Martín", Frenos + Suspensión, San Nicolás CABA, Toyota Corolla 2018), Carla Benítez `carla@motoresbenitez.com.ar` (mechanic, Pro plan, "Motores Benítez", Motor + Refrigeración, Caballito CABA). All seed accounts use password `repMatch123!`.
 
 ## Assignment
 
@@ -67,10 +73,14 @@ TP Inicial and Primera Parte are implemented. Do not redo them.
 
 - `clientes.VehiculoPredeterminadoId → vehiculos` (SET NULL) plus `vehiculos.ClienteId → clientes` (CASCADE) is an FK cycle. EF cannot order a single INSERT or DELETE of both rows (`circular dependency` on Postgres; InMemory does not notice). Seed saves the default in a second `SaveChanges`; `EliminarCuentaAsync` clears the default first inside `IUnitOfWork.EjecutarEnTransaccionAsync`.
 - `busquedas.ClienteId` has no FK; account deletion removes them explicitly via `IBusquedaRepository.EliminarPorClienteAsync`.
+- `busquedas.MecanicoId` and all `derivaciones` FKs are absent on purpose. Deleting a mechanic unshares their unreviewed searches; reviewed ones keep the review. Derivations survive any deletion (they are the commission record).
+- EF owned types cannot share one `DatosVehiculo` instance between two `Busqueda` rows: tests seeding several searches must use a fresh instance each (`Gol with { }`).
 - `SesionActual.RefrescarAsync()` reloads the client and fires `Cambio`; Home only resets its form when the client id changes, so a theme toggle does not clear results.
 - Do not change the `@key` of the `InputFile` while a file is being read: the input element is replaced and reading fails.
 
 ## Last verification
+
+2026-11-03: local `dotnet build` with 0 warnings and 0 errors; `dotnet test` 98 passed, 0 failed, 0 skipped (InMemory). Docker was not available, so neither the Docker test run nor Postgres was exercised: the new schema (enum primitive collection for `Especialidades`, `derivaciones` table) is unverified on Npgsql. In-app browser against `dotnet run` (InMemory, Local): client search, share with the Pro mechanic, mechanic inbox, correction with two parts and a note, review rendered on the consultation page (mechanic view), `/derivar` 404 for an unknown offer, no server errors. Not checked: the review as seen by the client in the browser, sign-up as mechanic and plan change through the UI, mobile layout.
 
 2026-10-11: `docker compose --profile test run --build --rm tests` rebuilt the current source with
 0 warnings and 0 errors; 84 tests passed, 0 failed, 0 skipped. OpenAPI was regenerated from

@@ -51,9 +51,7 @@ public static class Mapeadores
         TieneWhatsApp = cliente.TieneWhatsApp,
         Provincia = cliente.Provincia,
         Localidad = cliente.Localidad,
-        FotoUrl = cliente.FotoPerfil is { Length: > 0 } foto
-            ? $"data:{cliente.FotoTipoContenido};base64,{Convert.ToBase64String(foto)}"
-            : null,
+        FotoUrl = FotoUrl(cliente),
         VehiculoPredeterminadoId = cliente.VehiculoPredeterminadoId,
         TemaPreferido = cliente.TemaPreferido,
         Vehiculos = [.. cliente.Vehiculos.Select(v => new VehiculoClienteDto
@@ -62,11 +60,31 @@ public static class Mapeadores
             Alias = v.Alias,
             Datos = v.Datos.ADto(),
             Vin = v.Vin
-        })]
+        })],
+        Rol = cliente.Rol.ToString(),
+        NombreTaller = cliente.NombreTaller,
+        Especialidades = [.. cliente.Especialidades.Select(e => e.ToString())],
+        Plan = cliente.Plan?.ToString()
+    };
+
+    /// <summary>Solo para cuentas con rol mecanico: el plan siempre esta cargado.</summary>
+    public static MecanicoDto AMecanicoDto(this Cliente mecanico) => new()
+    {
+        Id = mecanico.Id,
+        Nombre = mecanico.Nombre,
+        NombreTaller = mecanico.NombreTaller,
+        Provincia = mecanico.Provincia,
+        Localidad = mecanico.Localidad,
+        Telefono = mecanico.Telefono,
+        TieneWhatsApp = mecanico.TieneWhatsApp,
+        FotoUrl = FotoUrl(mecanico),
+        Especialidades = [.. mecanico.Especialidades.Select(e => e.ToString())],
+        Plan = (mecanico.Plan ?? PlanMecanico.Gratuito).ToString()
     };
 
     public static OfertaDto ADto(this Oferta oferta) => new()
     {
+        Id = oferta.Id,
         CodigoRepuesto = oferta.CodigoRepuesto,
         NombreTienda = oferta.NombreTienda,
         Titulo = oferta.Titulo,
@@ -89,8 +107,24 @@ public static class Mapeadores
         FechaCreacion = busqueda.FechaCreacion,
         MotivoFalla = busqueda.MotivoFalla,
         CodigosObjetivo = [.. busqueda.CodigosObjetivo],
-        Ofertas = [.. busqueda.Ofertas.Select(o => o.ADto())]
+        Ofertas = [.. busqueda.Ofertas.Select(o => o.ADto())],
+        MecanicoId = busqueda.MecanicoId,
+        CompartidaEn = busqueda.CompartidaEn,
+        Revision = busqueda.RevisadaEn is { } revisadaEn
+            ? new RevisionDto
+            {
+                ConfirmaDiagnostico = busqueda.DiagnosticoConfirmado ?? false,
+                CodigosRecomendados = [.. busqueda.CodigosRecomendados],
+                Nota = busqueda.NotaMecanico,
+                RevisadaEn = revisadaEn
+            }
+            : null
     };
+
+    private static string? FotoUrl(Cliente cliente) =>
+        cliente.FotoPerfil is { Length: > 0 } foto
+            ? $"data:{cliente.FotoTipoContenido};base64,{Convert.ToBase64String(foto)}"
+            : null;
 
     /// <summary>Convierte el nombre de un sistema a la enumeracion del dominio.</summary>
     public static SistemaVehiculo? ASistema(string? sistema)

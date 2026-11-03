@@ -14,7 +14,7 @@ Como la aplicación es un comparador y no un e-shop, esos tres conceptos se mate
 
 | Consigna | RepMatch | Por qué |
 |---|---|---|
-| Cliente | `Cliente` | Igual: quien usa el comparador, con su garage de vehículos. |
+| Cliente | `Cliente` | Igual: quien usa el comparador, con su garage de vehículos. La misma entidad representa al mecánico, distinguido por `Rol`. |
 | Producto | `Repuesto` + `Oferta` | `Repuesto` es la pieza como concepto (código canónico, equivalencias, compatibilidad); `Oferta` es esa pieza publicada por una tienda concreta a un precio concreto. Separarlos es lo que permite comparar la misma pieza entre sitios. |
 | Pedido | `Busqueda` | El agregado de la consulta: vehículo, texto libre, estado y códigos objetivo. `Oferta` es el tipo preparado para el resultado de una tienda; esta entrega no captura ofertas. |
 
@@ -64,6 +64,12 @@ classDiagram
         +Guid? VehiculoPredeterminadoId
         +string? TemaPreferido
         +IReadOnlyCollection~Vehiculo~ Vehiculos
+        +RolUsuario Rol
+        +bool EsMecanico
+        +string? NombreTaller
+        +IReadOnlyCollection~SistemaVehiculo~ Especialidades
+        +PlanMecanico? Plan
+        +int? LimiteBusquedasPendientes
         +EstablecerContrasena(hash)
         +CambiarNombre(nombre)
         +ActualizarContacto(telefono, tieneWhatsApp, provincia, localidad)
@@ -73,6 +79,9 @@ classDiagram
         +CambiarTema(tema)
         +AgregarVehiculo(datos, vin, alias) Vehiculo
         +QuitarVehiculo(vehiculoId)
+        +ActualizarTaller(nombreTaller, especialidades)
+        +CambiarPlan(plan)
+        +PuedeRecibirBusqueda(pendientesActuales) bool
     }
 
     class Vehiculo {
@@ -124,10 +133,20 @@ classDiagram
         +string? MotivoFalla
         +IReadOnlyCollection~string~ CodigosObjetivo
         +IReadOnlyCollection~Oferta~ Ofertas
+        +Guid? MecanicoId
+        +DateTimeOffset? CompartidaEn
+        +bool? DiagnosticoConfirmado
+        +IReadOnlyCollection~string~ CodigosRecomendados
+        +string? NotaMecanico
+        +DateTimeOffset? RevisadaEn
         +AsignarCodigosObjetivo(codigos)
         +RegistrarOfertas(ofertas)
         +Fallar(motivo)
         +OfertasOrdenadasPorPrecio(moneda) IReadOnlyList~Oferta~
+        +CompartirCon(mecanicoId)
+        +DejarDeCompartir()
+        +RegistrarRevision(mecanicoId, confirma, codigos, nota)
+        +Derivar(ofertaId) Derivacion
     }
 
     class Oferta {
@@ -142,6 +161,15 @@ classDiagram
         +DateTimeOffset CapturadaEn
         +Dinero PrecioTotal
         +EstaVencida(antiguedadMaxima) bool
+    }
+
+    class Derivacion {
+        +Guid BusquedaId
+        +Guid OfertaId
+        +string NombreTienda
+        +string UrlDestino
+        +Guid? MecanicoId
+        +DateTimeOffset OcurridaEn
     }
 
     class SistemaVehiculo {
@@ -172,6 +200,32 @@ classDiagram
         +DateTimeOffset OcurridoEn
     }
 
+    class BusquedaCompartida {
+        +Guid BusquedaId
+        +Guid ClienteId
+        +Guid MecanicoId
+        +DateTimeOffset OcurridoEn
+    }
+
+    class DiagnosticoValidado {
+        +Guid BusquedaId
+        +Guid ClienteId
+        +Guid MecanicoId
+        +bool Confirmado
+        +IReadOnlyList~string~ CodigosPropuestos
+        +IReadOnlyList~string~ CodigosRecomendados
+        +DateTimeOffset OcurridoEn
+    }
+
+    class DerivacionATienda {
+        +Guid DerivacionId
+        +Guid BusquedaId
+        +Guid OfertaId
+        +string NombreTienda
+        +Guid? MecanicoId
+        +DateTimeOffset OcurridoEn
+    }
+
     class EstadoBusqueda {
         <<enumeration>>
         Borrador
@@ -190,6 +244,18 @@ classDiagram
         Critica
     }
 
+    class RolUsuario {
+        <<enumeration>>
+        Cliente
+        Mecanico
+    }
+
+    class PlanMecanico {
+        <<enumeration>>
+        Gratuito
+        Pro
+    }
+
     class ExcepcionDominio {
         <<exception>>
         +Si(condicion, mensaje)$
@@ -203,6 +269,7 @@ classDiagram
     EntidadBase <|-- AplicacionVehiculo
     EntidadBase <|-- Busqueda
     EntidadBase <|-- Oferta
+    EntidadBase <|-- Derivacion
 
     Cliente "1" *-- "0..*" Vehiculo : garage
     Cliente "0..1" --> "0..1" Vehiculo : predeterminado
@@ -216,6 +283,18 @@ classDiagram
     IEventoDominio <|.. BusquedaCreada
     EntidadBase o-- IEventoDominio : eventos acumulados
     Busqueda ..> BusquedaCreada : registra al crearse
+    Cliente --> RolUsuario
+    Cliente --> PlanMecanico : solo mecanico
+    Cliente --> "0..*" SistemaVehiculo : especialidades
+    Busqueda ..> Cliente : MecanicoId sin navegacion
+    Busqueda ..> Derivacion : Derivar crea
+    Derivacion ..> Oferta : OfertaId sin navegacion
+    IEventoDominio <|.. BusquedaCompartida
+    IEventoDominio <|.. DiagnosticoValidado
+    IEventoDominio <|.. DerivacionATienda
+    Busqueda ..> BusquedaCompartida : CompartirCon
+    Busqueda ..> DiagnosticoValidado : RegistrarRevision
+    Derivacion ..> DerivacionATienda : registra al crearse
     Oferta *-- "1..2" Dinero : precio / envio
     Dinero ..> ExcepcionDominio : monedas distintas
 ```
@@ -260,6 +339,24 @@ decida. No hay ningún método para cambiar el email.
 rechaza un vehículo ajeno, y `QuitarVehiculo` limpia el predeterminado si se quita ese auto. Se
 guarda solo el `Id` (sin navegación); en la base es una FK opcional con `ON DELETE SET NULL`.
 
+**El mecánico es un `Cliente` con otro rol.** `Rol` se fija al registrarse. Solo un mecánico tiene
+datos de taller (`NombreTaller`, `Especialidades`) y `Plan`; `ActualizarTaller` y `CambiarPlan`
+rechazan a un cliente. Se descartó una entidad aparte porque duplicaba login, perfil y garage. El
+plan `Gratuito` admite hasta `MaximoPendientesPlanGratuito` (5) búsquedas sin revisar en la bandeja;
+`Pro` no tiene tope. `PuedeRecibirBusqueda` decide con la cantidad que cuenta el servicio.
+
+**La revisión del mecánico no pisa el diagnóstico.** `CompartirCon` asigna `MecanicoId` (sin FK, como
+`ClienteId`) y registra `BusquedaCompartida`. `RegistrarRevision` solo la acepta del mecánico
+asignado y una sola vez: si confirma, recomienda los `CodigosObjetivo`; si corrige, exige al menos un
+código. Los recomendados quedan en `CodigosRecomendados`, aparte de los propuestos, y
+`DiagnosticoValidado` lleva los dos: es el dato etiquetado para medir la IA. `DejarDeCompartir` no
+se permite una vez revisada.
+
+**`Derivacion` es un agregado propio.** `Busqueda.Derivar` la crea para una oferta de la búsqueda y se
+la atribuye al mecánico si revisó la búsqueda y recomendó ese código. No tiene FK a búsquedas ni a
+clientes: es el registro de la comisión de afiliado y sobrevive a la baja de la cuenta. No cambia el
+orden de las ofertas.
+
 **Las colecciones se exponen como `IReadOnlyCollection`.** Modificarlas obliga a pasar por un método
 de la entidad, que es donde viven las invariantes. EF Core escribe directamente los campos privados
 de respaldo (`PropertyAccessMode.Field`).
@@ -290,6 +387,12 @@ classDiagram
             +BuscarAsync(dto) ResultadoOperacion~ResultadoBusquedaDto~
             +BuscarRepuestosAsync(vehiculo, sistema) ResultadoOperacion
             +ListarRepuestosAsync() ResultadoOperacion
+            +ListarMecanicosAsync(provincia) IReadOnlyList~MecanicoDto~
+            +CompartirConsultaAsync(busquedaId, clienteId, mecanicoId) ResultadoOperacion~ConsultaDto~
+            +RevisarConsultaAsync(busquedaId, mecanicoId, dto) ResultadoOperacion~ConsultaDto~
+            +ObtenerBandejaAsync(mecanicoId) ResultadoOperacion~BandejaMecanicoDto~
+            +CambiarPlanAsync(mecanicoId, plan) ResultadoOperacion~ClienteDto~
+            +DerivarAsync(ofertaId) ResultadoOperacion~string~
         }
     }
 
@@ -305,6 +408,24 @@ classDiagram
             +CrearAsync(dto) ResultadoOperacion~BusquedaDto~
             +ListarPorClienteAsync(clienteId) IReadOnlyList~BusquedaDto~
             +ListarRecientesAsync(cantidad) IReadOnlyList~BusquedaDto~
+        }
+
+        class ServicioMecanicos {
+            +ListarAsync(provincia) IReadOnlyList~MecanicoDto~
+            +ActualizarTallerAsync(mecanicoId, dto) ResultadoOperacion~ClienteDto~
+            +CambiarPlanAsync(mecanicoId, plan) ResultadoOperacion~ClienteDto~
+        }
+
+        class ServicioRevisiones {
+            +ObtenerAsync(busquedaId, usuarioId) ConsultaDto?
+            +CompartirAsync(busquedaId, clienteId, mecanicoId) ResultadoOperacion~ConsultaDto~
+            +DejarDeCompartirAsync(busquedaId, clienteId) ResultadoOperacion~ConsultaDto~
+            +ObtenerBandejaAsync(mecanicoId) ResultadoOperacion~BandejaMecanicoDto~
+            +RevisarAsync(busquedaId, mecanicoId, dto) ResultadoOperacion~ConsultaDto~
+        }
+
+        class ServicioDerivaciones {
+            +DerivarAsync(ofertaId) ResultadoOperacion~string~
         }
     }
 
@@ -398,6 +519,14 @@ classDiagram
         class ConfiguracionVehiculoRepository {
             <<Repository>>
         }
+
+        class IDerivacionRepository {
+            <<interface>>
+        }
+
+        class DerivacionRepository {
+            <<Repository>>
+        }
     }
 
     namespace Unit_of_Work {
@@ -416,6 +545,9 @@ classDiagram
     FachadaAplicacion --> ServicioBusquedas
     FachadaAplicacion --> ICatalogoRepuestos
     FachadaAplicacion --> ICatalogoVehiculos
+    FachadaAplicacion --> ServicioMecanicos
+    FachadaAplicacion --> ServicioRevisiones
+    FachadaAplicacion --> ServicioDerivaciones
 
     FabricaCatalogo ..> CatalogoLocal : registra
     FabricaCatalogo ..> CatalogoRemoto : registra
@@ -434,6 +566,8 @@ classDiagram
     DespachadorEventos o-- "0..*" IObservadorEventoDominio : notifica
     IObservadorEventoDominio <|.. ObservadorCompatibilidad
     ObservadorCompatibilidad --> ICatalogoRepuestos
+    ServicioRevisiones --> IDespachadorEventos : BusquedaCompartida, DiagnosticoValidado
+    ServicioDerivaciones --> IDespachadorEventos : DerivacionATienda
 
     ServicioClientes --> IClienteRepository
     ServicioClientes --> IConfiguracionVehiculoRepository
@@ -443,20 +577,33 @@ classDiagram
     ObservadorCompatibilidad --> IBusquedaRepository
     CatalogoLocal --> IRepuestoRepository
     CatalogoVehiculosLocal --> IConfiguracionVehiculoRepository
+    ServicioMecanicos --> IClienteRepository
+    ServicioRevisiones --> IBusquedaRepository
+    ServicioRevisiones --> IClienteRepository : rol y limite del plan
+    ServicioRevisiones --> IDerivacionRepository : cuenta derivaciones
+    ServicioDerivaciones --> IBusquedaRepository
+    ServicioDerivaciones --> IDerivacionRepository
 
     IClienteRepository <|.. ClienteRepository
     IBusquedaRepository <|.. BusquedaRepository
     IRepuestoRepository <|.. RepuestoRepository
     IConfiguracionVehiculoRepository <|.. ConfiguracionVehiculoRepository
+    IDerivacionRepository <|.. DerivacionRepository
 
     ServicioClientes --> IUnitOfWork
     ServicioBusquedas --> IUnitOfWork
     ObservadorCompatibilidad --> IUnitOfWork
+    ServicioMecanicos --> IUnitOfWork
+    ServicioRevisiones --> IUnitOfWork
+    ServicioDerivaciones --> IUnitOfWork
     IUnitOfWork <|.. UnitOfWork
 
     style FachadaAplicacion fill:#fce7f3,stroke:#be185d,stroke-width:2px,color:#111
     style ServicioClientes fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
     style ServicioBusquedas fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
+    style ServicioMecanicos fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
+    style ServicioRevisiones fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
+    style ServicioDerivaciones fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
     style FabricaCatalogo fill:#fee2e2,stroke:#b91c1c,stroke-width:2px,color:#111
     style ICatalogoRepuestos fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#111
     style CatalogoLocal fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#111
@@ -476,6 +623,8 @@ classDiagram
     style BusquedaRepository fill:#dcfce7,stroke:#15803d,stroke-width:2px,color:#111
     style RepuestoRepository fill:#dcfce7,stroke:#15803d,stroke-width:2px,color:#111
     style ConfiguracionVehiculoRepository fill:#dcfce7,stroke:#15803d,stroke-width:2px,color:#111
+    style IDerivacionRepository fill:#dcfce7,stroke:#15803d,stroke-width:2px,color:#111
+    style DerivacionRepository fill:#dcfce7,stroke:#15803d,stroke-width:2px,color:#111
     style IUnitOfWork fill:#ccfbf1,stroke:#0f766e,stroke-width:2px,color:#111
     style UnitOfWork fill:#ccfbf1,stroke:#0f766e,stroke-width:2px,color:#111
 ```
@@ -487,7 +636,7 @@ classDiagram
 | Adapter | Violeta | `CatalogoRemoto`, `CatalogoVehiculosRemoto` (HTTP → contrato) | `RepMatch.Clientes.Rest` |
 | Repository | Verde | `I*Repository` (interfaces) y `*Repository` (EF Core) | `Domain` y `Persistence` |
 | Unit of Work | Turquesa | `IUnitOfWork` / `UnitOfWork` | `Domain` y `Persistence` |
-| Observer | Ámbar | `IDespachadorEventos`, `DespachadorEventos`, `IObservadorEventoDominio`, `ObservadorCompatibilidad`; el evento `BusquedaCreada` está en el modelo de dominio | `Aplicacion` y `Domain` |
+| Observer | Ámbar | `IDespachadorEventos`, `DespachadorEventos`, `IObservadorEventoDominio`, `ObservadorCompatibilidad`; los eventos (`BusquedaCreada`, `BusquedaCompartida`, `DiagnosticoValidado`, `DerivacionATienda`) están en el modelo de dominio | `Aplicacion` y `Domain` |
 | Facade | Rosa | `FachadaAplicacion` | `RepMatch.Aplicacion` |
 
 Las interfaces de repositorio y de unidad de trabajo pertenecen al componente de dominio aunque se
@@ -503,9 +652,12 @@ separados no se ven:
 
 | Desde (patrones) | Hacia (dominio) | Por qué |
 |---|---|---|
-| `IClienteRepository`, `IBusquedaRepository`, `IRepuestoRepository`, `IConfiguracionVehiculoRepository` | `Cliente`, `Busqueda`, `Repuesto`, `ConfiguracionVehiculo` | Cada repositorio persiste y recupera su entidad. |
-| `ServicioClientes` | `Cliente` | Crea el cliente en el registro y lo modifica con sus métodos (perfil, garage, foto, tema). |
+| `IClienteRepository`, `IBusquedaRepository`, `IRepuestoRepository`, `IConfiguracionVehiculoRepository`, `IDerivacionRepository` | `Cliente`, `Busqueda`, `Repuesto`, `ConfiguracionVehiculo`, `Derivacion` | Cada repositorio persiste y recupera su entidad. |
+| `ServicioClientes` | `Cliente` | Crea el cliente (con su rol) en el registro y lo modifica con sus métodos (perfil, garage, foto, tema). |
 | `ServicioBusquedas` | `Busqueda` | Crea la búsqueda, que registra `BusquedaCreada` en su constructor. |
+| `ServicioMecanicos` | `Cliente` | Cambia datos del taller y plan de un mecánico. |
+| `ServicioRevisiones` | `Busqueda` | Comparte, retira y registra la revisión; chequea rol y límite del plan antes de llamar al dominio. |
+| `ServicioDerivaciones` | `Busqueda` | Pide a la búsqueda la `Derivacion` de una oferta y la guarda. |
 | `CatalogoLocal`, `CatalogoVehiculosLocal` | `Repuesto`, `ConfiguracionVehiculo` | Las estrategias locales leen entidades y las traducen a DTOs. Las remotas no tocan el dominio: solo ven DTOs. |
 | `IDespachadorEventos`, `IObservadorEventoDominio` | `IEventoDominio` | El Observer trabaja sobre el contrato de evento del dominio, no sobre eventos concretos. |
 | `ObservadorCompatibilidad` | `BusquedaCreada`, `Busqueda` | Reacciona al evento y completa la búsqueda con `AsignarCodigosObjetivo` o la cierra con `Fallar`. |
@@ -558,6 +710,12 @@ classDiagram
             +Guid? VehiculoPredeterminadoId
             +string? TemaPreferido
             +IReadOnlyCollection~Vehiculo~ Vehiculos
+            +RolUsuario Rol
+            +bool EsMecanico
+            +string? NombreTaller
+            +IReadOnlyCollection~SistemaVehiculo~ Especialidades
+            +PlanMecanico? Plan
+            +int? LimiteBusquedasPendientes
             +EstablecerContrasena(hash)
             +CambiarNombre(nombre)
             +ActualizarContacto(telefono, tieneWhatsApp, provincia, localidad)
@@ -567,6 +725,9 @@ classDiagram
             +CambiarTema(tema)
             +AgregarVehiculo(datos, vin, alias) Vehiculo
             +QuitarVehiculo(vehiculoId)
+            +ActualizarTaller(nombreTaller, especialidades)
+            +CambiarPlan(plan)
+            +PuedeRecibirBusqueda(pendientesActuales) bool
         }
 
         class Vehiculo {
@@ -618,10 +779,20 @@ classDiagram
             +string? MotivoFalla
             +IReadOnlyCollection~string~ CodigosObjetivo
             +IReadOnlyCollection~Oferta~ Ofertas
+            +Guid? MecanicoId
+            +DateTimeOffset? CompartidaEn
+            +bool? DiagnosticoConfirmado
+            +IReadOnlyCollection~string~ CodigosRecomendados
+            +string? NotaMecanico
+            +DateTimeOffset? RevisadaEn
             +AsignarCodigosObjetivo(codigos)
             +RegistrarOfertas(ofertas)
             +Fallar(motivo)
             +OfertasOrdenadasPorPrecio(moneda) IReadOnlyList~Oferta~
+            +CompartirCon(mecanicoId)
+            +DejarDeCompartir()
+            +RegistrarRevision(mecanicoId, confirma, codigos, nota)
+            +Derivar(ofertaId) Derivacion
         }
 
         class Oferta {
@@ -636,6 +807,15 @@ classDiagram
             +DateTimeOffset CapturadaEn
             +Dinero PrecioTotal
             +EstaVencida(antiguedadMaxima) bool
+        }
+
+        class Derivacion {
+            +Guid BusquedaId
+            +Guid OfertaId
+            +string NombreTienda
+            +string UrlDestino
+            +Guid? MecanicoId
+            +DateTimeOffset OcurridaEn
         }
 
         class SistemaVehiculo {
@@ -666,6 +846,32 @@ classDiagram
             +DateTimeOffset OcurridoEn
         }
 
+        class BusquedaCompartida {
+            +Guid BusquedaId
+            +Guid ClienteId
+            +Guid MecanicoId
+            +DateTimeOffset OcurridoEn
+        }
+
+        class DiagnosticoValidado {
+            +Guid BusquedaId
+            +Guid ClienteId
+            +Guid MecanicoId
+            +bool Confirmado
+            +IReadOnlyList~string~ CodigosPropuestos
+            +IReadOnlyList~string~ CodigosRecomendados
+            +DateTimeOffset OcurridoEn
+        }
+
+        class DerivacionATienda {
+            +Guid DerivacionId
+            +Guid BusquedaId
+            +Guid OfertaId
+            +string NombreTienda
+            +Guid? MecanicoId
+            +DateTimeOffset OcurridoEn
+        }
+
         class EstadoBusqueda {
             <<enumeration>>
             Borrador
@@ -684,6 +890,18 @@ classDiagram
             Critica
         }
 
+        class RolUsuario {
+            <<enumeration>>
+            Cliente
+            Mecanico
+        }
+
+        class PlanMecanico {
+            <<enumeration>>
+            Gratuito
+            Pro
+        }
+
         class ExcepcionDominio {
             <<exception>>
             +Si(condicion, mensaje)$
@@ -698,6 +916,7 @@ classDiagram
     EntidadBase <|-- AplicacionVehiculo
     EntidadBase <|-- Busqueda
     EntidadBase <|-- Oferta
+    EntidadBase <|-- Derivacion
     Cliente "1" *-- "0..*" Vehiculo : garage
     Cliente "0..1" --> "0..1" Vehiculo : predeterminado
     Vehiculo *-- "1" DatosVehiculo : datos
@@ -710,6 +929,18 @@ classDiagram
     IEventoDominio <|.. BusquedaCreada
     EntidadBase o-- IEventoDominio : eventos acumulados
     Busqueda ..> BusquedaCreada : registra al crearse
+    Cliente --> RolUsuario
+    Cliente --> PlanMecanico : solo mecanico
+    Cliente --> "0..*" SistemaVehiculo : especialidades
+    Busqueda ..> Cliente : MecanicoId sin navegacion
+    Busqueda ..> Derivacion : Derivar crea
+    Derivacion ..> Oferta : OfertaId sin navegacion
+    IEventoDominio <|.. BusquedaCompartida
+    IEventoDominio <|.. DiagnosticoValidado
+    IEventoDominio <|.. DerivacionATienda
+    Busqueda ..> BusquedaCompartida : CompartirCon
+    Busqueda ..> DiagnosticoValidado : RegistrarRevision
+    Derivacion ..> DerivacionATienda : registra al crearse
     Oferta *-- "1..2" Dinero : precio / envio
     Dinero ..> ExcepcionDominio : monedas distintas
 
@@ -722,6 +953,12 @@ classDiagram
             +BuscarAsync(dto) ResultadoOperacion~ResultadoBusquedaDto~
             +BuscarRepuestosAsync(vehiculo, sistema) ResultadoOperacion
             +ListarRepuestosAsync() ResultadoOperacion
+            +ListarMecanicosAsync(provincia) IReadOnlyList~MecanicoDto~
+            +CompartirConsultaAsync(busquedaId, clienteId, mecanicoId) ResultadoOperacion~ConsultaDto~
+            +RevisarConsultaAsync(busquedaId, mecanicoId, dto) ResultadoOperacion~ConsultaDto~
+            +ObtenerBandejaAsync(mecanicoId) ResultadoOperacion~BandejaMecanicoDto~
+            +CambiarPlanAsync(mecanicoId, plan) ResultadoOperacion~ClienteDto~
+            +DerivarAsync(ofertaId) ResultadoOperacion~string~
         }
     }
 
@@ -737,6 +974,24 @@ classDiagram
             +CrearAsync(dto) ResultadoOperacion~BusquedaDto~
             +ListarPorClienteAsync(clienteId) IReadOnlyList~BusquedaDto~
             +ListarRecientesAsync(cantidad) IReadOnlyList~BusquedaDto~
+        }
+
+        class ServicioMecanicos {
+            +ListarAsync(provincia) IReadOnlyList~MecanicoDto~
+            +ActualizarTallerAsync(mecanicoId, dto) ResultadoOperacion~ClienteDto~
+            +CambiarPlanAsync(mecanicoId, plan) ResultadoOperacion~ClienteDto~
+        }
+
+        class ServicioRevisiones {
+            +ObtenerAsync(busquedaId, usuarioId) ConsultaDto?
+            +CompartirAsync(busquedaId, clienteId, mecanicoId) ResultadoOperacion~ConsultaDto~
+            +DejarDeCompartirAsync(busquedaId, clienteId) ResultadoOperacion~ConsultaDto~
+            +ObtenerBandejaAsync(mecanicoId) ResultadoOperacion~BandejaMecanicoDto~
+            +RevisarAsync(busquedaId, mecanicoId, dto) ResultadoOperacion~ConsultaDto~
+        }
+
+        class ServicioDerivaciones {
+            +DerivarAsync(ofertaId) ResultadoOperacion~string~
         }
     }
 
@@ -837,6 +1092,14 @@ classDiagram
         class ConfiguracionVehiculoRepository {
             <<Repository>>
         }
+
+        class IDerivacionRepository {
+            <<interface>>
+        }
+
+        class DerivacionRepository {
+            <<Repository>>
+        }
     }
 
     namespace Unit_of_Work {
@@ -855,6 +1118,9 @@ classDiagram
     FachadaAplicacion --> ServicioBusquedas
     FachadaAplicacion --> ICatalogoRepuestos
     FachadaAplicacion --> ICatalogoVehiculos
+    FachadaAplicacion --> ServicioMecanicos
+    FachadaAplicacion --> ServicioRevisiones
+    FachadaAplicacion --> ServicioDerivaciones
 
     FabricaCatalogo ..> CatalogoLocal : registra
     FabricaCatalogo ..> CatalogoRemoto : registra
@@ -873,6 +1139,8 @@ classDiagram
     DespachadorEventos o-- "0..*" IObservadorEventoDominio : notifica
     IObservadorEventoDominio <|.. ObservadorCompatibilidad
     ObservadorCompatibilidad --> ICatalogoRepuestos
+    ServicioRevisiones --> IDespachadorEventos : BusquedaCompartida, DiagnosticoValidado
+    ServicioDerivaciones --> IDespachadorEventos : DerivacionATienda
 
     ServicioClientes --> IClienteRepository
     ServicioClientes --> IConfiguracionVehiculoRepository
@@ -882,23 +1150,37 @@ classDiagram
     ObservadorCompatibilidad --> IBusquedaRepository
     CatalogoLocal --> IRepuestoRepository
     CatalogoVehiculosLocal --> IConfiguracionVehiculoRepository
+    ServicioMecanicos --> IClienteRepository
+    ServicioRevisiones --> IBusquedaRepository
+    ServicioRevisiones --> IClienteRepository : rol y limite del plan
+    ServicioRevisiones --> IDerivacionRepository : cuenta derivaciones
+    ServicioDerivaciones --> IBusquedaRepository
+    ServicioDerivaciones --> IDerivacionRepository
 
     IClienteRepository <|.. ClienteRepository
     IBusquedaRepository <|.. BusquedaRepository
     IRepuestoRepository <|.. RepuestoRepository
     IConfiguracionVehiculoRepository <|.. ConfiguracionVehiculoRepository
+    IDerivacionRepository <|.. DerivacionRepository
 
     ServicioClientes --> IUnitOfWork
     ServicioBusquedas --> IUnitOfWork
     ObservadorCompatibilidad --> IUnitOfWork
+    ServicioMecanicos --> IUnitOfWork
+    ServicioRevisiones --> IUnitOfWork
+    ServicioDerivaciones --> IUnitOfWork
     IUnitOfWork <|.. UnitOfWork
 
     IClienteRepository ..> Cliente : persiste
     IBusquedaRepository ..> Busqueda : persiste
     IRepuestoRepository ..> Repuesto : persiste
     IConfiguracionVehiculoRepository ..> ConfiguracionVehiculo : persiste
+    IDerivacionRepository ..> Derivacion : persiste
     ServicioClientes ..> Cliente : crea y modifica
     ServicioBusquedas ..> Busqueda : crea
+    ServicioMecanicos ..> Cliente : ActualizarTaller y CambiarPlan
+    ServicioRevisiones ..> Busqueda : CompartirCon y RegistrarRevision
+    ServicioDerivaciones ..> Busqueda : Derivar
     CatalogoLocal ..> Repuesto : mapea a RepuestoDto
     CatalogoVehiculosLocal ..> ConfiguracionVehiculo : mapea a OpcionVehiculoDto
     IDespachadorEventos ..> IEventoDominio : despacha
@@ -909,6 +1191,9 @@ classDiagram
     style FachadaAplicacion fill:#fce7f3,stroke:#be185d,stroke-width:2px,color:#111
     style ServicioClientes fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
     style ServicioBusquedas fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
+    style ServicioMecanicos fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
+    style ServicioRevisiones fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
+    style ServicioDerivaciones fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
     style FabricaCatalogo fill:#fee2e2,stroke:#b91c1c,stroke-width:2px,color:#111
     style ICatalogoRepuestos fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#111
     style CatalogoLocal fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#111
@@ -928,6 +1213,8 @@ classDiagram
     style BusquedaRepository fill:#dcfce7,stroke:#15803d,stroke-width:2px,color:#111
     style RepuestoRepository fill:#dcfce7,stroke:#15803d,stroke-width:2px,color:#111
     style ConfiguracionVehiculoRepository fill:#dcfce7,stroke:#15803d,stroke-width:2px,color:#111
+    style IDerivacionRepository fill:#dcfce7,stroke:#15803d,stroke-width:2px,color:#111
+    style DerivacionRepository fill:#dcfce7,stroke:#15803d,stroke-width:2px,color:#111
     style IUnitOfWork fill:#ccfbf1,stroke:#0f766e,stroke-width:2px,color:#111
     style UnitOfWork fill:#ccfbf1,stroke:#0f766e,stroke-width:2px,color:#111
 ```

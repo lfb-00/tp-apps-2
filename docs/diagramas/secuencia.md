@@ -92,7 +92,8 @@ El usuario ingresa con email y contraseña. La contraseña nunca se almacena: so
 `SesionActual` guarda el id del cliente en el almacenamiento de sesión del browser, cifrado por
 ASP.NET Core Data Protection. El registro de una cuenta nueva usa otro camino desde la misma
 pantalla: `RegistrarClienteAsync` (validación FluentValidation, rechazo de email duplicado y
-`BCrypt.HashPassword`) y después `EntrarAsync`.
+`BCrypt.HashPassword`) y después `EntrarAsync`. Al registrarse se elige el rol, cliente o mecánico;
+una cuenta nueva de mecánico arranca en el plan gratuito y se redirige a `/taller`.
 
 ```mermaid
 sequenceDiagram
@@ -400,7 +401,9 @@ Código de referencia: [FabricaCatalogo.cs](../../src/RepMatch.Web/Servicios/Fab
 El usuario confirma la baja desde el modal de Perfil con su contraseña. El servicio valida el DTO,
 comprueba el cliente y verifica el hash antes de borrar. Con PostgreSQL, Unit of Work ejecuta los
 guardados dentro de una sola transacción: primero libera el vehículo predeterminado, si existe,
-y después elimina búsquedas y cliente. El garage y las ofertas se eliminan por cascada.
+y después elimina búsquedas y cliente. El garage y las ofertas se eliminan por cascada. Si la cuenta
+es de un mecánico, las búsquedas que le compartieron y todavía no revisó vuelven a sus dueños; las
+revisadas conservan la revisión. Las derivaciones no se borran: son el registro de la comisión.
 
 ```mermaid
 sequenceDiagram
@@ -413,6 +416,7 @@ sequenceDiagram
     participant BCrypt
     participant Dominio as Cliente
     participant RepoBusquedas as IBusquedaRepository
+    participant Compartida as Busqueda
     participant UoW as UnitOfWork
     participant EF as DbContext y PostgreSQL
     participant Sesion as SesionActual
@@ -459,6 +463,13 @@ sequenceDiagram
                     Clientes->>RepoBusquedas: EliminarPorClienteAsync
                     RepoBusquedas->>EF: cargar búsquedas y ofertas, marcar búsquedas para borrar
                     RepoBusquedas-->>Clientes: cantidad de búsquedas
+                    opt la cuenta es de un mecánico
+                        Clientes->>RepoBusquedas: ListarCompartidasConAsync
+                        RepoBusquedas-->>Clientes: búsquedas que le compartieron
+                        loop cada búsqueda sin revisar
+                            Clientes->>Compartida: DejarDeCompartir
+                        end
+                    end
                     Clientes->>RepoClientes: Eliminar
                     RepoClientes->>EF: marcar cliente para borrar
                     Clientes->>UoW: ConfirmarAsync
