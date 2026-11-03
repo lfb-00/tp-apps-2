@@ -25,6 +25,23 @@ public sealed class ClienteRepository(RepMatchDbContext contexto) : IClienteRepo
             .OrderBy(c => c.Nombre)
             .ToListAsync(ct);
 
+    public async Task<IReadOnlyList<Cliente>> ListarMecanicosAsync(
+        string? provincia = null, CancellationToken ct = default)
+    {
+        var mecanicos = contexto.Clientes.Where(c => c.Rol == RolUsuario.Mecanico);
+
+        if (!string.IsNullOrWhiteSpace(provincia))
+        {
+            var buscada = provincia.Trim();
+            mecanicos = mecanicos.Where(c => c.Provincia == buscada);
+        }
+
+        return await mecanicos
+            .OrderByDescending(c => c.Plan == PlanMecanico.Pro)
+            .ThenBy(c => c.NombreTaller ?? c.Nombre)
+            .ToListAsync(ct);
+    }
+
     public async Task AgregarAsync(Cliente cliente, CancellationToken ct = default) =>
         await contexto.Clientes.AddAsync(cliente, ct);
 

@@ -596,6 +596,30 @@
             "items": {
               "$ref": "#/components/schemas/OfertaDto"
             }
+          },
+          "mecanicoId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "compartidaEn": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "revision": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RevisionDto"
+              }
+            ]
           }
         }
       },
@@ -667,6 +691,30 @@
             "items": {
               "$ref": "#/components/schemas/VehiculoClienteDto"
             }
+          },
+          "rol": {
+            "type": "string"
+          },
+          "esMecanico": {
+            "type": "boolean"
+          },
+          "nombreTaller": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "especialidades": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "plan": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -718,6 +766,11 @@
           },
           "repetirContrasena": {
             "type": "string"
+          },
+          "rol": {
+            "maxLength": 20,
+            "minLength": 0,
+            "type": "string"
           }
         }
       },
@@ -735,6 +788,10 @@
         ],
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
           "codigoRepuesto": {
             "type": "string"
           },
@@ -898,6 +955,34 @@
             "items": {
               "$ref": "#/components/schemas/AplicacionDto"
             }
+          }
+        }
+      },
+      "RevisionDto": {
+        "required": [
+          "confirmaDiagnostico",
+          "revisadaEn"
+        ],
+        "type": "object",
+        "properties": {
+          "confirmaDiagnostico": {
+            "type": "boolean"
+          },
+          "codigosRecomendados": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "nota": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "revisadaEn": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },

@@ -6,7 +6,9 @@ namespace RepMatch.Domain.Entidades;
 
 /// <summary>
 /// Quien usa el comparador. Es la raiz del agregado que contiene sus vehiculos.
-/// Equivale al componente "Cliente" que pide la consigna del TP Inicial.
+/// Equivale al componente "Cliente" que pide la consigna del TP Inicial. Tambien representa al
+/// mecanico (<see cref="Rol"/>): se descarto una entidad aparte porque duplicaba login, perfil y
+/// garage, y el nombre "Cliente" se conserva por el mapeo con la consigna.
 /// </summary>
 public partial class Cliente : EntidadBase
 {
@@ -19,12 +21,20 @@ public partial class Cliente : EntidadBase
 
     public static readonly IReadOnlyList<string> TiposFotoPermitidos = ["image/jpeg", "image/png", "image/webp"];
 
+    /// <summary>Busquedas sin revisar que puede tener en la bandeja un mecanico del plan
+    /// gratuito. Es el limite que empuja al plan Pro, que no tiene tope.</summary>
+    public const int MaximoPendientesPlanGratuito = 5;
+
+    public const int LongitudMaximaNombreTaller = 120;
+
     private readonly List<Vehiculo> _vehiculos = [];
+    private readonly List<SistemaVehiculo> _especialidades = [];
 
     private Cliente() { }   // requerido por EF Core
 
-    public Cliente(string nombre, string email)
+    public Cliente(string nombre, string email, RolUsuario rol = RolUsuario.Cliente)
     {
+        ExcepcionDominio.Si(!Enum.IsDefined(rol), $"El rol '{rol}' no existe.");
         ExcepcionDominio.SiNulaOVacia(nombre, nameof(nombre));
         ExcepcionDominio.SiNulaOVacia(email, nameof(email));
         ExcepcionDominio.Si(!EsEmailValido(email), $"El email '{email}' no tiene un formato valido.");
@@ -32,6 +42,8 @@ public partial class Cliente : EntidadBase
         Nombre = nombre.Trim();
         Email = email.Trim().ToLowerInvariant();
         FechaAlta = DateTimeOffset.UtcNow;
+        Rol = rol;
+        Plan = rol == RolUsuario.Mecanico ? PlanMecanico.Gratuito : null;
     }
 
     public string Nombre { get; private set; } = string.Empty;
@@ -56,6 +68,59 @@ public partial class Cliente : EntidadBase
     public string? TemaPreferido { get; private set; }
 
     public IReadOnlyCollection<Vehiculo> Vehiculos => _vehiculos.AsReadOnly();
+
+    public RolUsuario Rol { get; private set; }
+    public bool EsMecanico => Rol == RolUsuario.Mecanico;
+
+    /// <summary>Nombre comercial con el que el mecanico aparece en el directorio. null si no lo
+    /// cargo: el directorio muestra su nombre personal.</summary>
+    public string? NombreTaller { get; private set; }
+
+    /// <summary>Sistemas en los que el mecanico se especializa. Usa la misma clasificacion que
+    /// el catalogo y la IA, asi el cliente puede elegir a quien compartirle segun el problema.</summary>
+    public IReadOnlyCollection<SistemaVehiculo> Especialidades => _especialidades.AsReadOnly();
+
+    /// <summary>null para los clientes: el plan es solo del mecanico.</summary>
+    public PlanMecanico? Plan { get; private set; }
+
+    /// <summary>Tope de busquedas sin revisar en la bandeja; null es sin limite.</summary>
+    public int? LimiteBusquedasPendientes =>
+        Plan == PlanMecanico.Gratuito ? MaximoPendientesPlanGratuito : null;
+
+    public void ActualizarTaller(string? nombreTaller, IEnumerable<SistemaVehiculo> especialidades)
+    {
+        ArgumentNullException.ThrowIfNull(especialidades);
+        ExigirMecanico();
+
+        var nombreLimpio = string.IsNullOrWhiteSpace(nombreTaller) ? null : nombreTaller.Trim();
+        ExcepcionDominio.Si(nombreLimpio?.Length > LongitudMaximaNombreTaller,
+            "El nombre del taller admite hasta 120 caracteres.");
+
+        var sistemas = especialidades.Distinct().ToList();
+        ExcepcionDominio.Si(sistemas.Any(s => s == SistemaVehiculo.Desconocido || !Enum.IsDefined(s)),
+            "Elegí especialidades de la lista de sistemas.");
+
+        NombreTaller = nombreLimpio;
+        _especialidades.Clear();
+        _especialidades.AddRange(sistemas.Order());
+    }
+
+    /// <summary>Cambia el plan sin cobrar nada: el pago lo resolveria un proveedor externo antes
+    /// de llamar aca. RepMatch no procesa pagos.</summary>
+    public void CambiarPlan(PlanMecanico plan)
+    {
+        ExigirMecanico();
+        ExcepcionDominio.Si(!Enum.IsDefined(plan), $"El plan '{plan}' no existe.");
+        Plan = plan;
+    }
+
+    /// <summary>Decide si entra una busqueda mas a la bandeja, dado cuantas tiene sin revisar.
+    /// La cuenta la hace el servicio con el repositorio; la regla vive aca.</summary>
+    public bool PuedeRecibirBusqueda(int pendientesActuales) =>
+        EsMecanico && (LimiteBusquedasPendientes is not { } limite || pendientesActuales < limite);
+
+    private void ExigirMecanico() =>
+        ExcepcionDominio.Si(!EsMecanico, "Solo un mecánico tiene datos de taller y plan.");
 
     public void CambiarNombre(string nombre)
     {

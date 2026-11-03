@@ -48,6 +48,7 @@ public static class ExtensionesPersistencia
         servicios.AddScoped<IRepuestoRepository, RepuestoRepository>();
         servicios.AddScoped<IConfiguracionVehiculoRepository, ConfiguracionVehiculoRepository>();
         servicios.AddScoped<IBusquedaRepository, BusquedaRepository>();
+        servicios.AddScoped<IDerivacionRepository, DerivacionRepository>();
         servicios.AddScoped<IUnitOfWork, UnitOfWork>();
 
         return servicios;

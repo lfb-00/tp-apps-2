@@ -1,0 +1,337 @@
+@page "/consultas/{Id:guid}"
+@using RepMatch.Aplicacion.Fachada
+@inject FachadaAplicacion Fachada
+@inject SesionActual Sesion
+
+<PageTitle>Consulta — RepMatch</PageTitle>
+
+@if (Sesion.Cliente is null)
+{
+    <section class="entrada">
+        <h1>Consulta</h1>
+        <p>Ingresá para ver tus consultas.</p>
+    </section>
+    <p><a class="boton" href="/login">Ingresar</a></p>
+}
+else if (cargando)
+{
+    <p class="vacio">Cargando…</p>
+}
+else if (consulta is null)
+{
+    <section class="entrada">
+        <h1>No encontramos esa consulta</h1>
+        <p>Puede que no exista o que no esté compartida con vos.</p>
+    </section>
+    <p><a class="boton" href="@(Sesion.EsMecanico ? "/taller" : "/")">Volver</a></p>
+}
+else
+{
+    var busqueda = consulta.Busqueda;
+
+    <section class="entrada">
+        <h1>@busqueda.Vehiculo</h1>
+        <p>
+            @(EsDuenio ? "Tu consulta" : $"Consulta de {consulta.NombreCliente}")
+            del @busqueda.FechaCreacion.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+        </p>
+    </section>
+
+    @if (mensaje is not null)
+    {
+        <div class="alerta alerta-exito" role="status" aria-live="polite">@mensaje</div>
+    }
+    @if (errores.Count > 0)
+    {
+        <div class="alerta alerta-error" role="alert" aria-live="polite">
+            @foreach (var error in errores)
+            {
+                <div>@error</div>
+            }
+        </div>
+    }
+
+    <div class="tarjeta">
+        <h2 style="margin-top:0">El problema</h2>
+        <p>@busqueda.TextoLibre</p>
+
+        <h2>Diagnóstico propuesto</h2>
+        @if (!string.IsNullOrWhiteSpace(busqueda.MotivoFalla))
+        {
+            <p class="vacio">@busqueda.MotivoFalla</p>
+        }
+        else if (busqueda.CodigosObjetivo.Count == 0)
+        {
+            <p class="vacio">Todavía no hay piezas propuestas.</p>
+        }
+        else
+        {
+            <ul class="lista-piezas">
+                @foreach (var codigo in busqueda.CodigosObjetivo)
+                {
+                    <li><span>@NombrePieza(codigo)</span> <code>@codigo</code></li>
+                }
+            </ul>
+        }
+    </div>
+
+    @if (busqueda.Revision is { } revision)
+    {
+        <div class="tarjeta revision">
+            <h2 style="margin-top:0">
+                Revisión de @(consulta.Mecanico?.NombreVisible ?? "un mecánico que ya no está en RepMatch")
+            </h2>
+            <p>
+                <span class="etiqueta @(revision.ConfirmaDiagnostico ? "etiqueta-ok" : "etiqueta-corregido")">
+                    @(revision.ConfirmaDiagnostico ? "Confirmó el diagnóstico" : "Corrigió el diagnóstico")
+                </span>
+                <small class="fecha">@revision.RevisadaEn.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</small>
+            </p>
+            <p><strong>Recomienda:</strong></p>
+            <ul class="lista-piezas">
+                @foreach (var codigo in revision.CodigosRecomendados)
+                {
+                    <li><span>@NombrePieza(codigo)</span> <code>@codigo</code></li>
+                }
+            </ul>
+            @if (!string.IsNullOrWhiteSpace(revision.Nota))
+            {
+                <blockquote class="nota-mecanico">@revision.Nota</blockquote>
+            }
+            @if (EsDuenio && consulta.Mecanico is not null)
+            {
+                <TarjetaMecanico Mecanico="consulta.Mecanico" />
+            }
+        </div>
+    }
+    else if (EsDuenio)
+    {
+        @if (consulta.Mecanico is not null)
+        {
+            <div class="tarjeta">
+                <h2 style="margin-top:0">Compartida con un mecánico</h2>
+                <p>Le llegó a su bandeja. Cuando la revise, vas a ver acá si confirma o corrige el diagnóstico.</p>
+                <TarjetaMecanico Mecanico="consulta.Mecanico" />
+                <p style="margin-bottom:0">
+                    <button class="secundario" @onclick="DejarDeCompartirAsync" disabled="@trabajando">Dejar de compartir</button>
+                </p>
+            </div>
+        }
+        else
+        {
+            <div class="tarjeta">
+                <h2 style="margin-top:0">Pedile a un mecánico que lo revise</h2>
+                <p>Elegí un profesional del directorio. Solo va a ver esta consulta y tu nombre, no el resto de tu cuenta.</p>
+
+                <div class="campo" style="max-width:22rem">
+                    <label for="provincia">Provincia</label>
+                    <select id="provincia" @bind="provincia" @bind:after="CargarMecanicosAsync">
+                        <option value="">Todas</option>
+                        @foreach (var opcion in Provincias.Todas)
+                        {
+                            <option value="@opcion">@opcion</option>
+                        }
+                    </select>
+                </div>
+
+                @if (mecanicos.Count == 0)
+                {
+                    <p class="vacio">No hay mecánicos en esa provincia todavía.</p>
+                }
+                else
+                {
+                    <div class="directorio">
+                        @foreach (var mecanico in mecanicos)
+                        {
+                            <div class="vehiculo-card">
+                                <TarjetaMecanico Mecanico="mecanico" />
+                                <div class="vehiculo-acciones">
+                                    <button @onclick="() => CompartirAsync(mecanico.Id)" disabled="@trabajando">Compartir</button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    }
+    else if (EsMecanicoAsignado)
+    {
+        <div class="tarjeta">
+            <h2 style="margin-top:0">Tu revisión</h2>
+            <fieldset class="opciones-tema">
+                <legend>¿El diagnóstico es correcto?</legend>
+                <label class="campo-check">
+                    <input type="radio" name="veredicto" checked="@confirma" @onchange="() => confirma = true"
+                           disabled="@(busqueda.CodigosObjetivo.Count == 0)" />
+                    Sí, confirmo las piezas propuestas
+                </label>
+                <label class="campo-check">
+                    <input type="radio" name="veredicto" checked="@(!confirma)" @onchange="() => confirma = false" />
+                    No, recomiendo otras
+                </label>
+            </fieldset>
+
+            @if (!confirma)
+            {
+                <p style="margin-bottom:0.25rem"><strong>Piezas que recomendás</strong></p>
+                @if (compatibles.Count == 0)
+                {
+                    <p class="vacio">No hay piezas del catálogo para este vehículo.</p>
+                }
+                @foreach (var pieza in compatibles)
+                {
+                    <label class="campo-check">
+                        <input type="checkbox" checked="@elegidas.Contains(pieza.CodigoCanonico)"
+                               @onchange="e => Alternar(pieza.CodigoCanonico, (bool)e.Value!)" />
+                        @pieza.Nombre <code>@pieza.CodigoCanonico</code>
+                    </label>
+                }
+            }
+
+            <div class="campo" style="margin-top:0.85rem">
+                <label for="nota">Nota para el cliente (opcional)</label>
+                <textarea id="nota" rows="3" maxlength="1000" @bind="nota"
+                          placeholder="Ej: antes de cambiar las pastillas revisá que el disco no esté rayado"></textarea>
+            </div>
+
+            <p style="margin-bottom:0">
+                <button @onclick="RevisarAsync" disabled="@trabajando">Enviar revisión</button>
+            </p>
+        </div>
+    }
+
+    @if (busqueda.Ofertas.Count > 0)
+    {
+        <div class="tarjeta">
+            <h2 style="margin-top:0">Dónde conseguirlas</h2>
+            <p class="texto-ayuda">Ordenadas por precio final con envío. RepMatch no vende: te lleva a la tienda.</p>
+            <ul class="recientes">
+                @foreach (var oferta in OfertasPorPrecio(busqueda))
+                {
+                    <li>
+                        <strong>@oferta.Titulo</strong>
+                        <span>@oferta.NombreTienda · @oferta.Moneda @oferta.PrecioTotal.ToString("N2")</span>
+                        @if (busqueda.Revision?.CodigosRecomendados.Contains(oferta.CodigoRepuesto) == true)
+                        {
+                            <em>Recomendada por tu mecánico</em>
+                        }
+                        <a class="link-marca" href="/derivar/@oferta.Id" target="_blank" rel="noopener">Ir a la tienda</a>
+                    </li>
+                }
+            </ul>
+        </div>
+    }
+}
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private ConsultaDto? consulta;
+    private bool cargando = true;
+    private bool trabajando;
+    private string? mensaje;
+    private List<string> errores = [];
+
+    private IReadOnlyList<RepuestoDto> compatibles = [];
+    private IReadOnlyList<MecanicoDto> mecanicos = [];
+    private string provincia = "";
+
+    private bool confirma = true;
+    private HashSet<string> elegidas = new(StringComparer.OrdinalIgnoreCase);
+    private string nota = "";
+
+    private bool EsDuenio => consulta is not null && consulta.Busqueda.ClienteId == Sesion.Cliente?.Id;
+    private bool EsMecanicoAsignado => consulta is not null && consulta.Busqueda.MecanicoId == Sesion.Cliente?.Id;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        cargando = true;
+        if (Sesion.Cliente is null)
+            return;
+
+        consulta = await Fachada.ObtenerConsultaAsync(Id, Sesion.Cliente.Id);
+        if (consulta is not null)
+        {
+            // El catálogo da los nombres de las piezas y, para el mecánico, las opciones a recomendar.
+            var piezas = await Fachada.BuscarRepuestosAsync(consulta.Busqueda.Vehiculo, sistema: null);
+            compatibles = piezas.EsExitoso ? piezas.Valor : [];
+            confirma = consulta.Busqueda.CodigosObjetivo.Count > 0;
+
+            if (EsDuenio && consulta.Busqueda.MecanicoId is null)
+            {
+                provincia = Sesion.Cliente.Provincia ?? "";
+                await CargarMecanicosAsync();
+            }
+        }
+
+        cargando = false;
+    }
+
+    private string NombrePieza(string codigo) =>
+        compatibles.FirstOrDefault(p => p.CodigoCanonico.Equals(codigo, StringComparison.OrdinalIgnoreCase))?.Nombre
+        ?? "Pieza";
+
+    /// <summary>El orden es solo por precio: ni el mecánico ni lo que paga la tienda lo cambian.</summary>
+    private static IEnumerable<OfertaDto> OfertasPorPrecio(BusquedaDto busqueda) =>
+        busqueda.Ofertas.Where(o => o.Disponible).OrderBy(o => o.Moneda).ThenBy(o => o.PrecioTotal);
+
+    private async Task CargarMecanicosAsync()
+    {
+        var todos = await Fachada.ListarMecanicosAsync(string.IsNullOrEmpty(provincia) ? null : provincia);
+        mecanicos = [.. todos.Where(m => m.Id != Sesion.Cliente?.Id)];
+    }
+
+    private void Alternar(string codigo, bool elegido)
+    {
+        if (elegido) elegidas.Add(codigo);
+        else elegidas.Remove(codigo);
+    }
+
+    private Task CompartirAsync(Guid mecanicoId) =>
+        EjecutarAsync(() => Fachada.CompartirConsultaAsync(Id, Sesion.Cliente!.Id, mecanicoId),
+            "Listo, se la compartiste. Te avisamos acá cuando la revise.");
+
+    private Task DejarDeCompartirAsync() =>
+        EjecutarAsync(() => Fachada.DejarDeCompartirConsultaAsync(Id, Sesion.Cliente!.Id),
+            "La consulta ya no está compartida.");
+
+    private Task RevisarAsync() =>
+        EjecutarAsync(() => Fachada.RevisarConsultaAsync(Id, Sesion.Cliente!.Id, new RevisarBusquedaDto
+            {
+                ConfirmaDiagnostico = confirma,
+                CodigosRecomendados = confirma ? [] : [.. elegidas],
+                Nota = nota
+            }),
+            "Revisión enviada. El cliente ya la puede ver.");
+
+    private async Task EjecutarAsync(Func<Task<RepMatch.Common.Resultados.ResultadoOperacion<ConsultaDto>>> accion, string exito)
+    {
+        if (Sesion.Cliente is null)
+            return;
+
+        trabajando = true;
+        errores = [];
+        mensaje = null;
+
+        try
+        {
+            var resultado = await accion();
+            if (resultado.EsFallido)
+            {
+                errores = [.. resultado.Errores];
+                return;
+            }
+
+            consulta = resultado.Valor;
+            mensaje = exito;
+            if (EsDuenio && consulta.Busqueda.MecanicoId is null)
+                await CargarMecanicosAsync();
+        }
+        finally
+        {
+            trabajando = false;
+        }
+    }
+}

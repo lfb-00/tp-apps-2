@@ -1,0 +1,33 @@
+<div class="mecanico">
+    <Avatar Nombre="@Mecanico.NombreVisible" FotoUrl="@Mecanico.FotoUrl" Tamano="40" />
+    <div class="vehiculo-info">
+        <strong>
+            @Mecanico.NombreVisible
+            @if (Mecanico.Destacado)
+            {
+                <span class="etiqueta etiqueta-predeterminado">Pro</span>
+            }
+        </strong>
+        @if (Mecanico.NombreTaller is not null)
+        {
+            <span>@Mecanico.Nombre</span>
+        }
+        @if (Mecanico.Localidad is not null || Mecanico.Provincia is not null)
+        {
+            <span>@string.Join(", ", new[] { Mecanico.Localidad, Mecanico.Provincia }.OfType<string>())</span>
+        }
+        @if (Mecanico.Especialidades.Count > 0)
+        {
+            <span>@string.Join(" · ", Mecanico.Especialidades.Select(NombresSistema.Etiqueta))</span>
+        }
+        @if (Mecanico.Telefono is not null)
+        {
+            <span>@Mecanico.Telefono@(Mecanico.TieneWhatsApp ? " · WhatsApp" : "")</span>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public MecanicoDto Mecanico { get; set; } = null!;
+}

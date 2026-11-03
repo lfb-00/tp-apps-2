@@ -34,6 +34,14 @@ public sealed class BusquedaConfiguration : IEntityTypeConfiguration<Busqueda>
             .HasField("_codigosObjetivo")
             .UsePropertyAccessMode(PropertyAccessMode.Field);
 
+        // Revision del mecanico. MecanicoId no tiene FK a clientes, igual que ClienteId: si el
+        // mecanico borra su cuenta, la revision queda como historial del cliente.
+        b.Property(x => x.NotaMecanico).HasMaxLength(Busqueda.LongitudMaximaNota);
+
+        b.PrimitiveCollection<IReadOnlyCollection<string>>(nameof(Busqueda.CodigosRecomendados))
+            .HasField("_codigosRecomendados")
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+
         b.HasMany(x => x.Ofertas)
             .WithOne()
             .HasForeignKey(o => o.BusquedaId)
@@ -43,6 +51,7 @@ public sealed class BusquedaConfiguration : IEntityTypeConfiguration<Busqueda>
             .SetPropertyAccessMode(PropertyAccessMode.Field);
 
         b.HasIndex(x => x.ClienteId);
+        b.HasIndex(x => x.MecanicoId);
         b.HasIndex(x => x.FechaCreacion);
     }
 }

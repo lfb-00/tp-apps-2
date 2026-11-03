@@ -25,5 +25,9 @@ public sealed class ValidadorCrearCliente : AbstractValidator<CrearClienteDto>
         RuleFor(c => c.RepetirContrasena)
             .NotEmpty().WithMessage("Repetí la contraseña.")
             .Equal(c => c.Contrasena).WithMessage("Las contraseñas no coinciden.");
+
+        RuleFor(c => c.Rol)
+            .Must(r => RolesUsuario.Todos.Contains(r))
+            .WithMessage("Elegí si usás RepMatch como cliente o como mecánico.");
     }
 }

@@ -27,6 +27,28 @@ public enum EstadoBusqueda
     Fallida = 4
 }
 
+/// <summary>
+/// Que hace quien usa RepMatch. Es un dato de la cuenta y no dos entidades separadas: el mecanico
+/// tambien tiene garage, busca y se loguea igual que un cliente; lo que cambia es lo que puede
+/// hacer con las busquedas de otros. Se fija al registrarse.
+/// </summary>
+public enum RolUsuario
+{
+    Cliente = 0,
+    Mecanico = 1
+}
+
+/// <summary>
+/// Plan del mecanico en el modelo freemium. El cliente nunca paga: RepMatch gana por comision de
+/// afiliado en cada derivacion a una tienda y por el plan Pro del profesional. El cobro del plan
+/// queda fuera de alcance (lo haria un proveedor externo); aca solo se modelan sus limites.
+/// </summary>
+public enum PlanMecanico
+{
+    Gratuito = 0,
+    Pro = 1
+}
+
 /// <summary>Urgencia estimada del problema descripto por el cliente.</summary>
 public enum NivelUrgencia
 {

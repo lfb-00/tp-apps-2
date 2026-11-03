@@ -241,6 +241,11 @@ else
                     {
                         <em>@busqueda.CodigosObjetivo.Count @(busqueda.CodigosObjetivo.Count == 1 ? "pieza" : "piezas")</em>
                     }
+                    <a class="link-discreto" href="/consultas/@busqueda.Id">
+                        @(busqueda.Revision is not null ? "Ver la revisión del mecánico"
+                          : busqueda.MecanicoId is not null ? "Compartida con un mecánico · ver"
+                          : "Pedir revisión a un mecánico")
+                    </a>
                 </li>
             }
         </ul>

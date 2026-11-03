@@ -25,7 +25,17 @@ public sealed class ClienteConfiguration : IEntityTypeConfiguration<Cliente>
         b.Property(c => c.FotoTipoContenido).HasMaxLength(20);
         b.Property(c => c.TemaPreferido).HasMaxLength(10);
 
+        // Rol y plan como texto: la tabla se lee sin conocer los valores de las enumeraciones.
+        b.Property(c => c.Rol).HasConversion<string>().HasMaxLength(20).IsRequired();
+        b.Property(c => c.Plan).HasConversion<string>().HasMaxLength(20);
+        b.Property(c => c.NombreTaller).HasMaxLength(Cliente.LongitudMaximaNombreTaller);
+
+        b.PrimitiveCollection<IReadOnlyCollection<SistemaVehiculo>>(nameof(Cliente.Especialidades))
+            .HasField("_especialidades")
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+
         b.HasIndex(c => c.Email).IsUnique();
+        b.HasIndex(c => c.Rol);
 
         // La coleccion se expone como IReadOnlyCollection, asi que EF debe escribir el campo.
         b.HasMany(c => c.Vehiculos)
