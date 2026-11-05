@@ -1,0 +1,62 @@
+@* Lo que leyó la IA en el texto libre: sistema, urgencia y causas probables. Va arriba de las
+   piezas porque explica por qué son esas y no todas las compatibles. *@
+
+<section class="bloque-ia" aria-label="Diagnóstico">
+    @if (Diagnostico.Sistema == "Desconocido")
+    {
+        <div class="bloque-ia-titulo"><AiIcon Size="16" /> No reconocimos el problema</div>
+        <p style="margin:0">Probá contarlo con otras palabras: cuándo pasa, qué ruido hace o qué notás.
+            Mientras tanto te mostramos todas las piezas compatibles con el vehículo.</p>
+    }
+    else
+    {
+        <div class="bloque-ia-titulo">
+            <AiIcon Size="16" />
+            <span>Probablemente: @NombresSistema.Etiqueta(Diagnostico.Sistema).ToLowerInvariant()</span>
+            @if (Diagnostico.Urgencia != "Desconocida")
+            {
+                <span class="etiqueta @ClaseUrgencia">Urgencia @EtiquetaUrgencia.ToLowerInvariant()</span>
+            }
+        </div>
+
+        @if (Diagnostico.Causas.Count > 0)
+        {
+            <ul style="margin:0; padding-left:1.1rem">
+                @foreach (var causa in Diagnostico.Causas)
+                {
+                    <li>@causa</li>
+                }
+            </ul>
+        }
+
+        @if (SinPiezasDelSistema)
+        {
+            <p style="margin:0.65rem 0 0">Todavía no tenemos piezas de @NombresSistema.Etiqueta(Diagnostico.Sistema).ToLowerInvariant()
+                catalogadas para este vehículo. Te mostramos todas las compatibles.</p>
+        }
+    }
+
+    <p class="bloque-ia-pie">Es una orientación automática. Antes de comprar, confirmala con un mecánico.</p>
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public DiagnosticoBusquedaDto Diagnostico { get; set; } = default!;
+
+    /// <summary>Las piezas que se muestran debajo. Si ninguna es del sistema diagnosticado, la IA no
+    /// pudo elegir y se ven todas las compatibles: hay que decirlo para no confundir.</summary>
+    [Parameter]
+    public IReadOnlyList<RepuestoDto> Piezas { get; set; } = [];
+
+    private bool SinPiezasDelSistema =>
+        Piezas.Count > 0 && Piezas.All(p => p.Sistema != Diagnostico.Sistema);
+
+    private string EtiquetaUrgencia => Diagnostico.Urgencia == "Critica" ? "Crítica" : Diagnostico.Urgencia;
+
+    private string ClaseUrgencia => Diagnostico.Urgencia switch
+    {
+        "Baja" => "etiqueta-ok",
+        "Media" => "etiqueta-pendiente",
+        _ => "etiqueta-urgente"
+    };
+}

@@ -107,6 +107,15 @@ public static class Mapeadores
         FechaCreacion = busqueda.FechaCreacion,
         MotivoFalla = busqueda.MotivoFalla,
         CodigosObjetivo = [.. busqueda.CodigosObjetivo],
+        Diagnostico = busqueda.TieneDiagnostico
+            ? new DiagnosticoBusquedaDto
+            {
+                Sistema = (busqueda.SistemaDiagnosticado ?? SistemaVehiculo.Desconocido).ToString(),
+                Urgencia = busqueda.Urgencia.ToString(),
+                Causas = [.. busqueda.CausasProbables],
+                Fuente = busqueda.FuenteDiagnostico!
+            }
+            : null,
         Ofertas = [.. busqueda.Ofertas.Select(o => o.ADto())],
         MecanicoId = busqueda.MecanicoId,
         CompartidaEn = busqueda.CompartidaEn,

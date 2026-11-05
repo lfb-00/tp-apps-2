@@ -12,6 +12,10 @@ public sealed record BusquedaDto
     public required DateTimeOffset FechaCreacion { get; init; }
     public string? MotivoFalla { get; init; }
     public IReadOnlyList<string> CodigosObjetivo { get; init; } = [];
+
+    /// <summary>null si la búsqueda no pasó por la IA: los códigos salieron solo por compatibilidad.</summary>
+    public DiagnosticoBusquedaDto? Diagnostico { get; init; }
+
     public IReadOnlyList<OfertaDto> Ofertas { get; init; } = [];
 
     public Guid? MecanicoId { get; init; }

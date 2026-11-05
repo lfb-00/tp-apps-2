@@ -2,6 +2,7 @@ using RepMatch.Aplicacion;
 using RepMatch.Aplicacion.Catalogo;
 using RepMatch.Common.Logging;
 using RepMatch.Contracts;
+using RepMatch.IA;
 using RepMatch.Persistence;
 using Serilog;
 
@@ -20,6 +21,11 @@ builder.Services.AgregarAplicacion();
 // Este servicio ES el duenio del catalogo: siempre resuelve en proceso.
 builder.Services.AddScoped<ICatalogoRepuestos, CatalogoLocal>();
 builder.Services.AddScoped<ICatalogoVehiculos, CatalogoVehiculosLocal>();
+
+// Las busquedas creadas por POST /api/busquedas tambien pasan por la IA. En proceso: este host
+// ya tiene el catalogo y no tiene por que depender de que IA.Api este levantado.
+builder.Services.AgregarDiagnosticoIA(builder.Configuration);
+builder.Services.AddScoped<IDiagnosticador>(sp => sp.GetRequiredService<DiagnosticadorConRespaldo>());
 
 var app = builder.Build();
 

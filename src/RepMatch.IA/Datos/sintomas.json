@@ -1,0 +1,48 @@
+[
+  { "frase": "hace un ruido al frenar", "sistema": "Frenos", "urgencia": "Media", "causa": "Pastillas de freno gastadas", "repuestos": ["pastillas"] },
+  { "frase": "chirrido cuando freno", "sistema": "Frenos", "urgencia": "Media", "causa": "Pastillas de freno gastadas", "repuestos": ["pastillas"] },
+  { "frase": "chilla al frenar como un metal que raspa", "sistema": "Frenos", "urgencia": "Alta", "causa": "Pastillas gastadas hasta el metal, que ya rayan el disco", "repuestos": ["pastillas", "discos"] },
+  { "frase": "vibra el volante cuando freno", "sistema": "Frenos", "urgencia": "Media", "causa": "Discos de freno alabeados", "repuestos": ["discos"] },
+  { "frase": "tiembla el pedal al frenar fuerte", "sistema": "Frenos", "urgencia": "Media", "causa": "Discos de freno alabeados", "repuestos": ["discos"] },
+  { "frase": "el pedal de freno se va hasta el fondo", "sistema": "Frenos", "urgencia": "Critica", "causa": "Pérdida de líquido o falla del circuito hidráulico de freno", "repuestos": [] },
+  { "frase": "frena poco tengo que pisar mucho el pedal", "sistema": "Frenos", "urgencia": "Alta", "causa": "Pastillas cristalizadas o desgastadas", "repuestos": ["pastillas"] },
+  { "frase": "se tira para un costado al frenar", "sistema": "Frenos", "urgencia": "Alta", "causa": "Desgaste desparejo de pastillas o discos", "repuestos": ["pastillas", "discos"] },
+  { "frase": "se prendio la luz de freno del tablero", "sistema": "Frenos", "urgencia": "Alta", "causa": "Pastillas al límite o nivel de líquido de freno bajo", "repuestos": ["pastillas"] },
+
+  { "frase": "tironea en subida", "sistema": "Motor", "urgencia": "Media", "causa": "Bujías gastadas o falla de encendido", "repuestos": ["bujias"] },
+  { "frase": "falla en baja se ahoga y se apaga", "sistema": "Motor", "urgencia": "Media", "causa": "Bujías gastadas o filtro de aire sucio", "repuestos": ["bujias", "filtro aire"] },
+  { "frase": "pierde potencia y consume mucho combustible", "sistema": "Motor", "urgencia": "Media", "causa": "Filtro de aire tapado", "repuestos": ["filtro aire"] },
+  { "frase": "sale humo negro del escape y gasta nafta", "sistema": "Motor", "urgencia": "Media", "causa": "Mezcla rica por filtro de aire tapado", "repuestos": ["filtro aire"] },
+  { "frase": "se prendio la luz de aceite", "sistema": "Motor", "urgencia": "Alta", "causa": "Nivel o presión de aceite bajos", "repuestos": ["filtro aceite"] },
+  { "frase": "toca hacer el service cambio de aceite y filtros", "sistema": "Motor", "urgencia": "Baja", "causa": "Mantenimiento periódico", "repuestos": ["filtro aceite", "filtro aire"] },
+  { "frase": "golpeteo metalico en el motor", "sistema": "Motor", "urgencia": "Alta", "causa": "Falta de lubricación", "repuestos": ["filtro aceite"] },
+  { "frase": "se paso el kilometraje de la correa de distribucion", "sistema": "Motor", "urgencia": "Alta", "causa": "Correa de distribución vencida", "repuestos": ["correa"] },
+  { "frase": "chilla la correa al arrancar en frio", "sistema": "Motor", "urgencia": "Media", "causa": "Correa o tensor gastados", "repuestos": ["correa"] },
+  { "frase": "el motor gira pero no explota no arranca", "sistema": "Motor", "urgencia": "Alta", "causa": "Falla de encendido o correa de distribución cortada", "repuestos": ["bujias", "correa"] },
+  { "frase": "tarda en arrancar y despues tironea", "sistema": "Motor", "urgencia": "Media", "causa": "Bujías gastadas", "repuestos": ["bujias"] },
+
+  { "frase": "no arranca hace clic clic al girar la llave", "sistema": "Electrico", "urgencia": "Alta", "causa": "Batería descargada", "repuestos": ["bateria"] },
+  { "frase": "las luces se ponen debiles al arrancar", "sistema": "Electrico", "urgencia": "Media", "causa": "Batería agotada", "repuestos": ["bateria"] },
+  { "frase": "se descarga la bateria si no lo uso unos dias", "sistema": "Electrico", "urgencia": "Media", "causa": "Batería al final de su vida útil", "repuestos": ["bateria"] },
+  { "frase": "tarda en arrancar a la mañana cuando hace frio", "sistema": "Electrico", "urgencia": "Media", "causa": "Batería débil", "repuestos": ["bateria"] },
+  { "frase": "le tuve que pasar cables para que arranque", "sistema": "Electrico", "urgencia": "Alta", "causa": "Batería descargada o agotada", "repuestos": ["bateria"] },
+
+  { "frase": "se calienta parado en el transito", "sistema": "Refrigeracion", "urgencia": "Alta", "causa": "Falla de refrigeración: radiador tapado o electroventilador", "repuestos": ["radiador"] },
+  { "frase": "pierde agua queda un charco abajo del motor", "sistema": "Refrigeracion", "urgencia": "Alta", "causa": "Pérdida en la bomba de agua o en el radiador", "repuestos": ["bomba agua", "radiador"] },
+  { "frase": "sube la temperatura en ruta", "sistema": "Refrigeracion", "urgencia": "Alta", "causa": "Bomba de agua gastada o radiador tapado", "repuestos": ["bomba agua", "radiador"] },
+  { "frase": "baja el nivel del refrigerante", "sistema": "Refrigeracion", "urgencia": "Media", "causa": "Pérdida de refrigerante", "repuestos": ["bomba agua", "radiador"] },
+  { "frase": "sale vapor del capot y la aguja de temperatura al maximo", "sistema": "Refrigeracion", "urgencia": "Critica", "causa": "Recalentamiento del motor", "repuestos": ["radiador", "bomba agua"] },
+
+  { "frase": "golpea la suspension en los pozos", "sistema": "Suspension", "urgencia": "Media", "causa": "Amortiguadores gastados", "repuestos": ["amortiguador"] },
+  { "frase": "rebota mucho despues de los lomos de burro", "sistema": "Suspension", "urgencia": "Media", "causa": "Amortiguadores vencidos", "repuestos": ["amortiguador"] },
+  { "frase": "ruido en el tren delantero al doblar", "sistema": "Suspension", "urgencia": "Media", "causa": "Rótulas o bujes gastados", "repuestos": ["rotula"] },
+  { "frase": "hace toc toc adelante en el empedrado", "sistema": "Suspension", "urgencia": "Media", "causa": "Rótula con juego", "repuestos": ["rotula", "amortiguador"] },
+  { "frase": "el amortiguador esta mojado pierde aceite", "sistema": "Suspension", "urgencia": "Media", "causa": "Amortiguador roto", "repuestos": ["amortiguador"] },
+
+  { "frase": "la direccion esta dura cuesta doblar", "sistema": "Direccion", "urgencia": "Media", "causa": "Falta de fluido o falla de la bomba de dirección", "repuestos": [] },
+  { "frase": "el volante vibra en ruta a alta velocidad", "sistema": "Neumaticos", "urgencia": "Baja", "causa": "Ruedas desbalanceadas", "repuestos": [] },
+  { "frase": "las cubiertas se gastan desparejas", "sistema": "Neumaticos", "urgencia": "Baja", "causa": "Falta de alineación", "repuestos": [] },
+  { "frase": "cuesta pasar los cambios", "sistema": "Transmision", "urgencia": "Media", "causa": "Embrague gastado o regulación del cable", "repuestos": [] },
+  { "frase": "patina el embrague en subida", "sistema": "Transmision", "urgencia": "Media", "causa": "Embrague gastado", "repuestos": [] },
+  { "frase": "hace mucho ruido el escape", "sistema": "Escape", "urgencia": "Baja", "causa": "Silenciador o caño de escape roto", "repuestos": [] }
+]

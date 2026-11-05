@@ -1,10 +1,10 @@
 # Diagrama de despliegue — RepMatch
 
-Dos topologías: la del **TP Inicial y Primera Parte**, que es la que está implementada y se levanta con
-`docker compose up`, y la **prevista** para las entregas siguientes, que se documenta acá para
-mostrar que la arquitectura actual la admite sin rediseño.
+Dos topologías: la **implementada** (TP Inicial, Primera Parte y el componente de IA de la Segunda
+Parte), que se levanta con `docker compose up`, y la **prevista** para las entregas siguientes, que
+se documenta acá para mostrar que la arquitectura actual la admite sin rediseño.
 
-## TP Inicial y Primera Parte — implementados
+## Implementada — TP Inicial, Primera Parte y componente de IA
 
 ```mermaid
 flowchart TB
@@ -14,11 +14,15 @@ flowchart TB
 
     subgraph docker["🐳 Docker host — red bridge 'repmatch'"]
         subgraph c1["Contenedor: repmatch-web"]
-            W["RepMatch.Web<br/>ASP.NET Core 10 · Blazor Server<br/><b>:8080</b><br/>Catalogo__Modo=Remoto<br/>volumen claves-web"]
+            W["RepMatch.Web<br/>ASP.NET Core 10 · Blazor Server<br/><b>:8080</b><br/>Catalogo__Modo=Remoto · IA__Modo=Remoto<br/>volumen claves-web"]
         end
 
         subgraph c2["Contenedor: repmatch-catalogo-api"]
             A["RepMatch.Catalogo.Api<br/>ASP.NET Core 10 · REST + OpenAPI<br/><b>:8080</b> → host :8081"]
+        end
+
+        subgraph c4["Contenedor: repmatch-ia-api"]
+            IA["RepMatch.IA.Api<br/>ASP.NET Core 10 · REST + OpenAPI<br/><b>:8080</b> → host :8083<br/>sin base de datos"]
         end
 
         subgraph c3["Contenedor: repmatch-postgres"]
@@ -28,11 +32,17 @@ flowchart TB
 
     BR -- "http://localhost:8080" --> W
     W == "HTTP/JSON<br/>http://catalogo-api:8080<br/><b>acceso REMOTO</b>" ==> A
+    W == "HTTP/JSON<br/>http://ia-api:8080<br/>POST /api/diagnostico" ==> IA
     W -- "Npgsql" --> P
     A -- "Npgsql" --> P
 
+    LLM(["🌐 Proveedor LLM<br/>Groq o Gemini<br/><i>solo con IA_LLM_APIKEY</i>"])
+    IA -. "HTTPS, opcional" .-> LLM
+    A -. "HTTPS, opcional<br/>(diagnóstico en proceso)" .-> LLM
+
     style W fill:#eaf2fa,stroke:#1f5f9e
     style A fill:#fbf0e2,stroke:#9a5b13
+    style IA fill:#f3ecfa,stroke:#6b3fa0
     style P fill:#e6f4ec,stroke:#1f7a4d
 ```
 
@@ -41,15 +51,16 @@ flowchart TB
 | Nodo | Imagen | Puerto host | Rol |
 |---|---|---|---|
 | `repmatch-web` | build desde `src/RepMatch.Web/Dockerfile` | 8080 | Capa de presentación + factory del catálogo. Volumen `claves-web` con las claves que cifran la sesión del navegador, para que sobreviva a la recreación del contenedor |
-| `repmatch-catalogo-api` | build desde `src/RepMatch.Catalogo.Api/Dockerfile` | 8081 | Host remoto del componente de catálogo |
+| `repmatch-catalogo-api` | build desde `src/RepMatch.Catalogo.Api/Dockerfile` | 8081 | Host remoto del componente de catálogo. Las búsquedas creadas por su API se diagnostican en proceso |
+| `repmatch-ia-api` | build desde `src/RepMatch.IA.Api/Dockerfile` | 8083 | Host REST del componente de IA. Sin base: recibe los candidatos en la petición. Sin clave de LLM responde el clasificador local |
 | `repmatch-postgres` | `postgres:17-alpine` | 5432 | Persistencia, con volumen nombrado |
 
 Las imágenes .NET son multi-etapa: se compila con `mcr.microsoft.com/dotnet/sdk:10.0` y se publica
-sobre `mcr.microsoft.com/dotnet/aspnet:10.0`, que no lleva compilador. Ambos servicios corren como
+sobre `mcr.microsoft.com/dotnet/aspnet:10.0`, que no lleva compilador. Los tres servicios corren como
 usuario `app`, sin privilegios de root.
 
-`postgres` declara un `healthcheck` con `pg_isready` y los servicios .NET dependen de
-`condition: service_healthy`: sin eso, la API arranca antes de que la base acepte conexiones. Como
+`postgres` declara un `healthcheck` con `pg_isready` y los servicios .NET que usan la base dependen de
+`condition: service_healthy`; la Web espera además a que `catalogo-api` e `ia-api` respondan `/salud`: sin eso, la API arranca antes de que la base acepte conexiones. Como
 segunda red de seguridad, `ExtensionesPersistencia.InicializarBaseAsync` reintenta hasta diez veces
 con espera creciente.
 
@@ -60,10 +71,17 @@ con espera creciente.
 | **Local** | `Catalogo__Modo=Local` | Invocación directa en proceso: la Web resuelve el catálogo por referencia de proyecto y no genera tráfico hacia `catalogo-api` |
 | **Remoto** | `Catalogo__Modo=Remoto` *(por defecto en compose)* | Invocación remota: cada consulta sale por HTTP al otro contenedor, y el mismo `X-Correlation-Id` aparece en los logs de ambos |
 
+La IA tiene los mismos dos modos con `IA__Modo`: `Remoto` en el servicio `web` de compose y `Local`
+en `web-local`.
+
 Fuera de contenedores, para desarrollo:
 
 ```bash
 dotnet run --project src/RepMatch.Catalogo.Api --urls http://localhost:5081
+```
+
+```bash
+dotnet run --project src/RepMatch.IA.Api --urls http://localhost:5083
 ```
 
 ```bash
@@ -77,16 +95,16 @@ mismo `ICatalogoRepuestos`, y el cliente de `catalogo-soap` será una tercera im
 
 ```mermaid
 flowchart TB
-    subgraph implementado["Ya implementado (TP Inicial y Primera Parte)"]
+    subgraph implementado["Ya implementado"]
         W["web :8080<br/>Blazor + BFF"]
         A["catalogo-api :8081<br/>REST"]
+        IA["ia-api :8083<br/>diagnóstico por texto libre"]
         P[("postgres :5432")]
     end
 
     subgraph previsto["Previsto"]
-        S["search-api :8083<br/>agregador de ofertas"]
+        S["search-api :8084<br/>agregador de ofertas"]
         SOAP["catalogo-soap :8082<br/>CoreWCF · WSDL"]
-        IA["ai-api :8084<br/>diagnóstico por texto libre"]
         WK["notificaciones-worker<br/>consumidores"]
         MQ{{"rabbitmq :5672<br/>UI :15672"}}
         R[("redis :6379<br/>caché de ofertas")]
@@ -115,6 +133,7 @@ flowchart TB
 
     style W fill:#eaf2fa,stroke:#1f5f9e
     style A fill:#fbf0e2,stroke:#9a5b13
+    style IA fill:#f3ecfa,stroke:#6b3fa0
     style P fill:#e6f4ec,stroke:#1f7a4d
 ```
 
@@ -126,4 +145,5 @@ flowchart TB
 | VTEX `easy.com.ar` | ninguna | ✅ HTTP 206 con autopartes reales |
 | VTEX `fravega.com` | ninguna | ✅ HTTP 206 |
 | NHTSA vPIC | ninguna | ✅ HTTP 200 |
+| LLM (Groq o Gemini, ya usado por `ia-api`) | clave del proveedor en `IA_LLM_APIKEY`, opcional | sin probar con clave real; sin clave responde el clasificador local |
 | MercadoLibre | — | ❌ descartado: `403 forbidden`, cerraron la búsqueda pública |

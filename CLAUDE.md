@@ -41,7 +41,7 @@ Los docs son entregables evaluados tanto como el código. Cada etapa suma sobre 
   capa de servicios**.
 - **Entregable:** app funcional + documentación de patrones aplicados + diagrama de capas.
 
-### Segunda Parte — integración sincrónica y asincrónica
+### Segunda Parte — integración sincrónica y asincrónica (**en curso**: IA implementada)
 - ≥1 servicio **SOAP** (WSDL + contrato) y ≥2 servicios **REST** (OpenAPI/Swagger).
 - Mensajería con colas (RabbitMQ decidido), productores y consumidores (ej. `BusquedaCreada`).
 - Integración SOA / microservicios ligeros.
@@ -73,21 +73,28 @@ src/
                            interfaces I*Repository e IUnitOfWork. SIN dependencias.
   RepMatch.Common/         Utilidad: Serilog + CorrelacionMiddleware, validación, opciones,
                            ResultadoOperacion<T>, ResultadoMedido/Cronometro. SIN refs internas.
-  RepMatch.Contracts/      DTOs, ICatalogoRepuestos, ICatalogoVehiculos, OpcionesCatalogo. SIN refs internas.
+  RepMatch.Contracts/      DTOs, ICatalogoRepuestos, ICatalogoVehiculos, IDiagnosticador, OpcionesCatalogo,
+                           OpcionesIA. SIN refs internas.
   RepMatch.Persistence/    Acceso a datos: RepMatchDbContext, Configuraciones/ (todo el mapeo EF),
                            repositorios, UnitOfWork, DatosSemilla. → Domain, Common
   RepMatch.Aplicacion/     Lógica de negocio: FachadaAplicacion, ServicioClientes, ServicioBusquedas,
                            ServicioMecanicos, ServicioRevisiones, ServicioDerivaciones,
-                           DespachadorEventos, ObservadorCompatibilidad, validadores, mapeadores,
+                           ServicioDiagnostico, DespachadorEventos, ObservadorCompatibilidad,
+                           validadores, mapeadores,
                            CatalogoLocal, CatalogoVehiculosLocal. → Domain, Common, Contracts
-  RepMatch.Clientes.Rest/  Adaptadores remotos: CatalogoRemoto y CatalogoVehiculosRemoto (HttpClient tipado).
-                           → Common, Contracts
+  RepMatch.Clientes.Rest/  Adaptadores remotos: CatalogoRemoto, CatalogoVehiculosRemoto y
+                           DiagnosticadorRemoto (HttpClient tipado). → Common, Contracts
+  RepMatch.IA/             Componente de IA: DiagnosticadorLlm (Groq/Gemini, API compatible con
+                           OpenAI), DiagnosticadorLocal (TF-IDF + k-NN sobre Datos/sintomas.json,
+                           embebido), DiagnosticadorConRespaldo, FiltroDatosPersonales. → Common, Contracts
   RepMatch.Catalogo.Api/   Host REST del catálogo (controllers, OpenAPI en /openapi/v1.json).
                            Siempre resuelve ICatalogoRepuestos con CatalogoLocal e
-                           ICatalogoVehiculos con CatalogoVehiculosLocal.
-  RepMatch.Web/            Presentación Blazor Server. FabricaCatalogo elige Local/Remoto.
-tests/RepMatch.Tests/      Dominio/, Persistencia/, Aplicacion/, Presentacion/ e Integracion/
-                           (WebApplicationFactory sobre Catalogo.Api)
+                           ICatalogoVehiculos con CatalogoVehiculosLocal; IDiagnosticador en proceso.
+  RepMatch.IA.Api/         Host REST de la IA: POST /api/diagnostico, OpenAPI. Sin base de datos.
+  RepMatch.Web/            Presentación Blazor Server. FabricaCatalogo y FabricaDiagnostico eligen
+                           Local/Remoto.
+tests/RepMatch.Tests/      Dominio/, Persistencia/, Aplicacion/, Presentacion/, Integracion/
+                           (WebApplicationFactory sobre Catalogo.Api) e IA/ (también sobre IA.Api)
 docs/                      informe-arquitectura.md, patrones.md, diagramas/*.md (Mermaid), evidencias/
 scripts/evidencias.sh      regenera docs/evidencias/ (logs + mediciones local vs. remoto)
 ```
@@ -114,19 +121,25 @@ scripts/evidencias.sh      regenera docs/evidencias/ (logs + mediciones local vs
 - **Catálogo vehicular**: `ICatalogoVehiculos` tiene estrategias local y remota elegidas por
   la misma fábrica. `SelectorVehiculo` lo consulta directamente. La fachada valida la configuración
   antes de buscar piezas.
-- **Punto de extensión de la IA**: hoy `ObservadorCompatibilidad`, al recibir `BusquedaCreada`, llena
-  `CodigosObjetivo` por compatibilidad de vehículo; la IA lo reemplazará o complementará leyendo
-  `Busqueda.TextoLibre`, sin cambiar la firma pública de `ServicioBusquedas.CrearAsync`.
+- **IA**: `ObservadorCompatibilidad`, al recibir `BusquedaCreada`, delega en `ServicioDiagnostico`:
+  el catálogo da las piezas compatibles (filtro duro) y `IDiagnosticador` elige entre ellas leyendo
+  `Busqueda.TextoLibre`. El LLM nunca inventa códigos: recibe los candidatos y lo que no está en la
+  lista se descarta. Sin clave, con error o timeout responde el clasificador local
+  (`Fuente = "fallback-local"`); si la IA remota no responde, quedan todas las compatibles.
+  `ServicioBusquedas.CrearAsync` no cambió. `Busqueda.RegistrarDiagnostico` guarda sistema,
+  urgencia, causas y fuente. La búsqueda sin sesión usa `FachadaAplicacion.DiagnosticarAsync` y no
+  guarda el texto. `FabricaDiagnostico` elige por `IA:Modo`, igual que el catálogo.
 - **Roles y modelo de negocio**: `Cliente.Rol` distingue cliente y mecánico (misma entidad, a
   propósito). El cliente comparte una `Busqueda` con un mecánico, que confirma o corrige el
   diagnóstico (`CodigosRecomendados` queda aparte de `CodigosObjetivo`: es el dato etiquetado de la
   IA). El ingreso es comisión de afiliado por `Derivacion` (`GET /derivar/{ofertaId}`) y el plan Pro
   del mecánico, sin cobro real. El ranking de ofertas depende solo del precio: no lo atar a quién paga.
 - **Configuración externalizada**: todo se sobreescribe por variable de entorno (`Seccion__Clave`):
-  `Catalogo:Modo` (`Local`/`Remoto`), `Catalogo:UrlBaseRemota`, `Persistencia:Proveedor`
+  `Catalogo:Modo` (`Local`/`Remoto`), `Catalogo:UrlBaseRemota`, `IA:Modo`, `IA:UrlBaseRemota`,
+  `IA:Llm:*` (`ApiKey` solo por entorno o `.env`, nunca en el repo), `Persistencia:Proveedor`
   (`InMemory`/`Postgres`), `ConnectionStrings:RepMatch`. Puertos del host en `.env`.
 - **Logging/trazabilidad**: cada host llama `UsarSerilog(nombre)` y `UsarCorrelacion()`; el id de
-  correlación viaja Web → Catalogo.Api (es parte de las evidencias).
+  correlación viaja Web → Catalogo.Api y Web → IA.Api (es parte de las evidencias).
 - Base: `EnsureCreatedAsync` + `DatosSemilla`, idempotente, con reintentos. **No hay migraciones.**
 
 ### Patrones ya documentados
@@ -139,8 +152,9 @@ capas está en `docs/diagramas/capas.md`. Al agregar un patrón, documentarlo co
 ```bash
 dotnet build && dotnet test                                            # sin Docker, InMemory
 dotnet run --project src/RepMatch.Catalogo.Api --urls http://localhost:5081
+dotnet run --project src/RepMatch.IA.Api --urls http://localhost:5083
 dotnet run --project src/RepMatch.Web --urls http://localhost:5080    # GET /evidencia/catalogo mide el modo activo
-docker compose up --build --wait                                       # web 8080, api 8081, pg 5432 (Web en modo Remoto)
+docker compose up --build --wait                                       # web 8080, api 8081, ia 8083, pg 5432 (Web en modo Remoto)
 docker compose --profile test run --rm tests                           # pruebas sin SDK
 docker compose --profile local up --build web-local                    # Web en modo Local (8090)
 bash scripts/evidencias.sh                                             # regenera docs/evidencias/
@@ -155,7 +169,8 @@ La solución compila **sin advertencias**; mantenerlo así.
 - Comentarios XML `/// <summary>` que explican **por qué** (el docente los lee): qué pide la
   consigna, qué alternativa se descartó, qué etapa futura se enchufa ahí.
 - Registro de DI por componente con métodos de extensión `Agregar*` / `Usar*`
-  (`AgregarPersistencia`, `AgregarAplicacion`, `AgregarCatalogo`, `UsarSerilog`, `UsarCorrelacion`).
+  (`AgregarPersistencia`, `AgregarAplicacion`, `AgregarCatalogo`, `AgregarDiagnostico`,
+  `AgregarDiagnosticoIA`, `UsarSerilog`, `UsarCorrelacion`).
 - Endpoints de salud en `/salud` en cada host (los usan los healthchecks de Docker).
 - Fuentes de ofertas: solo APIs públicas oficiales, nunca scraping.
 
@@ -165,7 +180,8 @@ La solución compila **sin advertencias**; mantenerlo así.
   entregas siguientes" y la de entregables), `docs/diagramas/*.md`, `docs/patrones.md` y
   `README.md`. Los diagramas se editan en los bloques Mermaid de los Markdown, que son su única fuente. Verificar su renderizado con un preview compatible.
 - **Cantidad de pruebas**: está escrita literal en la sección 5.4 del informe (la salida de
-  `dotnet test`) y en `status.md` ("98 passed", ejecución local del 2026-11-03; la última en Docker, del 2026-10-11, dio 84). `docker-compose.yml` y
+  `dotnet test`) y en `status.md` ("137 passed", `dotnet test` local del 2026-11-04 y Docker en
+  WSL del 2026-11-05). `docker-compose.yml` y
   `tests/RepMatch.Tests/Dockerfile` dicen "las pruebas" sin número, a propósito. Si agregás o quitás
   pruebas, corré `dotnet test` y actualizá los dos.
 - **Proyecto nuevo**: sumarlo a `RepMatch.slnx` **y** a los `COPY` de `.csproj` de cada

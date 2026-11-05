@@ -30,6 +30,15 @@ public sealed class BusquedaConfiguration : IEntityTypeConfiguration<Busqueda>
 
         b.Navigation(x => x.Vehiculo).IsRequired();
 
+        // Diagnostico de la IA. Texto y no entero, igual que Estado: se lee en la base sin tabla de codigos.
+        b.Property(x => x.SistemaDiagnosticado).HasConversion<string>().HasMaxLength(20);
+        b.Property(x => x.Urgencia).HasConversion<string>().HasMaxLength(20).IsRequired();
+        b.Property(x => x.FuenteDiagnostico).HasMaxLength(30);
+
+        b.PrimitiveCollection<IReadOnlyCollection<string>>(nameof(Busqueda.CausasProbables))
+            .HasField("_causasProbables")
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+
         b.PrimitiveCollection<IReadOnlyCollection<string>>(nameof(Busqueda.CodigosObjetivo))
             .HasField("_codigosObjetivo")
             .UsePropertyAccessMode(PropertyAccessMode.Field);
