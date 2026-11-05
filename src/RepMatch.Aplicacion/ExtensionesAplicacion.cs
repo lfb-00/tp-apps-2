@@ -10,8 +10,8 @@ namespace RepMatch.Aplicacion;
 
 /// <summary>
 /// Registro de la capa de logica de negocio. Deliberadamente NO registra
-/// <see cref="Contracts.ICatalogoRepuestos"/>: esa eleccion es del host, que decide con
-/// FabricaCatalogo si lo resuelve en proceso o por HTTP.
+/// <see cref="Contracts.ICatalogoRepuestos"/> ni <see cref="Contracts.IDiagnosticador"/>: esa
+/// eleccion es del host, que decide con sus fabricas si los resuelve en proceso o por HTTP.
 /// </summary>
 public static class ExtensionesAplicacion
 {
@@ -34,6 +34,7 @@ public static class ExtensionesAplicacion
         servicios.AddScoped<ServicioMecanicos>();
         servicios.AddScoped<ServicioRevisiones>();
         servicios.AddScoped<ServicioDerivaciones>();
+        servicios.AddScoped<ServicioDiagnostico>();
         servicios.AddScoped<FachadaAplicacion>();
 
         servicios.AddScoped<IObservadorEventoDominio, ObservadorCompatibilidad>();

@@ -13,6 +13,8 @@ COPY src/RepMatch.Contracts/RepMatch.Contracts.csproj           src/RepMatch.Con
 COPY src/RepMatch.Persistence/RepMatch.Persistence.csproj       src/RepMatch.Persistence/
 COPY src/RepMatch.Aplicacion/RepMatch.Aplicacion.csproj         src/RepMatch.Aplicacion/
 COPY src/RepMatch.Clientes.Rest/RepMatch.Clientes.Rest.csproj   src/RepMatch.Clientes.Rest/
+COPY src/RepMatch.IA/RepMatch.IA.csproj                         src/RepMatch.IA/
+COPY src/RepMatch.IA.Api/RepMatch.IA.Api.csproj                 src/RepMatch.IA.Api/
 COPY src/RepMatch.Catalogo.Api/RepMatch.Catalogo.Api.csproj     src/RepMatch.Catalogo.Api/
 COPY src/RepMatch.Web/RepMatch.Web.csproj                       src/RepMatch.Web/
 COPY tests/RepMatch.Tests/RepMatch.Tests.csproj                 tests/RepMatch.Tests/

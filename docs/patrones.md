@@ -14,6 +14,11 @@ descartó y cómo se ve en el código real.
 | [Observer](#observer-despachador-de-eventos-de-dominio) | `src/RepMatch.Aplicacion/Eventos/` — `IDespachadorEventos`, `DespachadorEventos`, `IObservadorEventoDominio`, `ObservadorCompatibilidad`; los eventos (`BusquedaCreada` y los de la colaboración con el mecánico) en `src/RepMatch.Domain/Eventos/` |
 | [Facade](#facade-fachadaaplicacion) | `src/RepMatch.Aplicacion/Fachada/FachadaAplicacion.cs` |
 
+El catálogo vehicular y el componente de IA de la Segunda Parte repiten Factory, Strategy y Adapter
+con contratos propios; se describen al final, en [El catálogo vehicular y los mismos
+patrones](#el-catálogo-vehicular-y-los-mismos-patrones) y [El componente de IA y los mismos
+patrones](#el-componente-de-ia-y-los-mismos-patrones).
+
 ---
 
 ## Factory: `FabricaCatalogo`
@@ -108,11 +113,11 @@ decisión duplicada.
 
 Ver [ICatalogoRepuestos.cs](../src/RepMatch.Contracts/ICatalogoRepuestos.cs).
 
-El consumidor ve una sola cosa, que es la interfaz. `ObservadorCompatibilidad` recibe
-`ICatalogoRepuestos` sin saber cuál de las dos estrategias le inyectó el contenedor, y la usa igual
-en los dos modos:
+El consumidor ve una sola cosa, que es la interfaz. `ServicioDiagnostico`, al que delega
+`ObservadorCompatibilidad`, recibe `ICatalogoRepuestos` sin saber cuál de las dos estrategias le
+inyectó el contenedor, y la usa igual en los dos modos:
 
-Ver [ObservadorCompatibilidad.cs](../src/RepMatch.Aplicacion/Eventos/ObservadorCompatibilidad.cs).
+Ver [ServicioDiagnostico.cs](../src/RepMatch.Aplicacion/Servicios/ServicioDiagnostico.cs).
 
 | | Local | Remoto |
 |---|---|---|
@@ -310,7 +315,8 @@ El contrato del evento en `src/RepMatch.Domain/Comun/IEventoDominio.cs`. El buz�
 Los eventos concretos en `src/RepMatch.Domain/Eventos/`: `BusquedaCreada`, `BusquedaCompartida`,
 `DiagnosticoValidado` y `DerivacionATienda`. La interfaz de observador en
 `src/RepMatch.Aplicacion/Eventos/IObservadorEventoDominio.cs`. El observador concreto en
-`src/RepMatch.Aplicacion/Eventos/ObservadorCompatibilidad.cs`. El despachador en
+`src/RepMatch.Aplicacion/Eventos/ObservadorCompatibilidad.cs`, que desde la Segunda Parte delega
+en `ServicioDiagnostico` para combinar compatibilidad e IA. El despachador en
 `src/RepMatch.Aplicacion/Eventos/IDespachadorEventos.cs` y `DespachadorEventos.cs`.
 
 ### Qué problema resuelve
@@ -402,9 +408,9 @@ Ver [ExtensionesAplicacion.cs](../src/RepMatch.Aplicacion/ExtensionesAplicacion.
 
 ### Qué problema resuelve
 
-La fachada coordina siete dependencias de la capa de aplicación:
+La fachada coordina ocho dependencias de la capa de aplicación:
 `ServicioClientes`, `ServicioBusquedas`, `ServicioMecanicos`, `ServicioRevisiones`,
-`ServicioDerivaciones`, `ICatalogoRepuestos` e `ICatalogoVehiculos`. Sin una fachada, cada página Razor
+`ServicioDerivaciones`, `ServicioDiagnostico`, `ICatalogoRepuestos` e `ICatalogoVehiculos`. Sin una fachada, cada página Razor
 inyectaría las dependencias que necesita por separado. El problema no es solo el número de `@inject`:
 las páginas pasarían a conocer la estructura interna de la capa de aplicación, qué servicio maneja
 qué operación y qué interfaz expone el catálogo. Cualquier reorganización interna se trasladaría
@@ -438,8 +444,9 @@ consecuencias concretas son tres:
 - La operación `BuscarAsync` —crear la búsqueda y resolver las piezas en un solo llamado— no
   tiene un lugar natural. Quedaría duplicada en cada página que la necesite, o repartida en dos
   llamados separados con el manejo de errores repetido.
-- Cuando en la siguiente etapa se agreguen servicios nuevos (mensajería, IA), las páginas tendrían
-  que absorber esas dependencias adicionales.
+- Cada servicio nuevo de las etapas siguientes llegaría a las páginas. Con la fachada, la IA entró
+  como una dependencia más (`ServicioDiagnostico`) y `Home.razor` solo sumó la llamada a
+  `DiagnosticarAsync` para la búsqueda sin sesión.
 
 ### Código de referencia
 
@@ -491,6 +498,37 @@ la lista y comprueba marca, modelo y motor sin distinguir mayúsculas, más el r
 
 **Facade.** `BuscarAsync` y `BuscarRepuestosAsync` usan ese contrato para validar antes de
 consultar repuestos. `SelectorVehiculo` carga las opciones directamente, fuera de la fachada.
+
+## El componente de IA y los mismos patrones
+
+`IDiagnosticador` vive en `src/RepMatch.Contracts/IDiagnosticador.cs`: texto libre, vehículo y
+piezas candidatas → sistema, urgencia, causas, códigos elegidos, fuente y latencia.
+
+Ver [IDiagnosticador.cs](../src/RepMatch.Contracts/IDiagnosticador.cs).
+
+**Strategy.** Hay tres implementaciones en proceso, en `src/RepMatch.IA/`: `DiagnosticadorLlm`,
+`DiagnosticadorLocal` (clasificador TF-IDF + k-NN) y `DiagnosticadorConRespaldo`, que recibe las
+otras dos como `IDiagnosticador` y conmuta al local si el LLM no tiene clave, falla, tarda o responde
+fuera del esquema. Una cuarta, `DiagnosticadorRemoto`, la resuelve por HTTP. Quien diagnostica no
+sabe cuál le tocó; la diferencia queda en el campo `Fuente` de la respuesta.
+
+**Factory.** `FabricaDiagnostico` (`src/RepMatch.Web/Servicios/FabricaDiagnostico.cs`) registra el
+camino en proceso (`AgregarDiagnosticoIA`) y el remoto (`AgregarDiagnosticadorRemoto`), y enlaza
+`IDiagnosticador` según `IA:Modo`, igual que `FabricaCatalogo` con `Catalogo:Modo`. `IA.Api` y
+`Catalogo.Api` lo enlazan siempre a `DiagnosticadorConRespaldo`.
+
+**Adapter.** Dos. `DiagnosticadorRemoto` traduce el contrato a `POST /api/diagnostico` de `IA.Api`,
+como `CatalogoRemoto` con `Catalogo.Api`. `DiagnosticadorLlm` traduce el contrato al formato de chat
+completions compatible con OpenAI de Groq o Gemini: arma el mensaje sin mails ni teléfonos, lee
+`choices[0].message.content`, valida el JSON contra el esquema y descarta todo código que no esté
+entre los candidatos.
+
+**Observer.** El punto de extensión que dejó la Primera Parte se usó tal como estaba:
+`ObservadorCompatibilidad` sigue reaccionando a `BusquedaCreada`, ahora a través de
+`ServicioDiagnostico`, y `ServicioBusquedas.CrearAsync` no cambió.
+
+**Facade.** `FachadaAplicacion.DiagnosticarAsync` resuelve la búsqueda sin sesión: valida el
+vehículo, diagnostica y devuelve las piezas elegidas sin crear una `Busqueda`.
 
 ## Documentación relacionada
 

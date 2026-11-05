@@ -1,14 +1,15 @@
 # Diagrama de arquitectura en capas — Primera Parte
 
 Incluye la capa de servicios que pide la Primera Parte, la fachada por la que entra la presentación
-y el despacho de eventos entre módulos.
+y el despacho de eventos entre módulos. El componente de IA de la Segunda Parte se suma como un
+contrato más (`IDiagnosticador`), con la misma separación local/remoto que el catálogo.
 
 ```mermaid
 flowchart TB
     subgraph presentacion["Presentación · RepMatch.Web"]
         WEB["Páginas Razor<br/>Blazor Server"]
         SEL["SelectorVehiculo"]
-        FAB["FabricaCatalogo"]
+        FAB["FabricaCatalogo · FabricaDiagnostico"]
     end
 
     subgraph servicios["Capa de servicios · RepMatch.Aplicacion"]
@@ -18,16 +19,22 @@ flowchart TB
         SM["ServicioMecanicos · ServicioRevisiones<br/>ServicioDerivaciones"]
         DES["DespachadorEventos"]
         OBS["ObservadorCompatibilidad"]
+        SD["ServicioDiagnostico"]
         LOC["CatalogoLocal · CatalogoVehiculosLocal"]
     end
 
+    subgraph ia["Componente de IA · RepMatch.IA"]
+        IAL["DiagnosticadorConRespaldo<br/>DiagnosticadorLlm · DiagnosticadorLocal"]
+    end
+
     subgraph remoto["Adaptador remoto · RepMatch.Clientes.Rest"]
-        REM["CatalogoRemoto · CatalogoVehiculosRemoto"]
+        REM["CatalogoRemoto · CatalogoVehiculosRemoto<br/>DiagnosticadorRemoto"]
     end
 
     subgraph contratos["Contratos · RepMatch.Contracts"]
         IC["ICatalogoRepuestos"]
         ICV["ICatalogoVehiculos"]
+        ID["IDiagnosticador"]
     end
 
     subgraph utilidad["Utilidad · RepMatch.Common"]
@@ -49,16 +56,20 @@ flowchart TB
     SEL --> ICV
     FAB -. "Catalogo:Modo elige una implementación" .-> LOC
     FAB -. "Catalogo:Modo elige una implementación" .-> REM
+    FAB -. "IA:Modo elige una implementación" .-> IAL
     FAC --> SC
     FAC --> SB
     FAC --> SM
+    FAC --> SD
     FAC --> IC
     FAC --> ICV
     FAC --> COM
     SB --> DES
     SM --> DES
     DES --> OBS
-    OBS --> IC
+    OBS --> SD
+    SD --> IC
+    SD --> ID
     SC --> REPO
     SB --> REPO
     OBS --> REPO
@@ -69,6 +80,9 @@ flowchart TB
     LOC -. implementa .-> ICV
     REM -. implementa .-> IC
     REM -. implementa .-> ICV
+    REM -. implementa .-> ID
+    IAL -. implementa .-> ID
+    IAL --> COM
     LOC --> REPO
     REM --> COM
     REPO --> PER
@@ -84,8 +98,11 @@ enlaza cada contrato con una sola de las dos al arrancar.
 La presentación no referencia repositorios ni el despachador. Las páginas entran por la fachada.
 `SelectorVehiculo` consulta `ICatalogoVehiculos` para cargar las opciones, y la fachada usa el mismo
 contrato para validar el vehículo antes de consultar piezas. `ServicioBusquedas` persiste la
-búsqueda y publica `BusquedaCreada`. El observador, no el servicio, consulta el catálogo.
+búsqueda y publica `BusquedaCreada`. El observador, no el servicio, consulta el catálogo y la IA, a
+través de `ServicioDiagnostico`; la fachada usa el mismo servicio para la búsqueda sin sesión.
+`IDiagnosticador` se resuelve en proceso con `RepMatch.IA` o por HTTP con `DiagnosticadorRemoto`
+contra `IA.Api`; ninguna de las dos toca Persistence.
 `ServicioRevisiones` y `ServicioDerivaciones` siguen el mismo orden —confirmar y después despachar—
 con `BusquedaCompartida`, `DiagnosticoValidado` y `DerivacionATienda`, que hoy no tienen
 observadores. El endpoint `GET /derivar/{ofertaId}` de la Web también entra por la fachada.
-`Aplicacion` y `Clientes.Rest` usan `Common`.
+`Aplicacion`, `IA` y `Clientes.Rest` usan `Common`.

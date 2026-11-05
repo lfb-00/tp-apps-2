@@ -4,9 +4,10 @@
 # componente de catalogo y la aplicacion web. La Web arranca en modo Remoto para que el
 # ejercicio de acceso remoto entre componentes quede demostrado apenas se levanta el entorno.
 #
-#   docker compose up --build --wait     -> espera a que los tres esten sanos
+#   docker compose up --build --wait     -> espera a que todos esten sanos
 #     Web       http://localhost:8080
 #     Catalogo  http://localhost:8081/salud
+#     IA        http://localhost:8083/salud   (Segunda Parte: diagnostico por texto libre)
 #
 #   docker compose --profile test run --rm tests        -> corre las pruebas
 #   docker compose --profile local up --build web-local -> la misma Web en modo Local
@@ -17,6 +18,13 @@
 x-conexion-postgres: &conexion-postgres
   Persistencia__Proveedor: Postgres
   ConnectionStrings__RepMatch: "Host=postgres;Port=5432;Database=repmatch;Username=repmatch;Password=repmatch"
+
+# Proveedor del LLM. La clave sale del .env (que no se commitea); sin clave, cada servicio que
+# diagnostica usa el clasificador local y el entorno levanta igual.
+x-llm: &llm
+  IA__Llm__ApiKey: "${IA_LLM_APIKEY:-}"
+  IA__Llm__UrlBase: "${IA_LLM_URLBASE:-https://api.groq.com/openai/v1/}"
+  IA__Llm__Modelo: "${IA_LLM_MODELO:-llama-3.3-70b-versatile}"
 
 services:
   postgres:
@@ -46,7 +54,7 @@ services:
     image: repmatch/catalogo-api:tp-inicial
     container_name: repmatch-catalogo-api
     environment:
-      <<: *conexion-postgres
+      <<: [*conexion-postgres, *llm]
       # Development habilita /openapi/v1.json, que es parte del entregable.
       ASPNETCORE_ENVIRONMENT: Development
     ports:
@@ -54,6 +62,20 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    networks: [repmatch]
+
+  # Componente de IA expuesto por REST. No tiene base: recibe los candidatos en la peticion.
+  ia-api:
+    build:
+      context: .
+      dockerfile: src/RepMatch.IA.Api/Dockerfile
+    image: repmatch/ia-api:segunda
+    container_name: repmatch-ia-api
+    environment:
+      <<: *llm
+      ASPNETCORE_ENVIRONMENT: Development
+    ports:
+      - "${PUERTO_IA:-8083}:8080"
     networks: [repmatch]
 
   web:
@@ -68,6 +90,9 @@ services:
       # Acceso REMOTO al componente de catalogo: resuelve por HTTP contra el otro contenedor.
       Catalogo__Modo: Remoto
       Catalogo__UrlBaseRemota: "http://catalogo-api:8080"
+      # La IA tambien por HTTP, contra IA.Api.
+      IA__Modo: Remoto
+      IA__UrlBaseRemota: "http://ia-api:8080"
       # Claves que cifran la sesion del navegador: en un volumen, para que una pestania abierta
       # no pierda la sesion cada vez que el contenedor se recrea.
       ProteccionDatos__DirectorioClaves: /claves
@@ -79,6 +104,8 @@ services:
       postgres:
         condition: service_healthy
       catalogo-api:
+        condition: service_healthy
+      ia-api:
         condition: service_healthy
     networks: [repmatch]
 
@@ -94,9 +121,10 @@ services:
       dockerfile: src/RepMatch.Web/Dockerfile
     container_name: repmatch-web-local
     environment:
-      <<: *conexion-postgres
+      <<: [*conexion-postgres, *llm]
       ASPNETCORE_ENVIRONMENT: Development
       Catalogo__Modo: Local
+      IA__Modo: Local
       ProteccionDatos__DirectorioClaves: /claves
     volumes:
       - claves-web-local:/claves

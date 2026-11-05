@@ -7,9 +7,29 @@ El usuario identifica su vehículo, describe el problema en lenguaje natural, y 
 las ofertas de varios sitios reales. **No vende ni almacena stock**: normaliza, compara y deriva a la
 tienda de origen.
 
-> **Alcance de este repo: TP Inicial y Primera Parte.** La aplicación es el comparador.
+> **Alcance de este repo: TP Inicial, Primera Parte y, de la Segunda Parte, el componente de IA.**
+> La aplicación es el comparador. SOAP, mensajería y tiendas externas todavía no están.
 > Diagramas, informe, evidencias y patrones están en `docs/`. El seguimiento del trabajo está
 > en `plan.md` y `status.md`.
+
+## Diagnóstico por IA
+
+El texto libre del problema ("vibra el volante cuando freno") pasa por el componente de IA, que
+devuelve sistema, urgencia, causas probables y las piezas que conviene revisar. La compatibilidad
+con el vehículo sigue siendo el filtro: la IA elige entre esas piezas y nunca agrega otras. Si la
+IA no responde, se muestran todas las compatibles.
+
+Hay dos fuentes, y la respuesta dice cuál contestó:
+
+- **LLM** (`llm`): Groq o Gemini por su API compatible con OpenAI. Solo si hay clave en
+  `IA__Llm__ApiKey`. El texto sale sin mails ni teléfonos.
+- **Clasificador local** (`fallback-local`): TF-IDF y vecinos más cercanos sobre un corpus de
+  síntomas en `src/RepMatch.IA/Datos/sintomas.json`. Responde sin red cuando no hay clave o el LLM
+  falla o tarda más de `IA:Llm:TimeoutSegundos`.
+
+Se expone por REST en `RepMatch.IA.Api` (`POST /api/diagnostico`) y la Web lo usa en proceso o
+remoto según `IA:Modo`, como el catálogo. Funciona también sin sesión: el texto se diagnostica y
+no se guarda.
 
 ## Roles y modelo de negocio
 
@@ -40,6 +60,7 @@ docker compose up --build --wait
 
 - Web → **http://localhost:8080**
 - API REST → **http://localhost:8081/salud**; contrato OpenAPI → **http://localhost:8081/openapi/v1.json** (Development)
+- IA REST → **http://localhost:8083/salud**; contrato OpenAPI → **http://localhost:8083/openapi/v1.json** (Development)
 - PostgreSQL → `localhost:5432`
 
 La misma consulta por los dos caminos queda en `docs/evidencias/` (la genera
@@ -65,6 +86,9 @@ entre sí por la red interna, así que esto no afecta el funcionamiento.
 ```bash
 cp .env.example .env
 ```
+
+En ese mismo `.env` va la clave del LLM (`IA_LLM_APIKEY`) si querés que diagnostique el LLM en
+vez del clasificador local. El `.env` está en `.gitignore`.
 
 ### Si Docker no puede descargar las imágenes
 
@@ -106,14 +130,20 @@ Con el SDK de .NET 10 instalado:
 dotnet build && dotnet test
 ```
 
-En dos terminales:
+Con la Web sola alcanza: por defecto resuelve catálogo e IA en proceso.
+
+```bash
+dotnet run --project src/RepMatch.Web --urls http://localhost:5080
+```
+
+Para el modo remoto, en otras terminales:
 
 ```bash
 dotnet run --project src/RepMatch.Catalogo.Api --urls http://localhost:5081
 ```
 
 ```bash
-dotnet run --project src/RepMatch.Web --urls http://localhost:5080
+dotnet run --project src/RepMatch.IA.Api --urls http://localhost:5083
 ```
 
 Así arranca con el proveedor `InMemory`, sin necesidad de PostgreSQL.
@@ -124,11 +154,13 @@ Así arranca con el proveedor `InMemory`, sin necesidad de PostgreSQL.
 src/
   RepMatch.Domain/          componente de dominio      · sin dependencias
   RepMatch.Common/          componente de utilidad     · validación, logging, configuración
-  RepMatch.Contracts/       DTOs, ICatalogoRepuestos e ICatalogoVehiculos
+  RepMatch.Contracts/       DTOs, ICatalogoRepuestos, ICatalogoVehiculos e IDiagnosticador
   RepMatch.Persistence/     componente de acceso a datos · EF Core
   RepMatch.Aplicacion/      lógica de negocio          · incluye CatalogoLocal y CatalogoVehiculosLocal
-  RepMatch.Clientes.Rest/   adaptador remoto           · incluye CatalogoRemoto y CatalogoVehiculosRemoto
+  RepMatch.Clientes.Rest/   adaptador remoto           · CatalogoRemoto, CatalogoVehiculosRemoto y DiagnosticadorRemoto
+  RepMatch.IA/              componente de IA           · LLM, clasificador local y respaldo entre ambos
   RepMatch.Catalogo.Api/    host REST del catálogo
+  RepMatch.IA.Api/          host REST del componente de IA · sin base de datos
   RepMatch.Web/             presentación (Blazor Server)
 tests/RepMatch.Tests/       pruebas
 docs/                        diagramas, informe y evidencias
@@ -138,7 +170,7 @@ scripts/evidencias.sh        genera las evidencias del entregable
 ## Acceso local vs. remoto
 
 Dos interfaces, `ICatalogoRepuestos` e `ICatalogoVehiculos`, cada una con implementaciones local y remota intercambiables **por configuración,
-sin recompilar**:
+sin recompilar**. `IDiagnosticador` sigue el mismo esquema con `IA__Modo`:
 
 ```bash
 Catalogo__Modo=Local   dotnet run --project src/RepMatch.Web
@@ -166,7 +198,7 @@ El acceso va por EF Core 10 con Npgsql, detrás de los repositorios declarados e
 esquema y los datos semilla se crean solos al arrancar (`EnsureCreatedAsync` + `DatosSemilla`), así
 que **no hay migraciones que correr a mano**. Es idempotente: cada grupo de datos semilla se carga
 solo si todavía falta. Al incorporar una tabla o columna nueva (por ejemplo, el catálogo de
-vehículos, o los roles y la tabla `derivaciones`), una base existente debe recrearse con
+vehículos, los roles y la tabla `derivaciones`, o las columnas del diagnóstico en `busquedas`), una base existente debe recrearse con
 `docker compose down -v` antes de levantar Compose otra vez.
 
 Las entidades persistidas son `Cliente`, `Vehiculo`, `ConfiguracionVehiculo`, `Repuesto`,
@@ -193,10 +225,17 @@ Todo se puede sobreescribir por variable de entorno (`Seccion__Clave`).
 | `Catalogo:TimeoutSegundos` | timeout de las llamadas HTTP al catálogo remoto (1 a 120) | `30` |
 | `Persistencia:Proveedor` | `InMemory`, `Postgres` | `InMemory` (en compose: `Postgres`) |
 | `ConnectionStrings:RepMatch` | cadena Npgsql | vacía |
+| `IA:Modo` | `Local`, `Remoto` (solo Web) | `Local` (en compose: `Remoto`) |
+| `IA:UrlBaseRemota` | URL de `IA.Api` | `http://localhost:5083` |
+| `IA:TimeoutSegundos` | timeout de la Web hacia `IA.Api` (1 a 120) | `10` |
+| `IA:Llm:ApiKey` | clave del proveedor del LLM; vacía desactiva el LLM | vacía (en compose: `IA_LLM_APIKEY` del `.env`) |
+| `IA:Llm:UrlBase` | API compatible con OpenAI | `https://api.groq.com/openai/v1/` |
+| `IA:Llm:Modelo` | modelo del proveedor | `llama-3.3-70b-versatile` |
+| `IA:Llm:TimeoutSegundos` | espera máxima al LLM antes de responder con el local (1 a 60) | `4` |
 | `ProteccionDatos:DirectorioClaves` | directorio de las claves que cifran la sesión (solo Web) | vacío: las maneja ASP.NET Core (en compose: `/claves`, en un volumen) |
 
 Y los puertos del host, vía `.env` (ver `.env.example`): `PUERTO_WEB`, `PUERTO_CATALOGO`,
-`PUERTO_POSTGRES`, `PUERTO_WEB_LOCAL`.
+`PUERTO_IA`, `PUERTO_POSTGRES`, `PUERTO_WEB_LOCAL`.
 
 ## Documentación
 
@@ -206,7 +245,7 @@ Y los puertos del host, vía `.env` (ver `.env.example`): `PUERTO_WEB`, `PUERTO_
 - [Diagrama de componentes](docs/diagramas/componentes.md)
 - [Diagrama de despliegue](docs/diagramas/despliegue.md)
 - [Arquitectura en capas](docs/diagramas/capas.md)
-- [Diagramas de secuencia (búsquedas, login, alta de vehículo, catálogo y eliminación de cuenta)](docs/diagramas/secuencia.md)
+- [Diagramas de secuencia (búsquedas, login, alta de vehículo, catálogo, eliminación de cuenta y diagnóstico por IA)](docs/diagramas/secuencia.md)
 
 ## Stack
 

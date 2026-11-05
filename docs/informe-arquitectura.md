@@ -56,27 +56,30 @@ Repository, Strategy, Observer y Facade**, la fachada para las operaciones de cl
 eventos de dominio internos (`BusquedaCreada`) y el modelado con diagramas de capas y de secuencia.
 Sobre esa base se agregaron los roles cliente y mecánico, la revisión del diagnóstico y el registro
 de derivaciones del modelo de negocio.
-El diagnóstico por IA, el servicio SOAP, la mensajería y los adaptadores a tiendas externas
-corresponden a las entregas siguientes, y la arquitectura está preparada para recibirlos sin
-rediseño (sección 7).
+De la Segunda Parte ya está el **componente de IA**: diagnóstico del texto libre, expuesto por REST
+en `RepMatch.IA.Api` (secciones 6.7 y 7). El servicio SOAP, la mensajería y los adaptadores a
+tiendas externas corresponden a las entregas siguientes, y la arquitectura está preparada para
+recibirlos sin rediseño (sección 7).
 
 ---
 
 ## 2. Componentes construidos
 
-La consigna pide un mínimo de tres componentes reutilizables independientes. Se construyeron seis:
+La consigna pide un mínimo de tres componentes reutilizables independientes. Se construyeron siete
+(los seis del TP Inicial y el de IA de la Segunda Parte):
 
 | # | Componente | Tipo pedido por la consigna | Responsabilidad |
 |---|---|---|---|
 | 1 | `RepMatch.Domain` | **Dominio** | Entidades, value objects, eventos de dominio e interfaces de repositorio |
 | 2 | `RepMatch.Persistence` | **Acceso a datos** | `DbContext`, mapeos, repositorios y unidad de trabajo sobre EF Core |
 | 3 | `RepMatch.Common` | **Utilidad** | Validación, logging, configuración externalizada, `ResultadoOperacion<T>`, medición de latencia y correlación |
-| 4 | `RepMatch.Contracts` | Contratos | DTOs, `ICatalogoRepuestos`, `ICatalogoVehiculos` y `OpcionesCatalogo` |
-| 5 | `RepMatch.Aplicacion` | Lógica de negocio | `FachadaAplicacion`, `ServicioClientes`, `ServicioBusquedas`, `ServicioMecanicos`, `ServicioRevisiones`, `ServicioDerivaciones`, `DespachadorEventos`, `ObservadorCompatibilidad`, mapeadores, validadores y los catálogos locales de repuestos y vehículos |
-| 6 | `RepMatch.Clientes.Rest` | Adaptador remoto | `CatalogoRemoto`, `CatalogoVehiculosRemoto` y propagación de correlación |
+| 4 | `RepMatch.Contracts` | Contratos | DTOs, `ICatalogoRepuestos`, `ICatalogoVehiculos`, `IDiagnosticador`, `OpcionesCatalogo` y `OpcionesIA` |
+| 5 | `RepMatch.Aplicacion` | Lógica de negocio | `FachadaAplicacion`, `ServicioClientes`, `ServicioBusquedas`, `ServicioMecanicos`, `ServicioRevisiones`, `ServicioDerivaciones`, `ServicioDiagnostico`, `DespachadorEventos`, `ObservadorCompatibilidad`, mapeadores, validadores y los catálogos locales de repuestos y vehículos |
+| 6 | `RepMatch.Clientes.Rest` | Adaptador remoto | `CatalogoRemoto`, `CatalogoVehiculosRemoto`, `DiagnosticadorRemoto` y propagación de correlación |
+| 7 | `RepMatch.IA` | Componente de IA | `DiagnosticadorLlm` (adapter del LLM), `DiagnosticadorLocal` (clasificador TF-IDF + k-NN), `DiagnosticadorConRespaldo`, filtro de datos personales y el corpus de síntomas |
 
-Más dos hosts ejecutables: `RepMatch.Web` (presentación) y `RepMatch.Catalogo.Api` (host REST del
-componente de catálogo).
+Más tres hosts ejecutables: `RepMatch.Web` (presentación), `RepMatch.Catalogo.Api` (host REST del
+componente de catálogo) y `RepMatch.IA.Api` (host REST del componente de IA, sin base de datos).
 
 **Criterio de independencia.** `Domain`, `Common` y `Contracts` no referencian ningún otro proyecto
 de la solución. Ésa es la prueba de que son reutilizables y no fragmentos de una misma bola de barro.
@@ -149,15 +152,16 @@ Las referencias de proyectos y el uso de sus tipos muestran estas decisiones:
 
 Las páginas usan `FachadaAplicacion` para clientes, mecánicos, búsquedas y repuestos. Agrupa
 los métodos de `ServicioClientes`, `ServicioBusquedas`, `ServicioMecanicos`, `ServicioRevisiones`,
-`ServicioDerivaciones`, `ICatalogoRepuestos` e `ICatalogoVehiculos` en una superficie
-única y estable. Los permisos por rol se chequean en esos servicios —quién puede ver una consulta,
+`ServicioDerivaciones`, `ServicioDiagnostico`, `ICatalogoRepuestos` e `ICatalogoVehiculos` en una
+superficie única y estable. Los permisos por rol se chequean en esos servicios —quién puede ver una consulta,
 compartirla o revisarla, y el límite del plan—, no en las páginas: la presentación solo decide qué
 mostrar. Las páginas no conocen qué servicio interno maneja cada operación, ni si el
 catálogo está en proceso o detrás de una API: esa decisión queda encapsulada. Además, `BuscarAsync`
 es una operación compuesta que la fachada resuelve en un solo llamado —crear la búsqueda y resolver
 las piezas compatibles—, coordinación que no le corresponde hacer a ninguna página. El observador ya
 consultó el catálogo para decidir los códigos; la fachada lo vuelve a consultar para traer el detalle
-de esas piezas.
+de esas piezas. La búsqueda sin sesión usa `DiagnosticarAsync`, que valida el vehículo y devuelve
+diagnóstico y piezas sin crear una `Busqueda`.
 
 `SelectorVehiculo.razor` inyecta directamente `ICatalogoVehiculos` para obtener las opciones.
 La fábrica selecciona este contrato entre `CatalogoVehiculosLocal` y `CatalogoVehiculosRemoto`.
@@ -171,7 +175,11 @@ copia los eventos acumulados por la entidad (`BusquedaCreada`), la persiste (`Ag
 `ConfirmarAsync`), limpia los eventos de la entidad y recién después entrega la copia a
 `DespachadorEventos`. `DespachadorEventos` itera todos los `IObservadorEventoDominio` registrados y
 llama a los que aceptan ese tipo de evento. Hoy solo hay uno: `ObservadorCompatibilidad`, que
-consulta el catálogo y asigna los códigos de pieza a la búsqueda en una segunda transacción.
+consulta el catálogo y asigna los códigos de pieza a la búsqueda en una segunda transacción. Desde
+la Segunda Parte lo hace a través de `ServicioDiagnostico`: la IA lee el texto libre y elige entre
+las piezas compatibles, y el observador guarda también el diagnóstico (sistema, urgencia, causas y
+fuente). Si la IA no responde (`HttpRequestException` o `TaskCanceledException` del modo remoto),
+`ServicioDiagnostico` lo registra y quedan todas las compatibles, como en la Primera Parte.
 
 El despacho ocurre **después** de que la búsqueda ya está persistida. Si no hay repuestos
 compatibles, o si la consulta al catálogo lanza `HttpRequestException` o `TaskCanceledException`
@@ -280,8 +288,9 @@ las llamadas salientes. Una misma operación en modo Remoto queda así en los do
 [19:57:11 INF] [Catalogo.Api] [c1be50fb134a] HTTP GET /api/repuestos/compatibles responded 200 in 2.6876 ms
 ```
 
-Con dos procesos ya hace falta; cuando en la Segunda Parte se sumen la cola, el servicio de IA y los
-adaptadores externos, es lo único que permite reconstruir el recorrido completo de una búsqueda.
+Con dos procesos ya hace falta. El mismo identificador ya llega a `IA.Api` cuando la Web la usa en
+modo remoto; cuando se sumen la cola y los adaptadores externos, es lo único que permite
+reconstruir el recorrido completo de una búsqueda.
 
 ### 5.4 Verificación automatizada
 
@@ -290,15 +299,17 @@ evidencia: hospeda `Catalogo.Api` en memoria con `WebApplicationFactory` y verif
 implementaciones coincidan para cinco configuraciones de vehículo, el listado completo,
 códigos existentes e inexistentes y el filtro por sistema. También compara las opciones vehiculares
 completas y comprueba que los modelos de la semilla tengan piezas compatibles.
+`tests/RepMatch.Tests/IA/` hace lo mismo con el componente de IA: hospeda `IA.Api` en memoria, sin
+clave de LLM, y compara su respuesta con la del cliente remoto; prueba el clasificador local sobre
+un conjunto fijo de síntomas y el adapter del LLM con respuestas grabadas, sin red.
 
 ```
-Correctas! - Con error:     0, Superado:    98, Omitido:     0, Total:    98
+Correctas! - Con error:     0, Superado:   137, Omitido:     0, Total:   137
 ```
 
-Verificación del 2026-11-03 con `dotnet test` (SDK local, sin Docker): 98 pruebas correctas y
-compilación sin advertencias. La última corrida en Docker, del 2026-10-11 con
-`docker compose --profile test run --build --rm tests`, dio 84 pruebas correctas, antes de agregar
-los roles.
+Verificación del 2026-11-04 con `dotnet test` y el SDK local: 137 pruebas correctas y compilación
+sin advertencias. El 2026-11-05, `docker compose --profile test run --build --rm tests` (Docker
+dentro de WSL) dio el mismo resultado: 137 correctas y compilación sin advertencias.
 
 ---
 
@@ -357,6 +368,27 @@ La plantilla de `webapi` arrastraba `Microsoft.OpenApi` 2.0.0, afectado por **CV
 circulares, CVSS 7.5). Se fijó la versión **2.12.2**, posterior al parche 2.7.5, y se alineó
 `Microsoft.AspNetCore.OpenApi` en 10.0.11. La solución compila **sin advertencias**.
 
+### 6.7 IA: el modelo elige entre piezas reales, con respaldo local
+
+La consigna permite "un modelo de NLP o API de LLM" y que el componente se exponga por REST o por
+la cola. Se tomaron cuatro decisiones:
+
+- **El LLM no inventa códigos.** El catálogo resuelve primero qué piezas le entran al vehículo, y
+  esa lista viaja en la petición (`SolicitudDiagnosticoDto.Candidatos`). El modelo elige entre ellas
+  y `DiagnosticadorLlm` descarta cualquier código que no esté en la lista. Así la compatibilidad la
+  sigue garantizando el catálogo, y `IA.Api` no necesita base de datos.
+- **Siempre hay respuesta.** Sin clave, con error de red, con timeout (`IA:Llm:TimeoutSegundos`,
+  4 s por defecto) o con una respuesta fuera del esquema, `DiagnosticadorConRespaldo` conmuta al
+  clasificador local (TF-IDF y vecinos más cercanos sobre `Datos/sintomas.json`) y lo registra en el
+  log. La respuesta indica la fuente (`llm` o `fallback-local`) y la latencia: son las métricas que
+  va a pedir el Integrador. Sin LLM, el clasificador es además la línea base contra la que medirlo.
+- **Proveedor intercambiable.** Groq y Gemini ofrecen la API de chat completions compatible con
+  OpenAI con cupo gratuito; cambiar de proveedor es cambiar `IA:Llm:UrlBase` y `IA:Llm:Modelo`. La
+  clave llega solo por variable de entorno o por el `.env`, que no se commitea.
+- **Privacidad.** El texto sale hacia el proveedor sin mails ni teléfonos
+  (`FiltroDatosPersonales`), y los logs registran el largo del texto, no su contenido. En la
+  búsqueda sin sesión el texto se diagnostica pero no se guarda.
+
 ---
 
 ## 7. Cómo esta arquitectura recibe las entregas siguientes
@@ -365,15 +397,15 @@ circulares, CVSS 7.5). Se fijó la versión **2.12.2**, posterior al parche 2.7.
 |---|---|---|---|
 | **Primera** | Patrones formalizados, fachada, eventos de dominio internos | `DespachadorEventos` publica `BusquedaCreada` a `ObservadorCompatibilidad`. Las operaciones pasan por `FachadaAplicacion`; `SelectorVehiculo` consulta `ICatalogoVehiculos` directamente | Dominio, contratos |
 | **Segunda** | SOAP `ConsultaCompatibilidad` (CoreWCF + WSDL) | Tercera implementación de `ICatalogoRepuestos` | Presentación, lógica de negocio |
-| **Segunda** | REST documentados con OpenAPI | Ya publicado en `/openapi/v1.json` | — |
+| **Segunda** | REST documentados con OpenAPI | `Catalogo.Api` e `IA.Api` publican `/openapi/v1.json` | — |
 | **Segunda** | RabbitMQ, productores y consumidores | Implementación de `IDespachadorEventos` sobre `IEventBus`; `BusquedaCreada`, `BusquedaCompartida` (aviso al mecánico) y `DerivacionATienda` (conteo de comisiones) ya existen como eventos de dominio | Entidades |
 | **Segunda** | Adaptadores a eBay y VTEX | Nueva interfaz `IFuenteOfertas`, consumida por `search-api` | Catálogo, dominio |
-| **Segunda** | Componente de IA (texto libre → repuestos) | Reemplaza o complementa a `ObservadorCompatibilidad` (que hoy asigna los códigos solo por compatibilidad de vehículo), leyendo `Busqueda.TextoLibre` | Contrato público del servicio |
+| **Segunda** *(implementado)* | Componente de IA (texto libre → repuestos) | `ObservadorCompatibilidad` usa `ServicioDiagnostico`, que le pasa `Busqueda.TextoLibre` y las piezas compatibles a `IDiagnosticador` (local o remota contra `IA.Api`, por `IA:Modo`) | `ServicioBusquedas.CrearAsync`; en la presentación solo se agregó la tarjeta del diagnóstico |
 | **Integrador** | Métricas de IA, pruebas de carga, despliegue | `DiagnosticoValidado` trae, por cada revisión, los códigos propuestos y los que recomendó el mecánico: el dataset etiquetado para medir exactitud | — |
 
-El punto de extensión queda en el evento: `ServicioBusquedas.CrearAsync` persiste la búsqueda y
-despacha `BusquedaCreada`. `ObservadorCompatibilidad` llena `CodigosObjetivo` consultando el
-catálogo por compatibilidad de vehículo. El texto libre ya se guarda.
+El punto de extensión quedó en el evento: `ServicioBusquedas.CrearAsync` persiste la búsqueda y
+despacha `BusquedaCreada` igual que en la Primera Parte. La IA se sumó del lado del observador, que
+ahora llena `CodigosObjetivo` con las piezas compatibles que eligió el diagnóstico.
 
 ---
 
@@ -390,10 +422,15 @@ dotnet run --project src/RepMatch.Catalogo.Api --urls http://localhost:5081
 ```
 
 ```bash
+dotnet run --project src/RepMatch.IA.Api --urls http://localhost:5083
+```
+
+```bash
 dotnet run --project src/RepMatch.Web --urls http://localhost:5080
 ```
 
-La evidencia de acceso local y remoto se genera con `bash scripts/evidencias.sh`.
+La Web sola alcanza: por defecto resuelve catálogo e IA en proceso. La evidencia de acceso local y
+remoto se genera con `bash scripts/evidencias.sh`.
 
 ### Con Docker
 
@@ -401,8 +438,9 @@ La evidencia de acceso local y remoto se genera con `bash scripts/evidencias.sh`
 docker compose up --build
 ```
 
-Web en `http://localhost:8080`, Catálogo en `http://localhost:8081/salud`, PostgreSQL en `5432`.
-En compose la Web arranca en modo **Remoto**, de modo que el acceso remoto entre componentes queda
+Web en `http://localhost:8080`, Catálogo en `http://localhost:8081/salud`, IA en
+`http://localhost:8083/salud`, PostgreSQL en `5432`. En compose la Web arranca en modo **Remoto**
+para el catálogo y la IA, de modo que el acceso remoto entre componentes queda
 demostrado apenas se levanta el entorno.
 
 ---
@@ -412,7 +450,7 @@ demostrado apenas se levanta el entorno.
 | Requisito de la consigna | Dónde está |
 |---|---|
 | Entorno configurado (.NET 10, contenedores) | `docker-compose.yml`, `src/*/Dockerfile` |
-| ≥3 componentes reutilizables independientes | 6 componentes — sección 2 |
+| ≥3 componentes reutilizables independientes | 6 componentes en esa entrega, 7 hoy — sección 2 |
 | Aplicación multicapa | Sección 3 |
 | Gestión de dependencias (NuGet) | `RepMatch.slnx`, `*.csproj` |
 | Acceso local y remoto entre componentes | Sección 4 |
@@ -432,4 +470,4 @@ demostrado apenas se levanta el entorno.
 | Servicios de negocio e integración por eventos | `ServicioClientes`, `ServicioBusquedas`, `ServicioMecanicos`, `ServicioRevisiones`, `ServicioDerivaciones`, `ObservadorCompatibilidad` |
 | Servicio de Inventario | No existe como módulo separado porque RepMatch no almacena stock. El catálogo interno cubre la compatibilidad de piezas; en la Segunda Parte, disponibilidad y precio se consultarán en el momento de cada búsqueda a las APIs de las tiendas. Justificación ampliada en la nota "Sobre el Servicio de Inventario" de la sección 2. |
 | Diagrama de arquitectura en capas | [`docs/diagramas/capas.md`](diagramas/capas.md) |
-| Diagramas de secuencia (búsquedas, login, alta de vehículo, catálogo y eliminación de cuenta) | [`docs/diagramas/secuencia.md`](diagramas/secuencia.md) |
+| Diagramas de secuencia (búsquedas, login, alta de vehículo, catálogo, eliminación de cuenta y diagnóstico por IA) | [`docs/diagramas/secuencia.md`](diagramas/secuencia.md) |

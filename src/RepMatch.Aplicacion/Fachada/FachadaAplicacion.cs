@@ -16,7 +16,8 @@ public sealed class FachadaAplicacion(
     ICatalogoVehiculos catalogoVehiculos,
     ServicioMecanicos mecanicos,
     ServicioRevisiones revisiones,
-    ServicioDerivaciones derivaciones)
+    ServicioDerivaciones derivaciones,
+    ServicioDiagnostico diagnostico)
 {
     public Task<IReadOnlyList<MecanicoDto>> ListarMecanicosAsync(
         string? provincia = null, CancellationToken ct = default) =>
@@ -155,6 +156,41 @@ public sealed class FachadaAplicacion(
             Busqueda = creada.Valor,
             Piezas = piezas
         });
+    }
+
+    /// <summary>
+    /// Búsqueda sin sesión: diagnostica el texto y devuelve las piezas elegidas, sin guardar
+    /// nada. El texto viaja a la IA y no se persiste: la persona no tiene cuenta.
+    /// </summary>
+    public async Task<ResultadoOperacion<ResultadoDiagnosticoDto>> DiagnosticarAsync(
+        VehiculoDto vehiculo, string texto, CancellationToken ct = default)
+    {
+        if (!await catalogoVehiculos.EsConfiguracionValidaAsync(vehiculo, ct))
+            return ResultadoOperacion<ResultadoDiagnosticoDto>.Falla("Elegí una configuración válida del catálogo de vehículos.");
+
+        try
+        {
+            var piezas = await diagnostico.DiagnosticarAsync(vehiculo, texto, ct);
+
+            return ResultadoOperacion<ResultadoDiagnosticoDto>.Exito(new ResultadoDiagnosticoDto
+            {
+                Diagnostico = piezas.Diagnostico is { } d
+                    ? new DiagnosticoBusquedaDto
+                    {
+                        Sistema = d.Sistema,
+                        Urgencia = d.Urgencia,
+                        Causas = [.. d.Causas.Select(c => c.Causa)],
+                        Fuente = d.Fuente
+                    }
+                    : null,
+                Piezas = piezas.Elegidas
+            });
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return ResultadoOperacion<ResultadoDiagnosticoDto>.Falla(
+                "No se pudo consultar el catálogo. Probá de nuevo en unos segundos.");
+        }
     }
 
     public async Task<ResultadoOperacion<IReadOnlyList<RepuestoDto>>> BuscarRepuestosAsync(
