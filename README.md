@@ -72,6 +72,17 @@ Las pruebas, también sin instalar nada:
 docker compose --profile test run --rm tests
 ```
 
+Las pruebas de punta a punta recorren la web con un navegador real (Playwright): formularios,
+permisos, roles, el componente de IA y qué pasa cuando se cae la IA o el catálogo. Un solo
+comando levanta el entorno, corre todo y lo apaga; **borra la base local**:
+
+```bash
+bash scripts/e2e.sh
+```
+
+Detalle, opciones y cómo leer los resultados en
+[tests/RepMatch.E2E/README.md](tests/RepMatch.E2E/README.md).
+
 Para bajar todo (`-v` borra además el volumen de la base):
 
 ```bash

@@ -4,7 +4,8 @@
 #   bash scripts/evidencias.sh
 #
 # Levanta Catalogo.Api, corre la Web primero en modo Local y despues en modo Remoto ejecutando
-# la misma consulta, y deja los logs de los tres procesos en docs/evidencias/.
+# la misma consulta, y deja los logs de los tres procesos en docs/evidencias/. Al final corre las
+# pruebas automatizadas y deja su resultado en 08-pruebas.txt (scripts/evidencia-pruebas.sh).
 set -euo pipefail
 
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -90,6 +91,11 @@ curl -sf -m 10 "$API_URL/$consulta" \
 echo "==> Evidencia 4: contrato OpenAPI del componente remoto"
 curl -sf -m 10 "$API_URL/openapi/v1.json" > "$SALIDA/05-openapi.json" || \
   echo "(OpenAPI solo se publica en entorno Development)" > "$SALIDA/05-openapi.json"
+
+limpiar
+
+echo "==> Evidencia 5: pruebas automatizadas (dotnet test)"
+bash "$RAIZ/scripts/evidencia-pruebas.sh" >/dev/null
 
 echo
 echo "Evidencias escritas en docs/evidencias/:"

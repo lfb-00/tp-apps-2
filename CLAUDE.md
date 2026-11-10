@@ -95,6 +95,9 @@ src/
                            Local/Remoto.
 tests/RepMatch.Tests/      Dominio/, Persistencia/, Aplicacion/, Presentacion/, Integracion/
                            (WebApplicationFactory sobre Catalogo.Api) e IA/ (también sobre IA.Api)
+tests/RepMatch.E2E/        Pruebas de punta a punta con Playwright contra la app levantada. NO está
+                           en RepMatch.slnx a propósito (el `dotnet test` de la raíz corre sin
+                           entorno); se corren con scripts/e2e.sh. Ver su README.
 docs/                      informe-arquitectura.md, patrones.md, diagramas/*.md (Mermaid), evidencias/
 scripts/evidencias.sh      regenera docs/evidencias/ (logs + mediciones local vs. remoto)
 ```
@@ -158,7 +161,11 @@ docker compose up --build --wait                                       # web 808
 docker compose --profile test run --rm tests                           # pruebas sin SDK
 docker compose --profile local up --build web-local                    # Web en modo Local (8090)
 bash scripts/evidencias.sh                                             # regenera docs/evidencias/
+bash scripts/e2e.sh                                                    # Playwright: levanta todo, 3 fases, apaga (borra la base)
 ```
+
+Si un cambio toca una pantalla, correr `bash scripts/e2e.sh`. Las pruebas que encontraron un
+error real están con `Skip` y un comentario: al arreglar el error, sacar el `Skip`.
 
 La solución compila **sin advertencias**; mantenerlo así.
 
@@ -179,11 +186,12 @@ La solución compila **sin advertencias**; mantenerlo así.
 - **Docs**: `docs/informe-arquitectura.md` (incluye la tabla de la sección 7 "cómo recibe las
   entregas siguientes" y la de entregables), `docs/diagramas/*.md`, `docs/patrones.md` y
   `README.md`. Los diagramas se editan en los bloques Mermaid de los Markdown, que son su única fuente. Verificar su renderizado con un preview compatible.
-- **Cantidad de pruebas**: está escrita literal en la sección 5.4 del informe (la salida de
-  `dotnet test`) y en `status.md` ("137 passed", `dotnet test` local del 2026-11-04 y Docker en
-  WSL del 2026-11-05). `docker-compose.yml` y
-  `tests/RepMatch.Tests/Dockerfile` dicen "las pruebas" sin número, a propósito. Si agregás o quitás
-  pruebas, corré `dotnet test` y actualizá los dos.
+- **Cantidad de pruebas**: no se escribe a mano en ningún doc (issue #36). La sección 5.4 del
+  informe enlaza `docs/evidencias/08-pruebas.txt`, que genera `bash scripts/evidencia-pruebas.sh`;
+  la 5.5 enlaza `docs/evidencias/09-pruebas-e2e.txt`, que genera `bash scripts/e2e.sh --evidencia`.
+  Se regeneran al cerrar una entrega, no con cada prueba. `docker-compose.yml`, los Dockerfile y
+  los README dicen "las pruebas" sin número. `status.md` sí registra el resultado de cada corrida
+  con su fecha: es historial, no un total vigente.
 - **Proyecto nuevo**: sumarlo a `RepMatch.slnx` **y** a los `COPY` de `.csproj` de cada
   `Dockerfile` que lo necesite (`src/*/Dockerfile`, `tests/RepMatch.Tests/Dockerfile`); si no, el
   `dotnet restore` del build en Docker falla.
