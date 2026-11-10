@@ -11,7 +11,7 @@ descartó y cómo se ve en el código real.
 | [Repository](#repository-irepository-con-implementaciones-en-persistence) | `src/RepMatch.Domain/Repositorios/` y `src/RepMatch.Persistence/Repositorios/` |
 | [Unit of Work](#unit-of-work-iunitofwork-y-unitofwork) | `src/RepMatch.Domain/Repositorios/IUnitOfWork.cs` y `src/RepMatch.Persistence/UnitOfWork.cs` |
 | [Adapter](#adapter-catalogoremoto) | `src/RepMatch.Clientes.Rest/CatalogoRemoto.cs` |
-| [Observer](#observer-despachador-de-eventos-de-dominio) | `src/RepMatch.Aplicacion/Eventos/` — `IDespachadorEventos`, `DespachadorEventos`, `IObservadorEventoDominio`, `ObservadorCompatibilidad`; el evento `BusquedaCreada` en `src/RepMatch.Domain/Eventos/` |
+| [Observer](#observer-despachador-de-eventos-de-dominio) | `src/RepMatch.Aplicacion/Eventos/` — `IDespachadorEventos`, `DespachadorEventos`, `IObservadorEventoDominio`, `ObservadorCompatibilidad`; los eventos (`BusquedaCreada` y los de la colaboración con el mecánico) en `src/RepMatch.Domain/Eventos/` |
 | [Facade](#facade-fachadaaplicacion) | `src/RepMatch.Aplicacion/Fachada/FachadaAplicacion.cs` |
 
 ---
@@ -128,7 +128,8 @@ Ver [ObservadorCompatibilidad.cs](../src/RepMatch.Aplicacion/Eventos/ObservadorC
 ### Dónde está
 
 Las interfaces en `src/RepMatch.Domain/Repositorios/`, que son `IClienteRepository`,
-`IRepuestoRepository`, `IBusquedaRepository` e `IConfiguracionVehiculoRepository`. Las implementaciones en
+`IRepuestoRepository`, `IBusquedaRepository`, `IConfiguracionVehiculoRepository` e
+`IDerivacionRepository`. Las implementaciones en
 `src/RepMatch.Persistence/Repositorios/`.
 
 ### Qué problema resuelve
@@ -306,7 +307,8 @@ de más es traducción.
 
 El contrato del evento en `src/RepMatch.Domain/Comun/IEventoDominio.cs`. El buzón de eventos en
 `src/RepMatch.Domain/Comun/EntidadBase.cs` (propiedad `EventosDominio`, método `RegistrarEvento`).
-El evento concreto en `src/RepMatch.Domain/Eventos/BusquedaCreada.cs`. La interfaz de observador en
+Los eventos concretos en `src/RepMatch.Domain/Eventos/`: `BusquedaCreada`, `BusquedaCompartida`,
+`DiagnosticoValidado` y `DerivacionATienda`. La interfaz de observador en
 `src/RepMatch.Aplicacion/Eventos/IObservadorEventoDominio.cs`. El observador concreto en
 `src/RepMatch.Aplicacion/Eventos/ObservadorCompatibilidad.cs`. El despachador en
 `src/RepMatch.Aplicacion/Eventos/IDespachadorEventos.cs` y `DespachadorEventos.cs`.
@@ -336,6 +338,13 @@ cualquier otra excepción (por ejemplo, un error de base de datos en modo Local)
 estado `Pendiente`, pero no se pierde, porque ya se había confirmado antes del despacho. Ese error
 no se atrapa en el observador ni en `DespachadorEventos`, así que se propaga a `CrearAsync`: si es una `ExcepcionDominio`, vuelve como
 `ResultadoOperacion` con `Falla`; si es otra excepción, sube sin atrapar.
+
+Los servicios de la colaboración entre cliente y mecánico usan el mismo mecanismo.
+`ServicioRevisiones` despacha `BusquedaCompartida` y `DiagnosticoValidado`, y `ServicioDerivaciones`
+despacha `DerivacionATienda`, siempre después de confirmar. Hoy ningún observador los acepta: el
+despachador los recorre sin efecto. Quedan listos para que en la Segunda Parte un consumidor avise
+al mecánico, cuente las derivaciones o junte los pares propuesto/recomendado para validar la IA,
+sin tocar esos servicios.
 
 Este diseño también es el punto de extensión hacia RabbitMQ. En la Segunda Parte se registrará
 otra implementación de `IDespachadorEventos` que, en lugar de invocar observadores en proceso,
@@ -393,14 +402,15 @@ Ver [ExtensionesAplicacion.cs](../src/RepMatch.Aplicacion/ExtensionesAplicacion.
 
 ### Qué problema resuelve
 
-La fachada coordina cuatro dependencias de la capa de aplicación:
-`ServicioClientes`, `ServicioBusquedas`, `ICatalogoRepuestos` e `ICatalogoVehiculos`. Sin una fachada, cada página Razor
+La fachada coordina siete dependencias de la capa de aplicación:
+`ServicioClientes`, `ServicioBusquedas`, `ServicioMecanicos`, `ServicioRevisiones`,
+`ServicioDerivaciones`, `ICatalogoRepuestos` e `ICatalogoVehiculos`. Sin una fachada, cada página Razor
 inyectaría las dependencias que necesita por separado. El problema no es solo el número de `@inject`:
 las páginas pasarían a conocer la estructura interna de la capa de aplicación, qué servicio maneja
 qué operación y qué interfaz expone el catálogo. Cualquier reorganización interna se trasladaría
 a todas las páginas.
 
-Hay además una operación compuesta que ninguno de los cuatro componentes puede dar por sí solo.
+Hay además una operación compuesta que ninguno de esos componentes puede dar por sí solo.
 Cuando el usuario busca repuestos, la presentación espera recibir en un solo llamado tanto la
 búsqueda persistida como las piezas del catálogo resueltas. Eso requiere coordinar
 `ServicioBusquedas.CrearAsync` con `ICatalogoRepuestos.BuscarCompatiblesAsync` y manejar el caso
@@ -421,8 +431,9 @@ excepciones.
 La alternativa descartada era que cada página Razor inyectara los servicios que necesita. Las
 consecuencias concretas son tres:
 
-- `Home.razor`, `Login.razor`, `Clientes.razor`, `Perfil.razor` y `Catalogo.razor` inyectarían
-  `ServicioClientes`, `ServicioBusquedas` o `ICatalogoRepuestos` según lo que usen. Mover una operación de un servicio
+- `Home.razor`, `Login.razor`, `Clientes.razor`, `Perfil.razor`, `Catalogo.razor`, `Consulta.razor` y
+  `Taller.razor` inyectarían `ServicioClientes`, `ServicioBusquedas`, `ServicioRevisiones` o
+  `ICatalogoRepuestos` según lo que usen. Mover una operación de un servicio
   a otro obliga a actualizar todas las páginas que la usan.
 - La operación `BuscarAsync` —crear la búsqueda y resolver las piezas en un solo llamado— no
   tiene un lugar natural. Quedaría duplicada en cada página que la necesite, o repartida en dos

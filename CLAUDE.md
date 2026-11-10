@@ -77,6 +77,7 @@ src/
   RepMatch.Persistence/    Acceso a datos: RepMatchDbContext, Configuraciones/ (todo el mapeo EF),
                            repositorios, UnitOfWork, DatosSemilla. → Domain, Common
   RepMatch.Aplicacion/     Lógica de negocio: FachadaAplicacion, ServicioClientes, ServicioBusquedas,
+                           ServicioMecanicos, ServicioRevisiones, ServicioDerivaciones,
                            DespachadorEventos, ObservadorCompatibilidad, validadores, mapeadores,
                            CatalogoLocal, CatalogoVehiculosLocal. → Domain, Common, Contracts
   RepMatch.Clientes.Rest/  Adaptadores remotos: CatalogoRemoto y CatalogoVehiculosRemoto (HttpClient tipado).
@@ -116,6 +117,11 @@ scripts/evidencias.sh      regenera docs/evidencias/ (logs + mediciones local vs
 - **Punto de extensión de la IA**: hoy `ObservadorCompatibilidad`, al recibir `BusquedaCreada`, llena
   `CodigosObjetivo` por compatibilidad de vehículo; la IA lo reemplazará o complementará leyendo
   `Busqueda.TextoLibre`, sin cambiar la firma pública de `ServicioBusquedas.CrearAsync`.
+- **Roles y modelo de negocio**: `Cliente.Rol` distingue cliente y mecánico (misma entidad, a
+  propósito). El cliente comparte una `Busqueda` con un mecánico, que confirma o corrige el
+  diagnóstico (`CodigosRecomendados` queda aparte de `CodigosObjetivo`: es el dato etiquetado de la
+  IA). El ingreso es comisión de afiliado por `Derivacion` (`GET /derivar/{ofertaId}`) y el plan Pro
+  del mecánico, sin cobro real. El ranking de ofertas depende solo del precio: no lo atar a quién paga.
 - **Configuración externalizada**: todo se sobreescribe por variable de entorno (`Seccion__Clave`):
   `Catalogo:Modo` (`Local`/`Remoto`), `Catalogo:UrlBaseRemota`, `Persistencia:Proveedor`
   (`InMemory`/`Postgres`), `ConnectionStrings:RepMatch`. Puertos del host en `.env`.
@@ -159,7 +165,7 @@ La solución compila **sin advertencias**; mantenerlo así.
   entregas siguientes" y la de entregables), `docs/diagramas/*.md`, `docs/patrones.md` y
   `README.md`. Los diagramas se editan en los bloques Mermaid de los Markdown, que son su única fuente. Verificar su renderizado con un preview compatible.
 - **Cantidad de pruebas**: está escrita literal en la sección 5.4 del informe (la salida de
-  `dotnet test`) y en `status.md` ("84 passed", ejecución Docker del 2026-10-11). `docker-compose.yml` y
+  `dotnet test`) y en `status.md` ("98 passed", ejecución local del 2026-11-03; la última en Docker, del 2026-10-11, dio 84). `docker-compose.yml` y
   `tests/RepMatch.Tests/Dockerfile` dicen "las pruebas" sin número, a propósito. Si agregás o quitás
   pruebas, corré `dotnet test` y actualizá los dos.
 - **Proyecto nuevo**: sumarlo a `RepMatch.slnx` **y** a los `COPY` de `.csproj` de cada

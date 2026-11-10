@@ -19,6 +19,10 @@ public sealed class SesionActual(
 
     public ClienteDto? Cliente { get; private set; }
 
+    /// <summary>Muestra u oculta lo del taller. Es solo para la vista: los servicios vuelven a
+    /// chequear el rol, porque la presentacion no es una frontera de seguridad.</summary>
+    public bool EsMecanico => Cliente?.EsMecanico == true;
+
     /// <summary>Mensaje para mostrar en la próxima página, por ejemplo después de borrar la
     /// cuenta. Lo consume quien lo muestra.</summary>
     public string? AvisoPendiente { get; set; }

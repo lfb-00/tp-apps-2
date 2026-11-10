@@ -23,6 +23,34 @@ public sealed record ClienteDto
     public string? TemaPreferido { get; init; }
 
     public IReadOnlyList<VehiculoClienteDto> Vehiculos { get; init; } = [];
+
+    /// <summary>Uno de <see cref="RolesUsuario"/>.</summary>
+    public string Rol { get; init; } = RolesUsuario.Cliente;
+    public bool EsMecanico => Rol == RolesUsuario.Mecanico;
+
+    // Datos del taller: solo vienen cargados para un mecanico.
+    public string? NombreTaller { get; init; }
+    public IReadOnlyList<string> Especialidades { get; init; } = [];
+
+    /// <summary>Uno de <see cref="PlanesMecanico"/>, o null para un cliente.</summary>
+    public string? Plan { get; init; }
+}
+
+/// <summary>Valores de rol en la frontera. Son texto porque Contracts no referencia al dominio.</summary>
+public static class RolesUsuario
+{
+    public const string Cliente = "Cliente";
+    public const string Mecanico = "Mecanico";
+
+    public static readonly IReadOnlyList<string> Todos = [Cliente, Mecanico];
+}
+
+public static class PlanesMecanico
+{
+    public const string Gratuito = "Gratuito";
+    public const string Pro = "Pro";
+
+    public static readonly IReadOnlyList<string> Todos = [Gratuito, Pro];
 }
 
 public sealed record VehiculoClienteDto
@@ -46,6 +74,11 @@ public sealed record CrearClienteDto
 
     [Required, Compare(nameof(Contrasena))]
     public required string RepetirContrasena { get; init; }
+
+    /// <summary>Se elige al registrarse y no cambia. Por defecto cliente, asi los llamadores
+    /// anteriores a los roles siguen funcionando igual.</summary>
+    [StringLength(20)]
+    public string Rol { get; init; } = RolesUsuario.Cliente;
 }
 
 public sealed record LoginDto

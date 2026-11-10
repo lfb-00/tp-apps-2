@@ -30,6 +30,23 @@ public sealed class BusquedaRepository(RepMatchDbContext contexto) : IBusquedaRe
     public async Task AgregarAsync(Busqueda busqueda, CancellationToken ct = default) =>
         await contexto.Busquedas.AddAsync(busqueda, ct);
 
+    public async Task<IReadOnlyList<Busqueda>> ListarCompartidasConAsync(
+        Guid mecanicoId, CancellationToken ct = default) =>
+        await contexto.Busquedas
+            .Include(b => b.Ofertas)
+            .Where(b => b.MecanicoId == mecanicoId)
+            .OrderBy(b => b.RevisadaEn != null)
+            .ThenByDescending(b => b.CompartidaEn)
+            .ToListAsync(ct);
+
+    public Task<int> ContarPendientesDeRevisionAsync(Guid mecanicoId, CancellationToken ct = default) =>
+        contexto.Busquedas.CountAsync(b => b.MecanicoId == mecanicoId && b.RevisadaEn == null, ct);
+
+    public Task<Busqueda?> ObtenerPorOfertaAsync(Guid ofertaId, CancellationToken ct = default) =>
+        contexto.Busquedas
+            .Include(b => b.Ofertas)
+            .FirstOrDefaultAsync(b => b.Ofertas.Any(o => o.Id == ofertaId), ct);
+
     public async Task<int> EliminarPorClienteAsync(Guid clienteId, CancellationToken ct = default)
     {
         // Se cargan en vez de usar ExecuteDelete para que el borrado quede en la misma unidad de

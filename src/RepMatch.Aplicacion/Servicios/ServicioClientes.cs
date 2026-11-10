@@ -60,12 +60,13 @@ public sealed class ServicioClientes(
 
         try
         {
-            var cliente = new Cliente(dto.Nombre, dto.Email);
+            var cliente = new Cliente(dto.Nombre, dto.Email, Enum.Parse<RolUsuario>(dto.Rol));
             cliente.EstablecerContrasena(BCrypt.Net.BCrypt.HashPassword(dto.Contrasena));
             await clientes.AgregarAsync(cliente, ct);
             await unidadDeTrabajo.ConfirmarAsync(ct);
 
-            log.LogInformation("Cliente registrado {ClienteId} ({Email})", cliente.Id, cliente.Email);
+            log.LogInformation("Cliente registrado {ClienteId} ({Email}) con rol {Rol}",
+                cliente.Id, cliente.Email, cliente.Rol);
             return ResultadoOperacion<ClienteDto>.Exito(cliente.ADto());
         }
         catch (ExcepcionDominio ex)
@@ -224,6 +225,16 @@ public sealed class ServicioClientes(
             }
 
             cantidadBusquedas = await busquedas.EliminarPorClienteAsync(clienteId, token);
+
+            // Las consultas que un mecanico tenia sin revisar vuelven a sus duenios; las revisadas
+            // quedan como historial del cliente aunque el mecanico ya no exista.
+            if (cliente.EsMecanico)
+            {
+                foreach (var pendiente in (await busquedas.ListarCompartidasConAsync(clienteId, token))
+                             .Where(b => !b.EstaRevisada))
+                    pendiente.DejarDeCompartir();
+            }
+
             clientes.Eliminar(cliente);
             await unidadDeTrabajo.ConfirmarAsync(token);
         }, ct);

@@ -46,6 +46,18 @@ app.MapGet("/salud", () => Results.Ok(new
     utc = DateTimeOffset.UtcNow
 }));
 
+// "Ir a la tienda": registra la derivacion (la base de la comision de afiliado) y redirige al sitio
+// de origen. Pasa por el servidor y no por un link directo para que la salida quede registrada
+// aunque el navegador no ejecute JavaScript.
+app.MapGet("/derivar/{ofertaId:guid}", async (
+    Guid ofertaId, RepMatch.Aplicacion.Fachada.FachadaAplicacion fachada, CancellationToken ct) =>
+{
+    var resultado = await fachada.DerivarAsync(ofertaId, ct);
+    return resultado.EsExitoso
+        ? Results.Redirect(resultado.Valor)
+        : Results.NotFound(new { error = resultado.Error });
+});
+
 // Ejercita el catalogo por el camino que indique la configuracion y devuelve modo y latencia.
 // Existe para que scripts/evidencias.sh pueda generar las evidencias de ejecucion local y remota
 // sin depender de que alguien haga clic en la interfaz.

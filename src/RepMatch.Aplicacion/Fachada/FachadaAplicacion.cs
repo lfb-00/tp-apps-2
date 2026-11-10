@@ -6,15 +6,55 @@ using RepMatch.Contracts.Dtos;
 namespace RepMatch.Aplicacion.Fachada;
 
 /// <summary>
-/// Única puerta de la presentación hacia clientes, búsquedas y catálogo. Esconde los servicios,
-/// el contrato del catálogo y el despacho de eventos.
+/// Única puerta de la presentación hacia clientes, mecánicos, búsquedas y catálogo. Esconde los
+/// servicios, el contrato del catálogo y el despacho de eventos.
 /// </summary>
 public sealed class FachadaAplicacion(
     ServicioClientes clientes,
     ServicioBusquedas busquedas,
     ICatalogoRepuestos catalogo,
-    ICatalogoVehiculos catalogoVehiculos)
+    ICatalogoVehiculos catalogoVehiculos,
+    ServicioMecanicos mecanicos,
+    ServicioRevisiones revisiones,
+    ServicioDerivaciones derivaciones)
 {
+    public Task<IReadOnlyList<MecanicoDto>> ListarMecanicosAsync(
+        string? provincia = null, CancellationToken ct = default) =>
+        mecanicos.ListarAsync(provincia, ct);
+
+    public Task<ResultadoOperacion<ClienteDto>> ActualizarTallerAsync(
+        Guid mecanicoId, ActualizarTallerDto dto, CancellationToken ct = default) =>
+        mecanicos.ActualizarTallerAsync(mecanicoId, dto, ct);
+
+    /// <summary>Cambia el plan del mecánico sin cobrar: el pago queda fuera de alcance.</summary>
+    public Task<ResultadoOperacion<ClienteDto>> CambiarPlanAsync(
+        Guid mecanicoId, string plan, CancellationToken ct = default) =>
+        mecanicos.CambiarPlanAsync(mecanicoId, plan, ct);
+
+    public Task<ConsultaDto?> ObtenerConsultaAsync(
+        Guid busquedaId, Guid usuarioId, CancellationToken ct = default) =>
+        revisiones.ObtenerAsync(busquedaId, usuarioId, ct);
+
+    public Task<ResultadoOperacion<ConsultaDto>> CompartirConsultaAsync(
+        Guid busquedaId, Guid clienteId, Guid mecanicoId, CancellationToken ct = default) =>
+        revisiones.CompartirAsync(busquedaId, clienteId, mecanicoId, ct);
+
+    public Task<ResultadoOperacion<ConsultaDto>> DejarDeCompartirConsultaAsync(
+        Guid busquedaId, Guid clienteId, CancellationToken ct = default) =>
+        revisiones.DejarDeCompartirAsync(busquedaId, clienteId, ct);
+
+    public Task<ResultadoOperacion<BandejaMecanicoDto>> ObtenerBandejaAsync(
+        Guid mecanicoId, CancellationToken ct = default) =>
+        revisiones.ObtenerBandejaAsync(mecanicoId, ct);
+
+    public Task<ResultadoOperacion<ConsultaDto>> RevisarConsultaAsync(
+        Guid busquedaId, Guid mecanicoId, RevisarBusquedaDto dto, CancellationToken ct = default) =>
+        revisiones.RevisarAsync(busquedaId, mecanicoId, dto, ct);
+
+    /// <summary>Registra la salida a la tienda y devuelve la URL a la que redirigir.</summary>
+    public Task<ResultadoOperacion<string>> DerivarAsync(Guid ofertaId, CancellationToken ct = default) =>
+        derivaciones.DerivarAsync(ofertaId, ct);
+
     public Task<IReadOnlyList<ClienteDto>> ListarClientesAsync(CancellationToken ct = default) =>
         clientes.ListarAsync(ct);
 

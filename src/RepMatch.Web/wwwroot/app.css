@@ -778,6 +778,52 @@ button.btn-peligro:hover:not(:disabled) { background: var(--color-error); border
     vertical-align: middle;
 }
 
+/* ── Roles: cliente y mecánico ──────────────────── */
+.opciones-rol { border: none; margin: 0.25rem 0 0; padding: 0; display: grid; gap: 0.5rem; }
+.opciones-rol legend { font-size: 0.82rem; font-weight: 600; padding: 0; margin-bottom: 0.35rem; }
+.opcion-rol {
+    display: flex;
+    gap: 0.6rem;
+    align-items: flex-start;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    font-weight: 400;
+    cursor: pointer;
+}
+.opcion-rol.elegida { border-color: var(--color-primary); background: var(--color-primary-soft); }
+.opcion-rol input { width: auto; margin: 0.2rem 0 0; accent-color: var(--color-primary); }
+.opcion-rol span { display: grid; gap: 0.1rem; }
+.opcion-rol small { color: var(--color-text-muted); font-size: 0.8rem; }
+
+.etiqueta-ok, .etiqueta-corregido, .etiqueta-pendiente { margin-left: 0.35rem; font-weight: 600; vertical-align: middle; }
+.etiqueta-ok        { background: var(--color-success-soft); border-color: var(--color-success-border); color: var(--color-success); }
+.etiqueta-corregido { background: var(--color-accent-soft);  border-color: var(--color-accent-border);  color: var(--color-accent); }
+.etiqueta-pendiente { background: var(--color-warning-soft); border-color: var(--color-warning-border); color: var(--color-text); }
+
+.mecanico { display: flex; gap: 0.75rem; align-items: flex-start; }
+.mecanico .vehiculo-info { display: grid; gap: 0.1rem; }
+.directorio { display: grid; gap: 0.55rem; margin-top: 0.85rem; }
+.lista-piezas { margin: 0.25rem 0 0; padding-left: 1.1rem; }
+.lista-piezas li + li { margin-top: 0.2rem; }
+.lista-piezas code { font-size: 0.78rem; color: var(--color-text-muted); }
+.nota-mecanico {
+    margin: 0.75rem 0;
+    padding: 0.6rem 0.85rem;
+    border-left: 3px solid var(--color-primary);
+    background: var(--color-bg);
+    border-radius: 0 6px 6px 0;
+}
+.revision .fecha { margin-left: 0.5rem; color: var(--color-text-muted); }
+.revision .mecanico { margin-top: 0.85rem; }
+
+.resumen-taller { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 1rem; }
+.resumen-taller .tarjeta { display: grid; gap: 0.2rem; margin: 0; }
+.resumen-taller small { color: var(--color-text-muted); font-size: 0.8rem; }
+.resumen-taller strong { font-size: 1.4rem; }
+.texto-ayuda { color: var(--color-text-muted); font-size: 0.85rem; }
+.grilla-checks { display: grid; gap: 0.1rem 1rem; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+
 /* ── Modal ──────────────────────────────────────── */
 .modal-fondo {
     position: fixed;

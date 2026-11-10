@@ -51,16 +51,5 @@
         return aplicacion.Motor is null ? anios : $"{anios} · {aplicacion.Motor}";
     }
 
-    private static string Sistema(string sistema) => sistema switch
-    {
-        "Suspension" => "Suspensión",
-        "Transmision" => "Transmisión",
-        "Electrico" => "Eléctrico",
-        "Refrigeracion" => "Refrigeración",
-        "Direccion" => "Dirección",
-        "Carroceria" => "Carrocería",
-        "Neumaticos" => "Neumáticos",
-        "Desconocido" => "Sin sistema",
-        _ => sistema
-    };
+    private static string Sistema(string sistema) => NombresSistema.Etiqueta(sistema);
 }
