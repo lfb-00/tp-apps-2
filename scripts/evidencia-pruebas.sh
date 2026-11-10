@@ -31,7 +31,7 @@ advertencias="$(grep -oE '^ *[0-9]+ (Advertencia\(s\)|Warning\(s\))' "$TEMPORAL"
   echo "# Generado por scripts/evidencia-pruebas.sh. No editar a mano."
   echo
   echo "Fecha:        $(date '+%Y-%m-%d %H:%M %z')"
-  echo "Commit:       $(git rev-parse --short HEAD 2>/dev/null || echo 'sin git')$(git diff --quiet HEAD 2>/dev/null || echo ' + cambios sin commitear')"
+  echo "Commit:       $(git rev-parse --short HEAD 2>/dev/null || echo 'sin git')$(git diff --quiet HEAD -- . ':!docs/evidencias/08-pruebas.txt' 2>/dev/null || echo ' + cambios sin commitear')"
   echo "SDK:          $(dotnet --version)"
   echo "Comando:      dotnet build RepMatch.slnx --no-incremental && dotnet test RepMatch.slnx --no-build"
   echo "Advertencias: $advertencias"
