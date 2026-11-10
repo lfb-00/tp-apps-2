@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\RepMatch.Common\RepMatch.Common.csproj" />
+    <ProjectReference Include="..\RepMatch.Contracts\RepMatch.Contracts.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <!-- Embebido en el ensamblado: el clasificador local funciona igual en dotnet run, en las
+       pruebas y en el contenedor, sin depender de la ruta de trabajo. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Datos\sintomas.json" LogicalName="RepMatch.IA.sintomas.json" />
+  </ItemGroup>
+
+</Project>

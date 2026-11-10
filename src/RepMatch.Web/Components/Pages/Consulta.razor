@@ -56,6 +56,20 @@ else
         <p>@busqueda.TextoLibre</p>
 
         <h2>Diagnóstico propuesto</h2>
+        @if (busqueda.Diagnostico is { } diagnostico && busqueda.Diagnostico.Sistema != "Desconocido")
+        {
+            <p>
+                <strong>@NombresSistema.Etiqueta(diagnostico.Sistema)</strong>
+                @if (diagnostico.Urgencia != "Desconocida")
+                {
+                    <span> · urgencia @(diagnostico.Urgencia == "Critica" ? "crítica" : diagnostico.Urgencia.ToLowerInvariant())</span>
+                }
+                @if (diagnostico.Causas.Count > 0)
+                {
+                    <span>: @string.Join("; ", diagnostico.Causas)</span>
+                }
+            </p>
+        }
         @if (!string.IsNullOrWhiteSpace(busqueda.MotivoFalla))
         {
             <p class="vacio">@busqueda.MotivoFalla</p>

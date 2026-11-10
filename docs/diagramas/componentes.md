@@ -1,7 +1,7 @@
 # Diagrama de componentes — RepMatch
 
-Seis componentes reutilizables e independientes (la consigna pide un mínimo de tres) más dos hosts
-ejecutables. Cada componente es un proyecto .NET separado, cada uno con su `.csproj` y sus
+Siete componentes reutilizables e independientes (la consigna pide un mínimo de tres) más tres hosts
+ejecutables. El séptimo, `RepMatch.IA`, y su host `RepMatch.IA.Api` son de la Segunda Parte. Cada componente es un proyecto .NET separado, cada uno con su `.csproj` y sus
 referencias declaradas.
 
 ## Componentes
@@ -11,9 +11,10 @@ referencias declaradas.
 | `RepMatch.Domain` | **Dominio** | Entidades, value objects, eventos e interfaces de repositorio | *nada* |
 | `RepMatch.Persistence` | **Acceso a datos** | `DbContext`, mapeos, repositorios, unidad de trabajo | Domain (y una referencia declarada a Common que hoy ningún archivo usa) |
 | `RepMatch.Common` | **Utilidad** | Validación, logging, configuración, `ResultadoOperacion<T>`, medición de latencia, correlación | *nada del proyecto* |
-| `RepMatch.Contracts` | Contratos | DTOs, `ICatalogoRepuestos`, `ICatalogoVehiculos`, `OpcionesCatalogo` | *nada del proyecto* |
-| `RepMatch.Aplicacion` | Lógica de negocio | Servicios, `FachadaAplicacion`, despacho y observadores de eventos, mapeadores, validadores, `CatalogoLocal`, `CatalogoVehiculosLocal` | Domain, Common, Contracts |
-| `RepMatch.Clientes.Rest` | Adaptador remoto | `CatalogoRemoto`, `CatalogoVehiculosRemoto`, propagación de correlación | Common, Contracts |
+| `RepMatch.Contracts` | Contratos | DTOs, `ICatalogoRepuestos`, `ICatalogoVehiculos`, `IDiagnosticador`, `OpcionesCatalogo`, `OpcionesIA` | *nada del proyecto* |
+| `RepMatch.Aplicacion` | Lógica de negocio | Servicios (incluido `ServicioDiagnostico`), `FachadaAplicacion`, despacho y observadores de eventos, mapeadores, validadores, `CatalogoLocal`, `CatalogoVehiculosLocal` | Domain, Common, Contracts |
+| `RepMatch.Clientes.Rest` | Adaptador remoto | `CatalogoRemoto`, `CatalogoVehiculosRemoto`, `DiagnosticadorRemoto`, propagación de correlación | Common, Contracts |
+| `RepMatch.IA` | Componente de IA | `DiagnosticadorLlm`, `DiagnosticadorLocal` (TF-IDF + k-NN), `DiagnosticadorConRespaldo`, filtro de datos personales, corpus de síntomas embebido | Common, Contracts |
 
 ## Diagrama
 
@@ -22,25 +23,32 @@ flowchart TB
     subgraph host_web["🖥️ Host: RepMatch.Web (Blazor Server)"]
         UI["Componentes Razor<br/><i>capa de presentación</i>"]
         FCAT["FabricaCatalogo<br/><i>patrón Factory</i>"]
+        FDIAG["FabricaDiagnostico<br/><i>patrón Factory</i>"]
     end
 
     subgraph host_api["🖥️ Host: RepMatch.Catalogo.Api (REST)"]
         CTRL["RepuestosController<br/>ClientesController<br/>BusquedasController<br/>VehiculosController"]
     end
 
+    subgraph host_ia["🖥️ Host: RepMatch.IA.Api (REST)"]
+        CTRLIA["DiagnosticoController"]
+    end
+
     subgraph comp["📦 Componentes reutilizables"]
         subgraph app_sub["RepMatch.Aplicacion"]
             FACH["FachadaAplicacion<br/><i>patrón Facade</i>"]
-            APP["ServicioClientes · ServicioBusquedas<br/>ServicioMecanicos · ServicioRevisiones · ServicioDerivaciones<br/>ObservadorCompatibilidad<br/><b>CatalogoLocal · CatalogoVehiculosLocal</b>"]
+            APP["ServicioClientes · ServicioBusquedas<br/>ServicioMecanicos · ServicioRevisiones · ServicioDerivaciones<br/>ServicioDiagnostico · ObservadorCompatibilidad<br/><b>CatalogoLocal · CatalogoVehiculosLocal</b>"]
         end
-        REST["RepMatch.Clientes.Rest<br/><b>CatalogoRemoto · CatalogoVehiculosRemoto</b>"]
-        CON["RepMatch.Contracts<br/><b>«interface» ICatalogoRepuestos · ICatalogoVehiculos</b><br/>DTOs · OpcionesCatalogo"]
+        REST["RepMatch.Clientes.Rest<br/><b>CatalogoRemoto · CatalogoVehiculosRemoto<br/>DiagnosticadorRemoto</b>"]
+        IA["RepMatch.IA<br/><b>DiagnosticadorConRespaldo</b><br/>DiagnosticadorLlm · DiagnosticadorLocal"]
+        CON["RepMatch.Contracts<br/><b>«interface» ICatalogoRepuestos · ICatalogoVehiculos<br/>«interface» IDiagnosticador</b><br/>DTOs · OpcionesCatalogo · OpcionesIA"]
         PER["RepMatch.Persistence<br/>RepMatchDbContext · Repositorios · UnitOfWork"]
         DOM["RepMatch.Domain<br/>Entidades · Value objects<br/><b>«interface» IRepuestoRepository · IConfiguracionVehiculoRepository</b>"]
         COM["RepMatch.Common<br/>Validación · Logging · Configuración<br/>ResultadoOperacion · Cronometro"]
     end
 
     BD[("PostgreSQL<br/><i>o InMemory</i>")]
+    LLM(["Proveedor LLM externo<br/><i>Groq o Gemini, opcional</i>"])
 
     UI --> FACH
     UI -- SelectorVehiculo --> CON
@@ -49,13 +57,22 @@ flowchart TB
     FACH --> CON
     FCAT -. "Catalogo:Modo = Local" .-> APP
     FCAT -. "Catalogo:Modo = Remoto" .-> REST
+    FDIAG -. "IA:Modo = Local" .-> IA
+    FDIAG -. "IA:Modo = Remoto" .-> REST
 
     APP -- implementa --> CON
     REST -- implementa --> CON
+    IA -- implementa --> CON
+    APP -- "IDiagnosticador" --> CON
 
     REST == "HTTP · JSON" ==> CTRL
+    REST == "HTTP · JSON" ==> CTRLIA
     CTRL --> APP
     CTRL --> CON
+    CTRL -- "diagnóstico en proceso" --> IA
+    CTRLIA --> IA
+    IA == "HTTPS · chat completions" ==> LLM
+    IA --> COM
 
     PER -- usa entidades --> DOM
     APP --> DOM
@@ -70,6 +87,7 @@ flowchart TB
     style CON fill:#eaf2fa,stroke:#1f5f9e,stroke-width:2px
     style APP fill:#e6f4ec,stroke:#1f7a4d
     style REST fill:#fbf0e2,stroke:#9a5b13
+    style IA fill:#f3ecfa,stroke:#6b3fa0
     style DOM fill:#f6f7f9,stroke:#5b6472
 ```
 
@@ -98,6 +116,11 @@ Para la Segunda Parte está previsto agregar una tercera implementación sobre S
 tocar ni la interfaz ni sus consumidores. Todavía no existe en el código: hoy solo están
 `CatalogoLocal` y `CatalogoRemoto`.
 
+El componente de IA repite el ejercicio con `IDiagnosticador`: `FabricaDiagnostico` lo enlaza a
+`DiagnosticadorConRespaldo` (en proceso, la biblioteca `RepMatch.IA`) o a `DiagnosticadorRemoto`
+(HTTP contra `POST /api/diagnostico` de `IA.Api`) según `IA:Modo`. `IA.Api` no tiene base: recibe en
+la petición las piezas compatibles que ya resolvió el catálogo y elige entre ellas.
+
 También hay dos implementaciones de `ICatalogoVehiculos`: `CatalogoVehiculosLocal` consulta
 `IConfiguracionVehiculoRepository` y `CatalogoVehiculosRemoto` consume `GET /api/vehiculos/opciones`.
 `SelectorVehiculo` accede directamente al contrato para cargar los selectores; la fachada
@@ -117,10 +140,10 @@ descartó, está en [docs/patrones.md](../patrones.md).
 
 | Patrón | Dónde | Para qué |
 |---|---|---|
-| **Factory** | `FabricaCatalogo` | Elegir la implementación del catálogo según configuración |
-| **Strategy** | `ICatalogoRepuestos` con dos implementaciones | Intercambiar el mecanismo de acceso sin tocar consumidores |
+| **Factory** | `FabricaCatalogo` y `FabricaDiagnostico` | Elegir la implementación del catálogo y de la IA según configuración |
+| **Strategy** | `ICatalogoRepuestos` con dos implementaciones; `IDiagnosticador` con LLM, local, respaldo y remota | Intercambiar el mecanismo sin tocar consumidores |
 | **Repository** | `I*Repository` en Domain, implementados en Persistence | Aislar el dominio del motor de datos |
 | **Unit of Work** | `IUnitOfWork` / `UnitOfWork` | Confirmar cambios como una transacción |
-| **Adapter** | `CatalogoRemoto` | Adaptar un contrato HTTP a la interfaz `ICatalogoRepuestos` de `RepMatch.Contracts` |
-| **Observer** | `DespachadorEventos` y `ObservadorCompatibilidad` | `BusquedaCreada` completa los códigos sin que `ServicioBusquedas` conozca el catálogo. `BusquedaCompartida`, `DiagnosticoValidado` y `DerivacionATienda` se despachan igual y todavía no tienen observadores |
+| **Adapter** | `CatalogoRemoto`, `DiagnosticadorRemoto`, `DiagnosticadorLlm` | Adaptar un contrato HTTP (propio o del proveedor del LLM) a las interfaces de `RepMatch.Contracts` |
+| **Observer** | `DespachadorEventos` y `ObservadorCompatibilidad` | `BusquedaCreada` completa el diagnóstico y los códigos sin que `ServicioBusquedas` conozca el catálogo ni la IA. `BusquedaCompartida`, `DiagnosticoValidado` y `DerivacionATienda` se despachan igual y todavía no tienen observadores |
 | **Facade** | `FachadaAplicacion` | Coordina clientes, mecánicos, búsquedas, revisiones, derivaciones y repuestos; el selector consulta opciones vehiculares directamente |

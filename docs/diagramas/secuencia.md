@@ -4,10 +4,11 @@
 
 ## 1. Registrar una búsqueda
 
-Caso de la Primera Parte: el cliente elige un vehículo del garage, describe el problema, y la
-búsqueda queda guardada con los códigos de las piezas compatibles. El texto libre se persiste. La
-elección de piezas la hace el observador de `BusquedaCreada`, por compatibilidad de vehículo; la
-fachada después arma las piezas completas para mostrarlas.
+Caso de la Primera Parte, con el componente de IA de la Segunda: el cliente elige un vehículo del
+garage, describe el problema, y la búsqueda queda guardada con el diagnóstico y los códigos de las
+piezas elegidas. El texto libre se persiste. La elección la hace el observador de `BusquedaCreada`
+a través de `ServicioDiagnostico`: el catálogo da las piezas compatibles y la IA elige entre ellas
+(sección 7). La fachada después arma las piezas completas para mostrarlas.
 
 ```mermaid
 sequenceDiagram
@@ -20,7 +21,9 @@ sequenceDiagram
     participant UoW as UnitOfWork
     participant Despacho as DespachadorEventos
     participant Obs as ObservadorCompatibilidad
+    participant Diag as ServicioDiagnostico
     participant Catalogo as ICatalogoRepuestos
+    participant IA as IDiagnosticador
     participant Vehiculos as ICatalogoVehiculos
 
     Usuario->>Web: Cliente, vehículo del garage y problema
@@ -52,14 +55,32 @@ sequenceDiagram
         alt no encuentra la búsqueda
             Note over Obs: registra un warning y retorna<br/>sin consultar el catálogo ni confirmar
         else la encuentra
-            Obs->>Catalogo: BuscarCompatiblesAsync
-            alt hay piezas compatibles
-                Catalogo-->>Obs: piezas compatibles
-                Obs->>Dominio: AsignarCodigosObjetivo
-            else sin piezas compatibles
+            Obs->>Diag: DiagnosticarAsync(Vehiculo, TextoLibre)
+            Diag->>Catalogo: BuscarCompatiblesAsync
+            alt error HTTP o timeout del catálogo remoto (HttpRequestException / TaskCanceledException)
+                Catalogo-->>Diag: excepción
+                Diag-->>Obs: la excepción se propaga
                 Obs->>Dominio: Fallar
-            else error HTTP o timeout del catálogo remoto (HttpRequestException / TaskCanceledException)
-                Obs->>Dominio: Fallar
+            else el catálogo responde
+                Catalogo-->>Diag: piezas compatibles
+                opt hay piezas compatibles
+                    Diag->>IA: DiagnosticarAsync(texto, vehículo, candidatos)
+                    alt la IA responde
+                        IA-->>Diag: sistema, urgencia, causas y códigos elegidos
+                        Note over Diag: se queda con las compatibles cuyos códigos eligió la IA<br/>si no eligió ninguna, quedan todas
+                    else IA.Api caída o lenta (HttpRequestException / TaskCanceledException)
+                        Note over Diag: registra un warning: quedan todas, sin diagnóstico
+                    end
+                end
+                Diag-->>Obs: PiezasDiagnosticadas
+                opt hay diagnóstico
+                    Obs->>Dominio: RegistrarDiagnostico(sistema, urgencia, causas, fuente)
+                end
+                alt hay piezas
+                    Obs->>Dominio: AsignarCodigosObjetivo(elegidas)
+                else sin piezas compatibles
+                    Obs->>Dominio: Fallar
+                end
             end
             Obs->>UoW: ConfirmarAsync
             Busquedas->>Repo: ObtenerPorIdAsync(busqueda.Id)
@@ -220,10 +241,11 @@ sequenceDiagram
 
 ## 4. Búsqueda sin sesión
 
-El visitante selecciona un vehículo y describe el problema en Home. El texto se valida en la Web,
-pero no se envía a la fachada: esta consulta devuelve piezas, sin crear una `Busqueda`, guardar
-historial ni despachar `BusquedaCreada`. La carga de los selectores y la validación del vehículo
-usan `ICatalogoVehiculos`, el acceso concreto se elige con la misma fábrica que los repuestos.
+El visitante selecciona un vehículo y describe el problema en Home. El texto se valida en la Web y
+va a la fachada solo para el diagnóstico: esta consulta devuelve el diagnóstico y las piezas, sin
+crear una `Busqueda`, guardar historial ni despachar `BusquedaCreada`. La carga de los selectores y
+la validación del vehículo usan `ICatalogoVehiculos`, el acceso concreto se elige con la misma
+fábrica que los repuestos. `ServicioDiagnostico` es el mismo de la sección 1.
 
 ```mermaid
 sequenceDiagram
@@ -232,7 +254,9 @@ sequenceDiagram
     participant Selector as SelectorVehiculo
     participant Vehiculos as ICatalogoVehiculos
     participant Fachada as FachadaAplicacion
+    participant Diag as ServicioDiagnostico
     participant Catalogo as ICatalogoRepuestos
+    participant IA as IDiagnosticador
 
     Web->>Selector: mostrar selector de vehículo
     Selector->>Vehiculos: ListarOpcionesAsync
@@ -247,8 +271,8 @@ sequenceDiagram
         alt vehículo incompleto o texto de menos de 15 caracteres
             Web-->>Usuario: pedido de completar vehículo o ampliar descripción
         else formulario válido
-            Web->>Fachada: BuscarRepuestosAsync, sin filtro de sistema
-            Note over Web,Fachada: envía solo el vehículo, el texto permanece en la Web
+            Web->>Fachada: DiagnosticarAsync(vehículo, texto)
+            Note over Web,Fachada: el texto se diagnostica y no se guarda
             Fachada->>Vehiculos: EsConfiguracionValidaAsync
             alt error al validar la configuración
                 Vehiculos-->>Fachada: excepción
@@ -259,22 +283,33 @@ sequenceDiagram
                 Web-->>Usuario: mensaje de validación
             else configuración válida
                 Vehiculos-->>Fachada: true
-                Fachada->>Catalogo: BuscarCompatiblesAsync, vía ConsultarAsync
+                Fachada->>Diag: DiagnosticarAsync(vehículo, texto)
+                Diag->>Catalogo: BuscarCompatiblesAsync
                 alt el catálogo responde
-                    Catalogo-->>Fachada: lista de repuestos
-                    Fachada-->>Web: Exito con la lista
+                    Catalogo-->>Diag: lista de repuestos
+                    opt hay piezas
+                        Diag->>IA: DiagnosticarAsync(texto, vehículo, candidatos)
+                        alt la IA responde
+                            IA-->>Diag: diagnóstico y códigos elegidos
+                        else IA.Api caída o lenta
+                            Note over Diag: warning: quedan todas, sin diagnóstico
+                        end
+                    end
+                    Diag-->>Fachada: PiezasDiagnosticadas
+                    Fachada-->>Web: Exito con diagnóstico y piezas elegidas
                     alt hay piezas
-                        Web-->>Usuario: fichas de piezas compatibles
+                        Web-->>Usuario: tarjeta del diagnóstico (si hay) y fichas de piezas
                     else lista vacía
                         Web-->>Usuario: aviso de que no hay piezas compatibles
                     end
-                else error HTTP o timeout
-                    Catalogo-->>Fachada: HttpRequestException o TaskCanceledException
+                else error HTTP o timeout del catálogo
+                    Catalogo-->>Diag: HttpRequestException o TaskCanceledException
+                    Diag-->>Fachada: la excepción se propaga
                     Fachada-->>Web: Falla, no se pudo consultar el catálogo
                     Web-->>Usuario: mensaje de error
                 else otra excepción
-                    Catalogo-->>Fachada: excepción no capturada
-                    Note over Fachada,Web: se propaga, no se convierte en ResultadoOperacion
+                    Catalogo-->>Diag: excepción no capturada
+                    Note over Diag,Web: se propaga, no se convierte en ResultadoOperacion
                 end
             end
         end
@@ -282,8 +317,9 @@ sequenceDiagram
 ```
 
 Código de referencia: [Home.razor](../../src/RepMatch.Web/Components/Pages/Home.razor),
-[SelectorVehiculo.razor](../../src/RepMatch.Web/Components/SelectorVehiculo.razor) y
-[FachadaAplicacion.cs](../../src/RepMatch.Aplicacion/Fachada/FachadaAplicacion.cs).
+[SelectorVehiculo.razor](../../src/RepMatch.Web/Components/SelectorVehiculo.razor),
+[FachadaAplicacion.cs](../../src/RepMatch.Aplicacion/Fachada/FachadaAplicacion.cs) y
+[ServicioDiagnostico.cs](../../src/RepMatch.Aplicacion/Servicios/ServicioDiagnostico.cs).
 
 ---
 
@@ -502,3 +538,60 @@ Código de referencia: [Perfil.razor](../../src/RepMatch.Web/Components/Pages/Pe
 [UnitOfWork.cs](../../src/RepMatch.Persistence/UnitOfWork.cs),
 [BusquedaRepository.cs](../../src/RepMatch.Persistence/Repositorios/BusquedaRepository.cs) y
 [SesionActual.cs](../../src/RepMatch.Web/Servicios/SesionActual.cs).
+
+---
+
+## 7. Diagnóstico por IA: LLM con respaldo local
+
+Lo que pasa adentro de `IDiagnosticador` en las secciones 1 y 4. En modo Remoto la Web llega por
+HTTP a `IA.Api`, que resuelve con la misma `DiagnosticadorConRespaldo` que el modo Local. Sea cual
+sea el camino, la respuesta dice qué fuente contestó.
+
+```mermaid
+sequenceDiagram
+    participant Diag as ServicioDiagnostico
+    participant Remoto as DiagnosticadorRemoto
+    participant Api as IA.Api
+    participant Respaldo as DiagnosticadorConRespaldo
+    participant Llm as DiagnosticadorLlm
+    participant Prov as Proveedor LLM
+    participant Local as DiagnosticadorLocal
+
+    alt IA:Modo = Remoto
+        Diag->>Remoto: DiagnosticarAsync(solicitud)
+        Remoto->>Api: POST /api/diagnostico (X-Correlation-Id)
+        alt cuerpo inválido (texto fuera de 5 a 500 caracteres, sin vehículo)
+            Api-->>Remoto: 400
+            Remoto-->>Diag: HttpRequestException
+        else cuerpo válido
+            Api->>Respaldo: DiagnosticarAsync(solicitud)
+        end
+    else IA:Modo = Local
+        Diag->>Respaldo: DiagnosticarAsync(solicitud)
+    end
+
+    alt sin IA:Llm:ApiKey
+        Respaldo->>Local: DiagnosticarAsync
+    else con clave
+        Respaldo->>Llm: DiagnosticarAsync
+        Note over Llm: quita mails y teléfonos del texto
+        Llm->>Prov: POST chat/completions (candidatos en el mensaje)
+        alt responde JSON válido a tiempo
+            Prov-->>Llm: sistema, urgencia, causas, códigos
+            Note over Llm: descarta los códigos que no están entre los candidatos
+            Llm-->>Respaldo: diagnóstico, fuente "llm"
+        else error HTTP, timeout o JSON fuera del esquema
+            Llm-->>Respaldo: excepción
+            Note over Respaldo: registra la conmutación en el log
+            Respaldo->>Local: DiagnosticarAsync
+        end
+    end
+    Note over Local: TF-IDF + 4 vecinos sobre sintomas.json<br/>fuente "fallback-local"
+    Note over Respaldo: registra fuente, sistema, cantidad de códigos,<br/>largo del texto y latencia total
+    Respaldo-->>Diag: DiagnosticoDto (directo o por la respuesta 200 de IA.Api)
+```
+
+Código de referencia: [DiagnosticadorConRespaldo.cs](../../src/RepMatch.IA/DiagnosticadorConRespaldo.cs),
+[DiagnosticadorLlm.cs](../../src/RepMatch.IA/Llm/DiagnosticadorLlm.cs),
+[DiagnosticadorLocal.cs](../../src/RepMatch.IA/Local/DiagnosticadorLocal.cs) y
+[DiagnosticadorRemoto.cs](../../src/RepMatch.Clientes.Rest/DiagnosticadorRemoto.cs).

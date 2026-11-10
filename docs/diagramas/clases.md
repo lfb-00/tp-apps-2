@@ -16,7 +16,7 @@ Como la aplicación es un comparador y no un e-shop, esos tres conceptos se mate
 |---|---|---|
 | Cliente | `Cliente` | Igual: quien usa el comparador, con su garage de vehículos. La misma entidad representa al mecánico, distinguido por `Rol`. |
 | Producto | `Repuesto` + `Oferta` | `Repuesto` es la pieza como concepto (código canónico, equivalencias, compatibilidad); `Oferta` es esa pieza publicada por una tienda concreta a un precio concreto. Separarlos es lo que permite comparar la misma pieza entre sitios. |
-| Pedido | `Busqueda` | El agregado de la consulta: vehículo, texto libre, estado y códigos objetivo. `Oferta` es el tipo preparado para el resultado de una tienda; esta entrega no captura ofertas. |
+| Pedido | `Busqueda` | El agregado de la consulta: vehículo, texto libre, estado, diagnóstico de la IA y códigos objetivo. `Oferta` es el tipo preparado para el resultado de una tienda; esta entrega no captura ofertas. |
 
 ## Modelo de dominio
 
@@ -132,6 +132,10 @@ classDiagram
         +DateTimeOffset FechaCreacion
         +string? MotivoFalla
         +IReadOnlyCollection~string~ CodigosObjetivo
+        +SistemaVehiculo? SistemaDiagnosticado
+        +NivelUrgencia Urgencia
+        +IReadOnlyCollection~string~ CausasProbables
+        +string? FuenteDiagnostico
         +IReadOnlyCollection~Oferta~ Ofertas
         +Guid? MecanicoId
         +DateTimeOffset? CompartidaEn
@@ -139,6 +143,7 @@ classDiagram
         +IReadOnlyCollection~string~ CodigosRecomendados
         +string? NotaMecanico
         +DateTimeOffset? RevisadaEn
+        +RegistrarDiagnostico(sistema, urgencia, causas, fuente)
         +AsignarCodigosObjetivo(codigos)
         +RegistrarOfertas(ofertas)
         +Fallar(motivo)
@@ -280,6 +285,8 @@ classDiagram
     Busqueda ..> Cliente : ClienteId sin navegacion
     Busqueda "1" *-- "0..*" Oferta : resultados
     Busqueda --> EstadoBusqueda
+    Busqueda --> NivelUrgencia : diagnostico
+    Busqueda --> SistemaVehiculo : diagnostico
     IEventoDominio <|.. BusquedaCreada
     EntidadBase o-- IEventoDominio : eventos acumulados
     Busqueda ..> BusquedaCreada : registra al crearse
@@ -317,9 +324,13 @@ ofertas queda vacía. Las pruebas de dominio y de persistencia sí ejercen el m�
 `AsignarCodigosObjetivo` pasa a `Diagnosticada` y `Fallar` a `Fallida`. `Completada` solo la asigna
 `RegistrarOfertas`. `Borrador` existe en la enumeración, pero ningún método lo asigna.
 
-**Tipos declarados que la aplicación todavía no usa.** `NivelUrgencia` no lo referencia ninguna
-entidad ni servicio, y `Oferta.EstaVencida` no lo llama nadie. Se dibujan porque están en el
-componente, aunque hoy no los use ningún flujo.
+**El diagnóstico va aparte de los códigos.** `RegistrarDiagnostico` guarda lo que leyó la IA
+(sistema, `NivelUrgencia`, causas y fuente) y `AsignarCodigosObjetivo` las piezas elegidas. Van
+separados porque un diagnóstico puede no traer piezas del catálogo (un problema de embrague) y aun
+así sirve. Si la IA no respondió, la búsqueda no tiene diagnóstico.
+
+**Tipos declarados que la aplicación todavía no usa.** `Oferta.EstaVencida` no lo llama nadie. Se
+dibuja porque está en el componente, aunque hoy no lo use ningún flujo.
 
 **Las invariantes se rompen con `ExcepcionDominio`.** Todas las entidades y value objects la lanzan
 desde sus constructores y métodos (`Si`, `SiNulaOVacia`); en el diagrama se dibuja una sola
@@ -386,6 +397,7 @@ classDiagram
             +RegistrarBusquedaAsync(dto) ResultadoOperacion~BusquedaDto~
             +BuscarAsync(dto) ResultadoOperacion~ResultadoBusquedaDto~
             +BuscarRepuestosAsync(vehiculo, sistema) ResultadoOperacion
+            +DiagnosticarAsync(vehiculo, texto) ResultadoOperacion~ResultadoDiagnosticoDto~
             +ListarRepuestosAsync() ResultadoOperacion
             +ListarMecanicosAsync(provincia) IReadOnlyList~MecanicoDto~
             +CompartirConsultaAsync(busquedaId, clienteId, mecanicoId) ResultadoOperacion~ConsultaDto~
@@ -409,6 +421,13 @@ classDiagram
             +ListarPorClienteAsync(clienteId) IReadOnlyList~BusquedaDto~
             +ListarRecientesAsync(cantidad) IReadOnlyList~BusquedaDto~
         }
+
+        class ServicioDiagnostico {
+
+            +DiagnosticarAsync(vehiculo, texto) PiezasDiagnosticadas
+
+        }
+
 
         class ServicioMecanicos {
             +ListarAsync(provincia) IReadOnlyList~MecanicoDto~
@@ -437,6 +456,11 @@ classDiagram
     }
 
     namespace Strategy {
+        class IDiagnosticador {
+            <<interface>>
+            +string Modo
+            +DiagnosticarAsync(solicitud) DiagnosticoDto
+        }
         class ICatalogoRepuestos {
             <<interface>>
             +string Modo
@@ -548,6 +572,7 @@ classDiagram
     FachadaAplicacion --> ServicioMecanicos
     FachadaAplicacion --> ServicioRevisiones
     FachadaAplicacion --> ServicioDerivaciones
+    FachadaAplicacion --> ServicioDiagnostico
 
     FabricaCatalogo ..> CatalogoLocal : registra
     FabricaCatalogo ..> CatalogoRemoto : registra
@@ -565,7 +590,9 @@ classDiagram
     IDespachadorEventos <|.. DespachadorEventos
     DespachadorEventos o-- "0..*" IObservadorEventoDominio : notifica
     IObservadorEventoDominio <|.. ObservadorCompatibilidad
-    ObservadorCompatibilidad --> ICatalogoRepuestos
+    ObservadorCompatibilidad --> ServicioDiagnostico
+    ServicioDiagnostico --> ICatalogoRepuestos
+    ServicioDiagnostico --> IDiagnosticador : elige entre las compatibles
     ServicioRevisiones --> IDespachadorEventos : BusquedaCompartida, DiagnosticoValidado
     ServicioDerivaciones --> IDespachadorEventos : DerivacionATienda
 
@@ -604,8 +631,10 @@ classDiagram
     style ServicioMecanicos fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
     style ServicioRevisiones fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
     style ServicioDerivaciones fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
+    style ServicioDiagnostico fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
     style FabricaCatalogo fill:#fee2e2,stroke:#b91c1c,stroke-width:2px,color:#111
     style ICatalogoRepuestos fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#111
+    style IDiagnosticador fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#111
     style CatalogoLocal fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#111
     style ICatalogoVehiculos fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#111
     style CatalogoVehiculosLocal fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#111
@@ -631,8 +660,8 @@ classDiagram
 
 | Patrón | Color | Clases en el diagrama | Proyecto |
 |---|---|---|---|
-| Factory | Rojo | `FabricaCatalogo.AgregarCatalogo` | `RepMatch.Web` |
-| Strategy | Azul | `ICatalogoRepuestos` / `ICatalogoVehiculos` con sus implementaciones `*Local` y `*Remoto` | `Contracts`, `Aplicacion`, `Clientes.Rest` |
+| Factory | Rojo | `FabricaCatalogo.AgregarCatalogo`; `FabricaDiagnostico.AgregarDiagnostico` repite el patrón para `IDiagnosticador` y no se dibuja | `RepMatch.Web` |
+| Strategy | Azul | `ICatalogoRepuestos` / `ICatalogoVehiculos` con sus implementaciones `*Local` y `*Remoto`; `IDiagnosticador`, cuyas implementaciones (`DiagnosticadorLlm`, `DiagnosticadorLocal`, `DiagnosticadorConRespaldo` en `RepMatch.IA` y `DiagnosticadorRemoto`) se describen en [patrones.md](../patrones.md#el-componente-de-ia-y-los-mismos-patrones) y no se dibujan | `Contracts`, `Aplicacion`, `Clientes.Rest`, `IA` |
 | Adapter | Violeta | `CatalogoRemoto`, `CatalogoVehiculosRemoto` (HTTP → contrato) | `RepMatch.Clientes.Rest` |
 | Repository | Verde | `I*Repository` (interfaces) y `*Repository` (EF Core) | `Domain` y `Persistence` |
 | Unit of Work | Turquesa | `IUnitOfWork` / `UnitOfWork` | `Domain` y `Persistence` |
@@ -660,7 +689,7 @@ separados no se ven:
 | `ServicioDerivaciones` | `Busqueda` | Pide a la búsqueda la `Derivacion` de una oferta y la guarda. |
 | `CatalogoLocal`, `CatalogoVehiculosLocal` | `Repuesto`, `ConfiguracionVehiculo` | Las estrategias locales leen entidades y las traducen a DTOs. Las remotas no tocan el dominio: solo ven DTOs. |
 | `IDespachadorEventos`, `IObservadorEventoDominio` | `IEventoDominio` | El Observer trabaja sobre el contrato de evento del dominio, no sobre eventos concretos. |
-| `ObservadorCompatibilidad` | `BusquedaCreada`, `Busqueda` | Reacciona al evento y completa la búsqueda con `AsignarCodigosObjetivo` o la cierra con `Fallar`. |
+| `ObservadorCompatibilidad` | `BusquedaCreada`, `Busqueda` | Reacciona al evento, pide a `ServicioDiagnostico` las piezas y el diagnóstico, y completa la búsqueda con `RegistrarDiagnostico` y `AsignarCodigosObjetivo` o la cierra con `Fallar`. |
 
 `FachadaAplicacion`, `FabricaCatalogo` y los adaptadores remotos no tienen ninguna flecha hacia el
 dominio: la presentación y el acceso remoto se comunican solo con DTOs de `RepMatch.Contracts`.
@@ -778,6 +807,10 @@ classDiagram
             +DateTimeOffset FechaCreacion
             +string? MotivoFalla
             +IReadOnlyCollection~string~ CodigosObjetivo
+            +SistemaVehiculo? SistemaDiagnosticado
+            +NivelUrgencia Urgencia
+            +IReadOnlyCollection~string~ CausasProbables
+            +string? FuenteDiagnostico
             +IReadOnlyCollection~Oferta~ Ofertas
             +Guid? MecanicoId
             +DateTimeOffset? CompartidaEn
@@ -785,6 +818,7 @@ classDiagram
             +IReadOnlyCollection~string~ CodigosRecomendados
             +string? NotaMecanico
             +DateTimeOffset? RevisadaEn
+            +RegistrarDiagnostico(sistema, urgencia, causas, fuente)
             +AsignarCodigosObjetivo(codigos)
             +RegistrarOfertas(ofertas)
             +Fallar(motivo)
@@ -926,6 +960,8 @@ classDiagram
     Busqueda ..> Cliente : ClienteId sin navegacion
     Busqueda "1" *-- "0..*" Oferta : resultados
     Busqueda --> EstadoBusqueda
+    Busqueda --> NivelUrgencia : diagnostico
+    Busqueda --> SistemaVehiculo : diagnostico
     IEventoDominio <|.. BusquedaCreada
     EntidadBase o-- IEventoDominio : eventos acumulados
     Busqueda ..> BusquedaCreada : registra al crearse
@@ -952,6 +988,7 @@ classDiagram
             +RegistrarBusquedaAsync(dto) ResultadoOperacion~BusquedaDto~
             +BuscarAsync(dto) ResultadoOperacion~ResultadoBusquedaDto~
             +BuscarRepuestosAsync(vehiculo, sistema) ResultadoOperacion
+            +DiagnosticarAsync(vehiculo, texto) ResultadoOperacion~ResultadoDiagnosticoDto~
             +ListarRepuestosAsync() ResultadoOperacion
             +ListarMecanicosAsync(provincia) IReadOnlyList~MecanicoDto~
             +CompartirConsultaAsync(busquedaId, clienteId, mecanicoId) ResultadoOperacion~ConsultaDto~
@@ -975,6 +1012,13 @@ classDiagram
             +ListarPorClienteAsync(clienteId) IReadOnlyList~BusquedaDto~
             +ListarRecientesAsync(cantidad) IReadOnlyList~BusquedaDto~
         }
+
+        class ServicioDiagnostico {
+
+            +DiagnosticarAsync(vehiculo, texto) PiezasDiagnosticadas
+
+        }
+
 
         class ServicioMecanicos {
             +ListarAsync(provincia) IReadOnlyList~MecanicoDto~
@@ -1003,6 +1047,11 @@ classDiagram
     }
 
     namespace Strategy {
+        class IDiagnosticador {
+            <<interface>>
+            +string Modo
+            +DiagnosticarAsync(solicitud) DiagnosticoDto
+        }
         class ICatalogoRepuestos {
             <<interface>>
             +string Modo
@@ -1121,6 +1170,7 @@ classDiagram
     FachadaAplicacion --> ServicioMecanicos
     FachadaAplicacion --> ServicioRevisiones
     FachadaAplicacion --> ServicioDerivaciones
+    FachadaAplicacion --> ServicioDiagnostico
 
     FabricaCatalogo ..> CatalogoLocal : registra
     FabricaCatalogo ..> CatalogoRemoto : registra
@@ -1138,7 +1188,9 @@ classDiagram
     IDespachadorEventos <|.. DespachadorEventos
     DespachadorEventos o-- "0..*" IObservadorEventoDominio : notifica
     IObservadorEventoDominio <|.. ObservadorCompatibilidad
-    ObservadorCompatibilidad --> ICatalogoRepuestos
+    ObservadorCompatibilidad --> ServicioDiagnostico
+    ServicioDiagnostico --> ICatalogoRepuestos
+    ServicioDiagnostico --> IDiagnosticador : elige entre las compatibles
     ServicioRevisiones --> IDespachadorEventos : BusquedaCompartida, DiagnosticoValidado
     ServicioDerivaciones --> IDespachadorEventos : DerivacionATienda
 
@@ -1186,7 +1238,7 @@ classDiagram
     IDespachadorEventos ..> IEventoDominio : despacha
     IObservadorEventoDominio ..> IEventoDominio : observa
     ObservadorCompatibilidad ..> BusquedaCreada : reacciona
-    ObservadorCompatibilidad ..> Busqueda : AsignarCodigosObjetivo o Fallar
+    ObservadorCompatibilidad ..> Busqueda : RegistrarDiagnostico, AsignarCodigosObjetivo o Fallar
 
     style FachadaAplicacion fill:#fce7f3,stroke:#be185d,stroke-width:2px,color:#111
     style ServicioClientes fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
@@ -1194,8 +1246,10 @@ classDiagram
     style ServicioMecanicos fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
     style ServicioRevisiones fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
     style ServicioDerivaciones fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
+    style ServicioDiagnostico fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
     style FabricaCatalogo fill:#fee2e2,stroke:#b91c1c,stroke-width:2px,color:#111
     style ICatalogoRepuestos fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#111
+    style IDiagnosticador fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#111
     style CatalogoLocal fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#111
     style ICatalogoVehiculos fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#111
     style CatalogoVehiculosLocal fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#111

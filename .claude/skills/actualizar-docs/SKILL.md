@@ -46,7 +46,7 @@ Ejemplos de RepMatch que deben contrastarse nuevamente con el código al actuali
 
 | Flujo | Qué debe reflejar |
 |---|---|
-| Búsqueda sin sesión | Selector vía `ICatalogoVehiculos`, validación del formulario y consulta por fachada. El texto no se envía ni persiste; no se crea `Busqueda` ni se despacha `BusquedaCreada`. |
+| Búsqueda sin sesión | Selector vía `ICatalogoVehiculos`, validación del formulario y `DiagnosticarAsync` por fachada. El texto llega a la IA pero no se persiste; no se crea `Busqueda` ni se despacha `BusquedaCreada`. |
 | Consulta local/remota | Factory elige las implementaciones; el consumidor usa contratos. Local accede al repositorio y dominio; Remoto adapta HTTP/JSON y llega al catálogo local de la API. Separar validación vehicular de consulta de repuestos. |
 | Eliminación de cuenta | Validación de contraseña, carga del cliente y BCrypt antes de borrar. Liberar el predeterminado si existe, borrar búsquedas y cliente, confirmar y cerrar sesión tras el éxito. La transacción relacional y el trabajo directo en InMemory no tienen las mismas garantías. |
 | Búsqueda con cuenta | Guardar antes de despachar el evento; Observer asigna códigos y confirma después. La fachada obtiene el detalle de las piezas. No dibujar todo como una sola transacción. |

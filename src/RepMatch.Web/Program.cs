@@ -17,6 +17,7 @@ builder.Services.AddRazorComponents()
 
 // Registra la capa de datos, la de logica de negocio y las dos formas de alcanzar el catalogo.
 builder.Services.AgregarCatalogo(builder.Configuration);
+builder.Services.AgregarDiagnostico(builder.Configuration);
 builder.Services.AgregarProteccionDatos(builder.Configuration);
 builder.Services.AddScoped<RepMatch.Web.Servicios.SesionActual>();
 builder.Services.AddScoped<RepMatch.Web.Servicios.TemaActual>();
@@ -93,12 +94,16 @@ app.MapGet("/evidencia/catalogo", async (
 await app.Services.InicializarBaseAsync();
 
 var opciones = app.Services.GetRequiredService<OpcionesCatalogo>();
+var opcionesIA = app.Services.GetRequiredService<OpcionesIA>();
 
 try
 {
     Log.Information("Web iniciada. Modo de acceso al catalogo: {Modo} ({Url})",
         opciones.Modo,
         opciones.Modo == ModoAccesoCatalogo.Remoto ? opciones.UrlBaseRemota : "en proceso");
+    Log.Information("Modo de acceso a la IA: {Modo} ({Url})",
+        opcionesIA.Modo,
+        opcionesIA.Modo == ModoAccesoIA.Remoto ? opcionesIA.UrlBaseRemota : "en proceso");
 
     await app.RunAsync();
 }

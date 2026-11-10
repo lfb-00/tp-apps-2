@@ -16,6 +16,7 @@ public class Busqueda : EntidadBase
     private readonly List<Oferta> _ofertas = [];
     private readonly List<string> _codigosObjetivo = [];
     private readonly List<string> _codigosRecomendados = [];
+    private readonly List<string> _causasProbables = [];
 
     private Busqueda() { Vehiculo = null!; }   // requerido por EF Core
 
@@ -50,6 +51,20 @@ public class Busqueda : EntidadBase
     public IReadOnlyCollection<string> CodigosObjetivo => _codigosObjetivo.AsReadOnly();
 
     public IReadOnlyCollection<Oferta> Ofertas => _ofertas.AsReadOnly();
+
+    /// <summary>Sistema que la IA leyo en el texto libre. null si la busqueda no paso por la IA
+    /// (texto vacio o componente caido): entonces los codigos salen solo por compatibilidad.</summary>
+    public SistemaVehiculo? SistemaDiagnosticado { get; private set; }
+
+    public NivelUrgencia Urgencia { get; private set; }
+
+    public IReadOnlyCollection<string> CausasProbables => _causasProbables.AsReadOnly();
+
+    /// <summary>"llm" o "fallback-local": quien respondio. Se guarda para poder medir despues
+    /// cuantas busquedas resolvio cada fuente y contra que tasa de correcciones del mecanico.</summary>
+    public string? FuenteDiagnostico { get; private set; }
+
+    public bool TieneDiagnostico => FuenteDiagnostico is not null;
 
     /// <summary>Mecanico al que el cliente le compartio la busqueda. Solo el lo ve, ademas del
     /// duenio: compartir es una decision del cliente, no algo que el mecanico pueda pedir.</summary>
@@ -148,6 +163,30 @@ public class Busqueda : EntidadBase
             : null;
 
         return new Derivacion(Id, oferta.Id, oferta.NombreTienda, oferta.UrlOriginal, mecanico);
+    }
+
+    /// <summary>
+    /// Guarda lo que dijo el componente de IA. Va separado de <see cref="AsignarCodigosObjetivo"/>
+    /// porque un diagnostico puede no traer piezas (un problema de embrague cuando el catalogo no
+    /// tiene embragues) y aun asi es informacion util para la persona y para el mecanico.
+    /// </summary>
+    public void RegistrarDiagnostico(
+        SistemaVehiculo sistema, NivelUrgencia urgencia, IEnumerable<string> causas, string fuente)
+    {
+        ArgumentNullException.ThrowIfNull(causas);
+        ExcepcionDominio.SiNulaOVacia(fuente, nameof(fuente));
+        ExcepcionDominio.Si(Estado is EstadoBusqueda.Completada or EstadoBusqueda.Fallida,
+            "No se puede cambiar el diagnostico de una busqueda ya cerrada.");
+
+        SistemaDiagnosticado = sistema;
+        Urgencia = urgencia;
+        FuenteDiagnostico = fuente.Trim();
+        _causasProbables.Clear();
+        _causasProbables.AddRange(causas
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Select(c => c.Trim())
+            .Distinct()
+            .Take(3));
     }
 
     public void AsignarCodigosObjetivo(IEnumerable<string> codigos)

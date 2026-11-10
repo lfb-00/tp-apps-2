@@ -30,6 +30,9 @@
     <!-- Con alias: Web y Catalogo.Api generan cada uno su clase Program publica, y sin esto
          WebApplicationFactory<Program> de las pruebas de integracion seria ambiguo. -->
     <ProjectReference Include="..\..\src\RepMatch.Web\RepMatch.Web.csproj" Aliases="Web" />
+    <ProjectReference Include="..\..\src\RepMatch.IA\RepMatch.IA.csproj" />
+    <!-- Mismo motivo que Web: IA.Api tambien expone su propia clase Program. -->
+    <ProjectReference Include="..\..\src\RepMatch.IA.Api\RepMatch.IA.Api.csproj" Aliases="IAApi" />
   </ItemGroup>
 
 </Project>

@@ -44,6 +44,31 @@ public static class ExtensionesClienteRest
 
         return servicios;
     }
+
+    /// <summary>
+    /// Registra <see cref="DiagnosticadorRemoto"/> contra IA.Api, con la misma propagacion de
+    /// correlacion: una busqueda se sigue en los logs de la Web y de IA.Api con un solo id.
+    /// </summary>
+    public static IServiceCollection AgregarDiagnosticadorRemoto(
+        this IServiceCollection servicios, OpcionesIA opciones)
+    {
+        ArgumentNullException.ThrowIfNull(servicios);
+        ArgumentNullException.ThrowIfNull(opciones);
+
+        servicios.AddHttpContextAccessor();
+        servicios.AddTransient<PropagacionCorrelacionHandler>();
+
+        servicios
+            .AddHttpClient<DiagnosticadorRemoto>(http =>
+            {
+                http.BaseAddress = new Uri(opciones.UrlBaseRemota.TrimEnd('/') + "/");
+                http.Timeout = TimeSpan.FromSeconds(opciones.TimeoutSegundos);
+                http.DefaultRequestHeaders.Add("User-Agent", "RepMatch.Web");
+            })
+            .AddHttpMessageHandler<PropagacionCorrelacionHandler>();
+
+        return servicios;
+    }
 }
 
 /// <summary>Copia el X-Correlation-Id de la peticion entrante a la saliente.</summary>

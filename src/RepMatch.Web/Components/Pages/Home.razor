@@ -84,7 +84,12 @@
 
     @if (resultadoAnon is not null)
     {
-        @if (resultadoAnon.Count == 0)
+        @if (resultadoAnon.Diagnostico is { } diagnosticoAnon && resultadoAnon.Piezas.Count > 0)
+        {
+            <TarjetaDiagnostico Diagnostico="diagnosticoAnon" Piezas="resultadoAnon.Piezas" />
+        }
+
+        @if (resultadoAnon.Piezas.Count == 0)
         {
             <div class="tarjeta">
                 <p class="vacio">No encontramos piezas del catálogo para ese vehículo. Probá con otra marca o modelo.</p>
@@ -92,9 +97,9 @@
         }
         else
         {
-            <p class="conteo">@resultadoAnon.Count @(resultadoAnon.Count == 1 ? "pieza" : "piezas") compatibles</p>
+            <p class="conteo">@resultadoAnon.Piezas.Count @(resultadoAnon.Piezas.Count == 1 ? "pieza compatible" : "piezas compatibles")</p>
             <div class="piezas">
-                @foreach (var pieza in resultadoAnon)
+                @foreach (var pieza in resultadoAnon.Piezas)
                 {
                     <article class="pieza">
                         <TarjetaRepuesto Repuesto="pieza" Vehiculo="vehiculoAnonDto" />
@@ -211,7 +216,12 @@ else
             }
             else
             {
-                <p class="conteo">@resultado.Piezas.Count @(resultado.Piezas.Count == 1 ? "pieza" : "piezas") compatibles</p>
+                @if (resultado.Busqueda.Diagnostico is { } diagnostico)
+                {
+                    <TarjetaDiagnostico Diagnostico="diagnostico" Piezas="resultado.Piezas" />
+                }
+
+                <p class="conteo">@resultado.Piezas.Count @(resultado.Piezas.Count == 1 ? "pieza compatible" : "piezas compatibles")</p>
                 <div class="piezas">
                     @foreach (var pieza in resultado.Piezas)
                     {
@@ -269,7 +279,7 @@ else
     private bool buscandoAnon;
     private List<string> erroresAnon = [];
     private string? errorTextoAnon;
-    private IReadOnlyList<RepuestoDto>? resultadoAnon;
+    private ResultadoDiagnosticoDto? resultadoAnon;
     private VehiculoDto? vehiculoAnonDto;
 
     // búsqueda con sesión
@@ -386,14 +396,17 @@ else
                 return;
             }
 
-            var respuesta = await Fachada.BuscarRepuestosAsync(vehiculo, sistema: null);
+            errorTextoAnon = null;
+
+            // El texto va a la IA para elegir las piezas, pero no se guarda: no hay cuenta.
+            var respuesta = await Fachada.DiagnosticarAsync(vehiculo, textoAnon);
             if (respuesta.EsFallido)
             {
                 erroresAnon = [.. respuesta.Errores];
                 return;
             }
 
-            resultadoAnon = [.. respuesta.Valor];
+            resultadoAnon = respuesta.Valor;
         }
         finally
         {

@@ -796,10 +796,12 @@ button.btn-peligro:hover:not(:disabled) { background: var(--color-error); border
 .opcion-rol span { display: grid; gap: 0.1rem; }
 .opcion-rol small { color: var(--color-text-muted); font-size: 0.8rem; }
 
-.etiqueta-ok, .etiqueta-corregido, .etiqueta-pendiente { margin-left: 0.35rem; font-weight: 600; vertical-align: middle; }
+.etiqueta-ok, .etiqueta-corregido, .etiqueta-pendiente, .etiqueta-urgente { margin-left: 0.35rem; font-weight: 600; vertical-align: middle; }
 .etiqueta-ok        { background: var(--color-success-soft); border-color: var(--color-success-border); color: var(--color-success); }
 .etiqueta-corregido { background: var(--color-accent-soft);  border-color: var(--color-accent-border);  color: var(--color-accent); }
 .etiqueta-pendiente { background: var(--color-warning-soft); border-color: var(--color-warning-border); color: var(--color-text); }
+.etiqueta-urgente   { background: var(--color-error-soft);   border-color: var(--color-error-border);   color: var(--color-error); }
+.bloque-ia-titulo .etiqueta { font-weight: 600; }
 
 .mecanico { display: flex; gap: 0.75rem; align-items: flex-start; }
 .mecanico .vehiculo-info { display: grid; gap: 0.1rem; }
