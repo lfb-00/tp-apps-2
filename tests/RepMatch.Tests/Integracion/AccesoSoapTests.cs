@@ -18,6 +18,7 @@ namespace RepMatch.Tests.Integracion;
 ///
 /// El canal WCF usa el handler HTTP del TestServer, asi que no hacen falta puertos ni contenedores.
 /// </summary>
+[Collection(ColeccionBaseCompartida.Nombre)]
 public class AccesoSoapTests : IClassFixture<FabricaCatalogoSoap>, IAsyncLifetime
 {
     private readonly FabricaCatalogoSoap _fabrica;
