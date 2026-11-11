@@ -7,8 +7,8 @@ El usuario identifica su vehículo, describe el problema en lenguaje natural, y 
 las ofertas de varios sitios reales. **No vende ni almacena stock**: normaliza, compara y deriva a la
 tienda de origen.
 
-> **Alcance de este repo: TP Inicial, Primera Parte y, de la Segunda Parte, el componente de IA.**
-> La aplicación es el comparador. SOAP, mensajería y tiendas externas todavía no están.
+> **Alcance de este repo: TP Inicial, Primera Parte y, de la Segunda Parte, el componente de IA y el
+> servicio SOAP.** La aplicación es el comparador. Mensajería y tiendas externas todavía no están.
 > Diagramas, informe, evidencias y patrones están en `docs/`. El seguimiento del trabajo está
 > en `plan.md` y `status.md`.
 
@@ -60,6 +60,7 @@ docker compose up --build --wait
 
 - Web → **http://localhost:8080**
 - API REST → **http://localhost:8081/salud**; contrato OpenAPI → **http://localhost:8081/openapi/v1.json** (Development)
+- Catálogo SOAP → **http://localhost:8082/ConsultaCompatibilidad.svc?wsdl** (contrato WSDL)
 - IA REST → **http://localhost:8083/salud**; contrato OpenAPI → **http://localhost:8083/openapi/v1.json** (Development)
 - PostgreSQL → `localhost:5432`
 
@@ -154,6 +155,10 @@ dotnet run --project src/RepMatch.Catalogo.Api --urls http://localhost:5081
 ```
 
 ```bash
+dotnet run --project src/RepMatch.Catalogo.Soap --urls http://localhost:5082
+```
+
+```bash
 dotnet run --project src/RepMatch.IA.Api --urls http://localhost:5083
 ```
 
@@ -169,8 +174,10 @@ src/
   RepMatch.Persistence/     componente de acceso a datos · EF Core
   RepMatch.Aplicacion/      lógica de negocio          · incluye CatalogoLocal y CatalogoVehiculosLocal
   RepMatch.Clientes.Rest/   adaptador remoto           · CatalogoRemoto, CatalogoVehiculosRemoto y DiagnosticadorRemoto
+  RepMatch.Clientes.Soap/   adaptador SOAP             · CatalogoSoap y el proxy generado desde el WSDL
   RepMatch.IA/              componente de IA           · LLM, clasificador local y respaldo entre ambos
   RepMatch.Catalogo.Api/    host REST del catálogo
+  RepMatch.Catalogo.Soap/   host SOAP del catálogo (CoreWCF) · WSDL en /ConsultaCompatibilidad.svc?wsdl
   RepMatch.IA.Api/          host REST del componente de IA · sin base de datos
   RepMatch.Web/             presentación (Blazor Server)
 tests/RepMatch.Tests/       pruebas
@@ -181,7 +188,7 @@ scripts/evidencias.sh        genera las evidencias del entregable
 ## Acceso local vs. remoto
 
 Dos interfaces, `ICatalogoRepuestos` e `ICatalogoVehiculos`, cada una con implementaciones local y remota intercambiables **por configuración,
-sin recompilar**. `IDiagnosticador` sigue el mismo esquema con `IA__Modo`:
+sin recompilar**. Los repuestos tienen además una tercera, por SOAP. `IDiagnosticador` sigue el mismo esquema con `IA__Modo`:
 
 ```bash
 Catalogo__Modo=Local   dotnet run --project src/RepMatch.Web
@@ -191,10 +198,16 @@ Catalogo__Modo=Local   dotnet run --project src/RepMatch.Web
 Catalogo__Modo=Remoto  dotnet run --project src/RepMatch.Web
 ```
 
-| | Local | Remoto |
-|---|---|---|
-| Mecanismo | referencia de proyecto, en proceso | HTTP + JSON contra `Catalogo.Api` |
-| Latencia (en régimen, mediana) | ~2 ms | ~7 ms |
+```bash
+Catalogo__Modo=Soap    dotnet run --project src/RepMatch.Web
+```
+
+| | Local | Remoto | Soap |
+|---|---|---|---|
+| Mecanismo | referencia de proyecto, en proceso | HTTP + JSON contra `Catalogo.Api` | repuestos por SOAP contra `Catalogo.Soap`, vehículos por REST |
+| Latencia (en régimen, mediana) | ~3 ms | ~12 ms | ~25 ms |
+
+En docker compose la Web arranca en modo **Soap**: cada búsqueda usa SOAP y REST.
 
 ## Base de datos
 

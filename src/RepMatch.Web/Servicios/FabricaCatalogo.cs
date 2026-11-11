@@ -1,6 +1,7 @@
 using RepMatch.Aplicacion;
 using RepMatch.Aplicacion.Catalogo;
 using RepMatch.Clientes.Rest;
+using RepMatch.Clientes.Soap;
 using RepMatch.Contracts;
 using RepMatch.Contracts.Configuracion;
 using RepMatch.Persistence;
@@ -40,15 +41,21 @@ public static class FabricaCatalogo
         // Camino REMOTO: HttpClient tipado contra Catalogo.Api.
         servicios.AgregarCatalogoRemoto(opciones);
 
+        // Camino SOAP: canal WCF contra Catalogo.Soap, con el proxy generado desde su WSDL.
+        servicios.AgregarCatalogoSoap(opciones);
+
         // La interfaz queda enlazada al camino que indique la configuracion.
         servicios.AddScoped<ICatalogoRepuestos>(sp => opciones.Modo switch
         {
             ModoAccesoCatalogo.Remoto => sp.GetRequiredService<CatalogoRemoto>(),
+            ModoAccesoCatalogo.Soap => sp.GetRequiredService<CatalogoSoap>(),
             _ => sp.GetRequiredService<CatalogoLocal>()
         });
+        // El servicio SOAP solo publica repuestos: en modo Soap los vehiculos siguen por REST, asi
+        // cada busqueda pasa por los dos protocolos.
         servicios.AddScoped<ICatalogoVehiculos>(sp => opciones.Modo switch
         {
-            ModoAccesoCatalogo.Remoto => sp.GetRequiredService<CatalogoVehiculosRemoto>(),
+            ModoAccesoCatalogo.Remoto or ModoAccesoCatalogo.Soap => sp.GetRequiredService<CatalogoVehiculosRemoto>(),
             _ => sp.GetRequiredService<CatalogoVehiculosLocal>()
         });
 

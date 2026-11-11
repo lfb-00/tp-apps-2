@@ -591,6 +591,16 @@
               "type": "string"
             }
           },
+          "diagnostico": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DiagnosticoBusquedaDto"
+              }
+            ]
+          },
           "ofertas": {
             "type": "array",
             "items": {
@@ -770,6 +780,31 @@
           "rol": {
             "maxLength": 20,
             "minLength": 0,
+            "type": "string"
+          }
+        }
+      },
+      "DiagnosticoBusquedaDto": {
+        "required": [
+          "sistema",
+          "urgencia",
+          "fuente"
+        ],
+        "type": "object",
+        "properties": {
+          "sistema": {
+            "type": "string"
+          },
+          "urgencia": {
+            "type": "string"
+          },
+          "causas": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "fuente": {
             "type": "string"
           }
         }

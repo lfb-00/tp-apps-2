@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <!-- Igual que Clientes.Rest: solo Common y Contracts. No referencia al host SOAP: el contrato
+       llega por el WSDL, en el codigo generado de ServicioSoap/. -->
+  <ItemGroup>
+    <ProjectReference Include="..\RepMatch.Common\RepMatch.Common.csproj" />
+    <ProjectReference Include="..\RepMatch.Contracts\RepMatch.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="System.ServiceModel.Http" Version="10.1.0" />
+    <PackageReference Include="System.ServiceModel.Primitives" Version="10.1.0" />
+  </ItemGroup>
+</Project>

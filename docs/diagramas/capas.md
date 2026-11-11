@@ -31,6 +31,10 @@ flowchart TB
         REM["CatalogoRemoto · CatalogoVehiculosRemoto<br/>DiagnosticadorRemoto"]
     end
 
+    subgraph soap["Adaptador SOAP · RepMatch.Clientes.Soap"]
+        SOA["CatalogoSoap<br/>proxy generado desde el WSDL"]
+    end
+
     subgraph contratos["Contratos · RepMatch.Contracts"]
         IC["ICatalogoRepuestos"]
         ICV["ICatalogoVehiculos"]
@@ -56,6 +60,7 @@ flowchart TB
     SEL --> ICV
     FAB -. "Catalogo:Modo elige una implementación" .-> LOC
     FAB -. "Catalogo:Modo elige una implementación" .-> REM
+    FAB -. "Catalogo:Modo elige una implementación" .-> SOA
     FAB -. "IA:Modo elige una implementación" .-> IAL
     FAC --> SC
     FAC --> SB
@@ -81,6 +86,8 @@ flowchart TB
     REM -. implementa .-> IC
     REM -. implementa .-> ICV
     REM -. implementa .-> ID
+    SOA -. implementa .-> IC
+    SOA --> COM
     IAL -. implementa .-> ID
     IAL --> COM
     LOC --> REPO
@@ -92,8 +99,10 @@ flowchart TB
 
 `ICatalogoRepuestos` e `ICatalogoVehiculos` viven en `Contracts` y no dependen de Persistence. Las
 implementaciones locales están en `Aplicacion` y llegan a la base por las interfaces de repositorio.
-Las remotas están en `Clientes.Rest` y salen por HTTP; no tocan Persistence. `FabricaCatalogo`
-enlaza cada contrato con una sola de las dos al arrancar.
+Las remotas están en `Clientes.Rest` y salen por HTTP; la de SOAP (Segunda Parte), en
+`Clientes.Soap`, sale por SOAP contra `Catalogo.Soap`. Ninguna toca Persistence. `FabricaCatalogo`
+enlaza cada contrato con una sola implementación al arrancar; en modo `Soap`, repuestos por SOAP y
+vehículos por REST.
 
 La presentación no referencia repositorios ni el despachador. Las páginas entran por la fachada.
 `SelectorVehiculo` consulta `ICatalogoVehiculos` para cargar las opciones, y la fachada usa el mismo
@@ -105,4 +114,4 @@ contra `IA.Api`; ninguna de las dos toca Persistence.
 `ServicioRevisiones` y `ServicioDerivaciones` siguen el mismo orden —confirmar y después despachar—
 con `BusquedaCompartida`, `DiagnosticoValidado` y `DerivacionATienda`, que hoy no tienen
 observadores. El endpoint `GET /derivar/{ofertaId}` de la Web también entra por la fachada.
-`Aplicacion`, `IA` y `Clientes.Rest` usan `Common`.
+`Aplicacion`, `IA`, `Clientes.Rest` y `Clientes.Soap` usan `Common`.

@@ -56,8 +56,9 @@ Repository, Strategy, Observer y Facade**, la fachada para las operaciones de cl
 eventos de dominio internos (`BusquedaCreada`) y el modelado con diagramas de capas y de secuencia.
 Sobre esa base se agregaron los roles cliente y mecánico, la revisión del diagnóstico y el registro
 de derivaciones del modelo de negocio.
-De la Segunda Parte ya está el **componente de IA**: diagnóstico del texto libre, expuesto por REST
-en `RepMatch.IA.Api` (secciones 6.7 y 7). El servicio SOAP, la mensajería y los adaptadores a
+De la Segunda Parte ya están el **componente de IA** (diagnóstico del texto libre, expuesto por REST
+en `RepMatch.IA.Api`, secciones 6.7 y 7) y el **servicio SOAP** del catálogo (`RepMatch.Catalogo.Soap`,
+con WSDL, secciones 4 y 6.8), que la Web usa en cada búsqueda. La mensajería y los adaptadores a
 tiendas externas corresponden a las entregas siguientes, y la arquitectura está preparada para
 recibirlos sin rediseño (sección 7).
 
@@ -65,8 +66,8 @@ recibirlos sin rediseño (sección 7).
 
 ## 2. Componentes construidos
 
-La consigna pide un mínimo de tres componentes reutilizables independientes. Se construyeron siete
-(los seis del TP Inicial y el de IA de la Segunda Parte):
+La consigna pide un mínimo de tres componentes reutilizables independientes. Se construyeron ocho
+(los seis del TP Inicial y, de la Segunda Parte, el de IA y el cliente SOAP):
 
 | # | Componente | Tipo pedido por la consigna | Responsabilidad |
 |---|---|---|---|
@@ -77,9 +78,11 @@ La consigna pide un mínimo de tres componentes reutilizables independientes. Se
 | 5 | `RepMatch.Aplicacion` | Lógica de negocio | `FachadaAplicacion`, `ServicioClientes`, `ServicioBusquedas`, `ServicioMecanicos`, `ServicioRevisiones`, `ServicioDerivaciones`, `ServicioDiagnostico`, `DespachadorEventos`, `ObservadorCompatibilidad`, mapeadores, validadores y los catálogos locales de repuestos y vehículos |
 | 6 | `RepMatch.Clientes.Rest` | Adaptador remoto | `CatalogoRemoto`, `CatalogoVehiculosRemoto`, `DiagnosticadorRemoto` y propagación de correlación |
 | 7 | `RepMatch.IA` | Componente de IA | `DiagnosticadorLlm` (adapter del LLM), `DiagnosticadorLocal` (clasificador TF-IDF + k-NN), `DiagnosticadorConRespaldo`, filtro de datos personales y el corpus de síntomas |
+| 8 | `RepMatch.Clientes.Soap` | Adaptador SOAP | `CatalogoSoap`, el proxy generado con `dotnet-svcutil` desde el WSDL de `Catalogo.Soap` y la propagación de correlación |
 
-Más tres hosts ejecutables: `RepMatch.Web` (presentación), `RepMatch.Catalogo.Api` (host REST del
-componente de catálogo) y `RepMatch.IA.Api` (host REST del componente de IA, sin base de datos).
+Más cuatro hosts ejecutables: `RepMatch.Web` (presentación), `RepMatch.Catalogo.Api` (host REST del
+componente de catálogo), `RepMatch.Catalogo.Soap` (host SOAP del mismo componente, con CoreWCF) y
+`RepMatch.IA.Api` (host REST del componente de IA, sin base de datos).
 
 **Criterio de independencia.** `Domain`, `Common` y `Contracts` no referencian ningún otro proyecto
 de la solución. Ésa es la prueba de que son reutilizables y no fragmentos de una misma bola de barro.
@@ -201,21 +204,23 @@ observador los acepta; quedan como hechos publicables para la Segunda Parte.
 ## 4. Acceso local vs. remoto entre componentes
 
 Es el ejercicio central del TP Inicial. Cada contrato, `ICatalogoRepuestos` e `ICatalogoVehiculos`, tiene
-**dos implementaciones intercambiables por configuración**. A continuación se muestra el de repuestos.
+**dos implementaciones intercambiables por configuración**. En la Segunda Parte, el de repuestos sumó
+una **tercera, por SOAP**, sin cambiar la interfaz ni sus consumidores. A continuación se muestra el de
+repuestos.
 
 ### El contrato
 
 Ver [ICatalogoRepuestos.cs](../src/RepMatch.Contracts/ICatalogoRepuestos.cs).
 
-### Las dos implementaciones
+### Las implementaciones
 
-| | **Local** | **Remoto** |
-|---|---|---|
-| Clase | `Aplicacion.Catalogo.CatalogoLocal` | `Clientes.Rest.CatalogoRemoto` |
-| Mecanismo | Invocación directa en proceso, por referencia de proyecto | HTTP + JSON contra `Catalogo.Api` |
-| Recorrido | `CatalogoLocal → IRepuestoRepository → EF Core → BD` | `HttpClient → GET /api/repuestos/compatibles → CatalogoLocal (otro proceso) → BD` |
-| Serialización | ninguna | query string de entrada y JSON de respuesta |
-| Frontera de fallas | excepciones del dominio | además: timeouts, DNS, códigos HTTP |
+| | **Local** | **Remoto** | **SOAP** *(Segunda Parte)* |
+|---|---|---|---|
+| Clase | `Aplicacion.Catalogo.CatalogoLocal` | `Clientes.Rest.CatalogoRemoto` | `Clientes.Soap.CatalogoSoap` |
+| Mecanismo | Invocación directa en proceso, por referencia de proyecto | HTTP + JSON contra `Catalogo.Api` | Sobre SOAP 1.1 por HTTP contra `Catalogo.Soap`, con el proxy generado desde el WSDL |
+| Recorrido | `CatalogoLocal → IRepuestoRepository → EF Core → BD` | `HttpClient → GET /api/repuestos/compatibles → CatalogoLocal (otro proceso) → BD` | `canal WCF → POST /ConsultaCompatibilidad.svc (ConsultarPorVehiculo) → CatalogoLocal (otro proceso) → BD` |
+| Serialización | ninguna | query string de entrada y JSON de respuesta | XML en los dos sentidos, descripto por el WSDL |
+| Frontera de fallas | excepciones del dominio | además: timeouts, DNS, códigos HTTP | además: faults SOAP; el adapter las traduce a `HttpRequestException` |
 
 ### La selección
 
@@ -224,14 +229,19 @@ interfaz:
 
 Ver [FabricaCatalogo.cs](../src/RepMatch.Web/Servicios/FabricaCatalogo.cs).
 
-Se cambia con `Catalogo:Modo` en `appsettings.json` o con la variable de entorno `Catalogo__Modo`.
-**Sin recompilar**, y sin que `FachadaAplicacion` ni las páginas se enteren de cuál quedó enchufada.
+Se cambia con `Catalogo:Modo` en `appsettings.json` o con la variable de entorno `Catalogo__Modo`
+(`Local`, `Remoto` o `Soap`). **Sin recompilar**, y sin que `FachadaAplicacion` ni las páginas se
+enteren de cuál quedó enchufada. En modo `Soap` las opciones de vehículo (`ICatalogoVehiculos`)
+siguen por REST: el servicio SOAP publica solo la consulta de compatibilidad. Es el modo con que
+arranca la Web en docker compose, así que **cada búsqueda pasa por los dos protocolos**.
 
 ### Por qué esto no es una complicación gratuita
 
-La misma decisión resuelve un problema real de las entregas siguientes: cuando el catálogo pase a
-ser un microservicio propio y aparezca además una tercera vía SOAP (CoreWCF), sólo hay que agregar
-otra implementación de la misma interfaz. La presentación no se toca.
+La Segunda Parte lo puso a prueba: la vía SOAP entró como otra implementación de la misma interfaz.
+`FachadaAplicacion`, los servicios de negocio y las páginas no cambiaron una línea; en la Web solo
+cambió la fábrica (un caso más en el `switch`) y la configuración. El único cuidado fue que
+`CatalogoSoap` traduzca los errores de WCF a `HttpRequestException`, la excepción que los
+consumidores ya atrapaban para el camino REST (sección 6.8).
 
 ---
 
@@ -247,31 +257,38 @@ Deja en `docs/evidencias/` los logs de los tres procesos, la respuesta REST crud
 OpenAPI y las dos mediciones de `GET /evidencia/catalogo`. En cada modo, el script hace 12 llamadas:
 una primera (arranque en frío), diez de calentamiento y una última, que es la única que se guarda
 en `06-medicion-local.json` o `07-medicion-remota.json`. La duración de las 12 queda en el log de la
-Web (líneas `Evidencia acceso ... duracion=`). Al final corre las pruebas automatizadas y deja su
-resultado en `08-pruebas.txt` (sección 5.4).
+Web (líneas `Evidencia acceso ... duracion=`). Después repite la medición con la Web en modo
+`Soap` contra `Catalogo.Soap` (`12-catalogo-soap.log`, `13-web-modo-soap.log` y
+`14-medicion-soap.json`) y guarda el contrato SOAP: `10-wsdl.xml` y su esquema de tipos,
+`11-wsdl-tipos.xsd`. Al final corre las pruebas automatizadas y deja su resultado en `08-pruebas.txt`
+(sección 5.4).
 
 ### 5.2 Latencia medida
 
-Consulta: repuestos compatibles con un **Volkswagen Gol 2015 1.6**. Los dos caminos devuelven
+Consulta: repuestos compatibles con un **Volkswagen Gol 2015 1.6**. Los tres caminos devuelven
 **los mismos 7 códigos**, en el mismo orden. Cada petición a `GET /evidencia/catalogo` crea un
-ámbito nuevo y, por lo tanto, un `DbContext` nuevo. Valores de la corrida del 2026-10-05, tomados
-de `01-web-modo-local.log` y `02-web-modo-remoto.log`:
+ámbito nuevo y, por lo tanto, un `DbContext` nuevo. Valores de la corrida del 2026-11-10, tomados
+de `01-web-modo-local.log`, `02-web-modo-remoto.log` y `13-web-modo-soap.log`:
 
-| Ejecución | Local | Remoto | Sobrecosto |
+| Ejecución | Local | Remoto (REST) | SOAP |
 |---|---|---|---|
-| Primera llamada (arranque en frío) | 163,9 ms | 334,6 ms | +170,7 ms |
-| Segunda llamada (todavía calentando) | 37,1 ms | 58,7 ms | +21,6 ms |
-| **En régimen: llamadas 3 a 12, mediana (rango)** | **2,1 ms** (1,8–3,6) | **7,4 ms** (6,4–11,2) | **≈ +5 ms** |
+| Primera llamada (arranque en frío) | 368,5 ms | 763,1 ms | 2.252,9 ms |
+| Segunda llamada (todavía calentando) | 103,8 ms | 109,6 ms | 178,7 ms |
+| **En régimen: llamadas 3 a 12, mediana (rango)** | **2,8 ms** (1,3–21,6) | **11,8 ms** (5,1–27,1) | **24,6 ms** (9,8–293,9) |
 
-`06-medicion-local.json` y `07-medicion-remota.json` guardan solo la última llamada de cada modo
-(1,8 ms y 11,2 ms). Una sola muestra puede caer en cualquier punto del rango —en esta corrida, la
-remota fue la más lenta de las diez—, por eso para comparar conviene mirar la mediana.
+`06-medicion-local.json`, `07-medicion-remota.json` y `14-medicion-soap.json` guardan solo la
+última llamada de cada modo (1,3 ms, 26,0 ms y 293,9 ms). Una sola muestra puede caer en cualquier
+punto del rango —en esta corrida, la última SOAP fue un pico, la más lenta de las diez—, por eso
+para comparar conviene mirar la mediana.
 
-La primera llamada incluye la compilación JIT y la caché de consultas de EF Core, y en modo Remoto
-además la apertura de la conexión HTTP; por eso no sirve para comparar los dos caminos. En régimen,
-la invocación directa resuelve la consulta en un par de milisegundos y el salto por HTTP le suma
-alrededor de **5 ms**. Los valores exactos cambian de una corrida a otra, pero el orden de magnitud
-se mantiene. Ése es el precio de poder desplegar el componente de catálogo por separado.
+La primera llamada incluye la compilación JIT y la caché de consultas de EF Core; en modo Remoto,
+además, la apertura de la conexión HTTP, y en SOAP la construcción del canal WCF del lado del
+cliente y del despachador de CoreWCF del lado del servidor. Por eso no sirve para comparar los
+caminos. En régimen, la invocación directa resuelve la consulta en un par de milisegundos, el
+salto por HTTP con JSON le suma unos **9 ms** y SOAP, con su sobre XML y el serializador de
+contratos, unos **22 ms**. Los valores exactos cambian de una corrida a otra (esta máquina mostró
+picos en los tres modos), pero el orden se mantiene. Es el precio de poder desplegar el componente
+de catálogo por separado y de ofrecerle a otros sistemas un contrato formal.
 
 ### 5.3 Trazabilidad entre procesos
 
@@ -280,16 +297,29 @@ las llamadas salientes. Una misma operación en modo Remoto queda así en los do
 
 ```
 # Web  (docs/evidencias/02-web-modo-remoto.log)
-[19:57:11 INF] [Web] [c1be50fb134a] Sending HTTP request GET http://localhost:5081/api/repuestos/compatibles?*
-[19:57:11 INF] [Web] [c1be50fb134a] Catalogo[Remoto] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
-[19:57:11 INF] [Web] [c1be50fb134a] Evidencia acceso origen=Remoto duracion=11,2ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
+[21:49:54 INF] [Web] [fb6e66a242ec] Sending HTTP request GET http://localhost:5081/api/repuestos/compatibles?*
+[21:49:54 INF] [Web] [fb6e66a242ec] Catalogo[Remoto] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:49:54 INF] [Web] [fb6e66a242ec] Evidencia acceso origen=Remoto duracion=26,0ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
 
 # Catalogo.Api  (docs/evidencias/03-catalogo-api.log)  ← mismo identificador
-[19:57:11 INF] [Catalogo.Api] [c1be50fb134a] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
-[19:57:11 INF] [Catalogo.Api] [c1be50fb134a] HTTP GET /api/repuestos/compatibles responded 200 in 2.6876 ms
+[21:49:54 INF] [Catalogo.Api] [fb6e66a242ec] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:49:54 INF] [Catalogo.Api] [fb6e66a242ec] HTTP GET /api/repuestos/compatibles responded 200 in 22.1046 ms
 ```
 
-Con dos procesos ya hace falta. El mismo identificador ya llega a `IA.Api` cuando la Web la usa en
+Por SOAP pasa lo mismo: `CorrelacionSoapHandler` agrega la cabecera al pedido HTTP que lleva el
+sobre SOAP, y `Catalogo.Soap` la registra con el mismo identificador:
+
+```
+# Web  (docs/evidencias/13-web-modo-soap.log)
+[21:51:23 INF] [Web] [e41e77a14eb1] Catalogo[Soap] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:51:23 INF] [Web] [e41e77a14eb1] Evidencia acceso origen=Soap duracion=27,5ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
+
+# Catalogo.Soap  (docs/evidencias/12-catalogo-soap.log)  ← mismo identificador
+[21:51:23 INF] [Catalogo.Soap] [e41e77a14eb1] SOAP ConsultarPorVehiculo Volkswagen Gol 2015 1.6 sistema=(todos) -> 7
+[21:51:23 INF] [Catalogo.Soap] [e41e77a14eb1] HTTP POST /ConsultaCompatibilidad.svc responded 200 in 18.8289 ms
+```
+
+Con dos procesos ya hace falta. El mismo identificador llega a `IA.Api` cuando la Web la usa en
 modo remoto; cuando se sumen la cola y los adaptadores externos, es lo único que permite
 reconstruir el recorrido completo de una búsqueda.
 
@@ -303,6 +333,10 @@ completas y comprueba que los modelos de la semilla tengan piezas compatibles.
 `tests/RepMatch.Tests/IA/` hace lo mismo con el componente de IA: hospeda `IA.Api` en memoria, sin
 clave de LLM, y compara su respuesta con la del cliente remoto; prueba el clasificador local sobre
 un conjunto fijo de síntomas y el adapter del LLM con respuestas grabadas, sin red.
+`tests/RepMatch.Tests/Integracion/AccesoSoapTests.cs` cubre el camino SOAP: hospeda
+`Catalogo.Soap` en memoria, lo consume con el proxy generado desde el WSDL y verifica que devuelva
+lo mismo que el catálogo en proceso, que el WSDL publique las cuatro operaciones y que una caída
+del servicio llegue como `HttpRequestException`.
 
 El resultado de la última corrida está en
 [`docs/evidencias/08-pruebas.txt`](evidencias/08-pruebas.txt): fecha, commit, advertencias de
@@ -320,11 +354,12 @@ de celular y los permisos (páginas sin sesión, rol equivocado, consultas ajena
 errores además del camino feliz, y cualquier prueba falla si la Web muestra el cartel de error
 inesperado.
 
-`bash scripts/e2e.sh` lo hace todo: arranca de una base limpia, levanta la Web en modo Remoto y
-en modo Local, y corre tres fases. La segunda frena `ia-api` y la tercera `catalogo-api`, para
-comprobar que la búsqueda sigue funcionando sin IA y que la app no se cae sin catálogo. Corre sin
-clave de LLM para que el diagnóstico sea determinista. Con `--evidencia` deja el resumen de las
-tres fases en `docs/evidencias/09-pruebas-e2e.txt`.
+`bash scripts/e2e.sh` lo hace todo: arranca de una base limpia, levanta la Web principal (repuestos
+por SOAP, vehículos e IA por REST) y la Web en modo Local, y corre cuatro fases. La primera tiene
+todo arriba, así que cada búsqueda prueba también el camino SOAP. Las otras frenan `ia-api`,
+`catalogo-api` y `catalogo-soap`, para comprobar que la búsqueda sigue sin IA y que la app no se
+cae sin catálogo REST ni SOAP. Corre sin clave de LLM para que el diagnóstico sea determinista. Con
+`--evidencia` deja el resumen de las cuatro fases en `docs/evidencias/09-pruebas-e2e.txt`.
 
 Las pruebas que encontraron errores reales quedan omitidas con la causa explicada, hasta que se
 corrijan. La lista está en [`tests/RepMatch.E2E/README.md`](../tests/RepMatch.E2E/README.md).
@@ -407,6 +442,30 @@ la cola. Se tomaron cuatro decisiones:
   (`FiltroDatosPersonales`), y los logs registran el largo del texto, no su contenido. En la
   búsqueda sin sesión el texto se diagnostica pero no se guarda.
 
+### 6.8 SOAP: un contrato formal sobre el mismo catálogo
+
+La consigna pide al menos un servicio SOAP con WSDL y contrato. Las decisiones:
+
+- **CoreWCF en un host propio.** En .NET moderno WCF existe solo como cliente; CoreWCF es su
+  versión de servidor sobre ASP.NET Core. `Catalogo.Soap` va aparte de `Catalogo.Api` para que cada
+  host tenga un protocolo, su propio puerto (8082) y su propio healthcheck. Por dentro usa el mismo
+  `CatalogoLocal` que el host REST, así los dos caminos devuelven exactamente lo mismo.
+- **Contrato propio, no los DTO internos.** `IConsultaCompatibilidad` y los tipos `Repuesto` y
+  `Aplicacion` del WSDL viven en el host SOAP, con espacio de nombres `urn:repmatch:catalogo:v1`. El
+  WSDL es un contrato público: tiene que quedar estable aunque cambien los DTO de `Contracts`. Sus
+  operaciones cubren `ICatalogoRepuestos` completo (`ConsultarPorVehiculo`, `ObtenerPorCodigo`,
+  `Listar`) y suman `VerificarCodigo`, la consulta puntual que haría otro sistema que se integra.
+- **El cliente sale del WSDL.** `RepMatch.Clientes.Soap` no referencia al host: su proxy lo genera
+  `dotnet-svcutil` a partir del WSDL publicado (`ServicioSoap/`), que es como lo consumiría
+  cualquier otro sistema. Se regenera con `dotnet-svcutil -u ServicioSoap` con el servicio levantado.
+- **Errores traducidos en el adapter.** WCF informa las caídas con `EndpointNotFoundException`,
+  `TimeoutException` o faults SOAP. `CatalogoSoap` las convierte en `HttpRequestException`, la que la
+  fachada y el observador ya atrapaban para el catálogo remoto. Sin eso, una caída del servicio SOAP
+  tiraría la página en vez de mostrar "no se pudo consultar el catálogo".
+- **Que se use, no que solo exista.** En docker compose la Web busca los repuestos por SOAP y las
+  opciones de vehículo y el diagnóstico por REST. Cada búsqueda de la demo usa los dos protocolos,
+  y el correlation id permite seguirla en los logs de los tres procesos (sección 5.3).
+
 ---
 
 ## 7. Cómo esta arquitectura recibe las entregas siguientes
@@ -414,7 +473,7 @@ la cola. Se tomaron cuatro decisiones:
 | Entrega | Qué agrega | Dónde se enchufa | Qué NO hay que tocar |
 |---|---|---|---|
 | **Primera** | Patrones formalizados, fachada, eventos de dominio internos | `DespachadorEventos` publica `BusquedaCreada` a `ObservadorCompatibilidad`. Las operaciones pasan por `FachadaAplicacion`; `SelectorVehiculo` consulta `ICatalogoVehiculos` directamente | Dominio, contratos |
-| **Segunda** | SOAP `ConsultaCompatibilidad` (CoreWCF + WSDL) | Tercera implementación de `ICatalogoRepuestos` | Presentación, lógica de negocio |
+| **Segunda** *(implementado)* | SOAP `ConsultaCompatibilidad` (CoreWCF + WSDL) | `Catalogo.Soap` publica el servicio; `CatalogoSoap` es la tercera implementación de `ICatalogoRepuestos`, elegida con `Catalogo:Modo=Soap` (sección 6.8) | Presentación, lógica de negocio, interfaz del catálogo |
 | **Segunda** | REST documentados con OpenAPI | `Catalogo.Api` e `IA.Api` publican `/openapi/v1.json` | — |
 | **Segunda** | RabbitMQ, productores y consumidores | Implementación de `IDespachadorEventos` sobre `IEventBus`; `BusquedaCreada`, `BusquedaCompartida` (aviso al mecánico) y `DerivacionATienda` (conteo de comisiones) ya existen como eventos de dominio | Entidades |
 | **Segunda** | Adaptadores a eBay y VTEX | Nueva interfaz `IFuenteOfertas`, consumida por `search-api` | Catálogo, dominio |
@@ -441,6 +500,10 @@ dotnet run --project src/RepMatch.Catalogo.Api --urls http://localhost:5081
 ```
 
 ```bash
+dotnet run --project src/RepMatch.Catalogo.Soap --urls http://localhost:5082
+```
+
+```bash
 dotnet run --project src/RepMatch.IA.Api --urls http://localhost:5083
 ```
 
@@ -448,8 +511,9 @@ dotnet run --project src/RepMatch.IA.Api --urls http://localhost:5083
 dotnet run --project src/RepMatch.Web --urls http://localhost:5080
 ```
 
-La Web sola alcanza: por defecto resuelve catálogo e IA en proceso. La evidencia de acceso local y
-remoto se genera con `bash scripts/evidencias.sh`.
+La Web sola alcanza: por defecto resuelve catálogo e IA en proceso. Para el modo SOAP, con
+`Catalogo.Api` y `Catalogo.Soap` levantados, se arranca la Web con `Catalogo__Modo=Soap`. La
+evidencia de los tres caminos se genera con `bash scripts/evidencias.sh`.
 
 ### Con Docker
 
@@ -457,10 +521,11 @@ remoto se genera con `bash scripts/evidencias.sh`.
 docker compose up --build
 ```
 
-Web en `http://localhost:8080`, Catálogo en `http://localhost:8081/salud`, IA en
-`http://localhost:8083/salud`, PostgreSQL en `5432`. En compose la Web arranca en modo **Remoto**
-para el catálogo y la IA, de modo que el acceso remoto entre componentes queda
-demostrado apenas se levanta el entorno.
+Web en `http://localhost:8080`, Catálogo REST en `http://localhost:8081/salud`, Catálogo SOAP en
+`http://localhost:8082/ConsultaCompatibilidad.svc?wsdl`, IA en `http://localhost:8083/salud`,
+PostgreSQL en `5432`. En compose la Web arranca en modo **Soap**: repuestos por SOAP, opciones de
+vehículo e IA por REST. El acceso remoto entre componentes, y los dos protocolos de integración,
+quedan demostrados apenas se levanta el entorno.
 
 ---
 
@@ -469,7 +534,7 @@ demostrado apenas se levanta el entorno.
 | Requisito de la consigna | Dónde está |
 |---|---|
 | Entorno configurado (.NET 10, contenedores) | `docker-compose.yml`, `src/*/Dockerfile` |
-| ≥3 componentes reutilizables independientes | 6 componentes en esa entrega, 7 hoy — sección 2 |
+| ≥3 componentes reutilizables independientes | 6 componentes en esa entrega, 8 hoy — sección 2 |
 | Aplicación multicapa | Sección 3 |
 | Gestión de dependencias (NuGet) | `RepMatch.slnx`, `*.csproj` |
 | Acceso local y remoto entre componentes | Sección 4 |

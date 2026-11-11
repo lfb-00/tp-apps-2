@@ -13,6 +13,8 @@ namespace RepMatch.E2E.Pruebas;
 public sealed class ResilienciaTests(NavegadorFixture fixture, ITestOutputHelper salida) : PruebaE2E(fixture, salida)
 {
     private const int PiezasCompatiblesGol = 7;
+    private const string SinCatalogoAnonimo = "No se pudo consultar el catálogo. Probá de nuevo en unos segundos.";
+    private const string SinCatalogoConSesion = "No se pudo consultar el catálogo para completar la búsqueda.";
 
     [SkippableFact]
     [Trait("Escenario", Escenarios.SinIA)]
@@ -99,5 +101,48 @@ public sealed class ResilienciaTests(NavegadorFixture fixture, ITestOutputHelper
         await IngresarAsync(Pagina, Semilla.EmailCliente, Semilla.Contrasena);
         await IrAsync("/perfil");
         await Expect(Pagina.Locator("#p-email")).ToHaveValueAsync(Semilla.EmailCliente);
+    }
+
+    // ── SOAP caido: los repuestos no llegan, pero la app avisa y sigue en pie ──────────────
+
+    [SkippableFact]
+    [Trait("Escenario", Escenarios.SinSoap)]
+    public async Task Con_el_servicio_SOAP_caido_la_busqueda_sin_sesion_avisa_y_no_se_cae()
+    {
+        Skip.IfNot(Entorno.Escenario == Escenarios.SinSoap, "Corre solo con catalogo-soap frenado (scripts/e2e.sh).");
+
+        await IrAsync("/");
+        await ElegirVehiculoAsync(Pagina, "anon");   // los vehiculos siguen por REST: el selector carga
+        await Pagina.Locator("#textoAnon").FillAsync("vibra el volante cuando freno fuerte");
+        await BotonDiagnosticar(Pagina).ClickAsync();
+
+        await Expect(Pagina.GetByRole(AriaRole.Alert)).ToHaveTextAsync(SinCatalogoAnonimo);
+        await Expect(Piezas(Pagina)).ToHaveCountAsync(0);
+    }
+
+    [SkippableFact]
+    [Trait("Escenario", Escenarios.SinSoap)]
+    public async Task Con_el_servicio_SOAP_caido_la_busqueda_con_sesion_queda_guardada_como_fallida()
+    {
+        Skip.IfNot(Entorno.Escenario == Escenarios.SinSoap, "Corre solo con catalogo-soap frenado (scripts/e2e.sh).");
+
+        await IngresarAsync(Pagina, Semilla.EmailCliente, Semilla.Contrasena);
+        await BuscarConSesionAsync(Pagina, "vibra el volante cuando freno fuerte");
+
+        await Expect(Pagina.Locator(".alerta-error")).ToHaveTextAsync(SinCatalogoConSesion);
+        await Expect(Consultas(Pagina).First).ToContainTextAsync(SinCatalogoConSesion);
+    }
+
+    [SkippableFact]
+    [Trait("Escenario", Escenarios.SinSoap)]
+    public async Task Con_el_servicio_SOAP_caido_ver_el_catalogo_completo_muestra_un_mensaje()
+    {
+        Skip.IfNot(Entorno.Escenario == Escenarios.SinSoap, "Corre solo con catalogo-soap frenado (scripts/e2e.sh).");
+
+        await IrAsync("/catalogo");
+        await Pagina.GetByRole(AriaRole.Button, new() { Name = "Ver catálogo completo" }).ClickAsync();
+
+        await Expect(Pagina.GetByRole(AriaRole.Alert)).ToBeVisibleAsync();
+        await Expect(Piezas(Pagina)).ToHaveCountAsync(0);
     }
 }

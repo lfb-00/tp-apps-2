@@ -1,0 +1,48 @@
+Usando la configuración de inicio de src\RepMatch.Catalogo.Soap\Properties\launchSettings.json...
+[21:50:27 INF] [Catalogo.Soap] [] Base de datos lista (proveedor Microsoft.EntityFrameworkCore.InMemory).
+[21:50:27 INF] [Catalogo.Soap] [] Catalogo.Soap escuchando. WSDL en /ConsultaCompatibilidad.svc?wsdl
+[21:50:29 INF] [Catalogo.Soap] [] Mapping CoreWCF branch app for path /ConsultaCompatibilidad.svc
+[21:50:30 INF] [Catalogo.Soap] [] Configuring metadata to /ConsultaCompatibilidad.svc
+[21:50:30 INF] [Catalogo.Soap] [] Now listening on: http://localhost:5082
+[21:50:30 INF] [Catalogo.Soap] [] Application started. Press Ctrl+C to shut down.
+[21:50:30 INF] [Catalogo.Soap] [] Hosting environment: Development
+[21:50:30 INF] [Catalogo.Soap] [] Content root path: C:\Repos\tp-apps-2-soap\src\RepMatch.Catalogo.Soap
+[21:50:35 INF] [Catalogo.Soap] [bc355d2cb474] HTTP GET /salud responded 200 in 183.4336 ms
+[21:51:05 INF] [Catalogo.Soap] [ff8409e7c793] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:51:05 INF] [Catalogo.Soap] [ff8409e7c793] SOAP ConsultarPorVehiculo Volkswagen Gol 2015 1.6 sistema=(todos) -> 7
+[21:51:05 INF] [Catalogo.Soap] [ff8409e7c793] HTTP POST /ConsultaCompatibilidad.svc responded 200 in 1484.8426 ms
+[21:51:20 INF] [Catalogo.Soap] [203b5cc41b9e] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:51:20 INF] [Catalogo.Soap] [203b5cc41b9e] SOAP ConsultarPorVehiculo Volkswagen Gol 2015 1.6 sistema=(todos) -> 7
+[21:51:20 INF] [Catalogo.Soap] [203b5cc41b9e] HTTP POST /ConsultaCompatibilidad.svc responded 200 in 154.3614 ms
+[21:51:23 INF] [Catalogo.Soap] [e41e77a14eb1] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:51:23 INF] [Catalogo.Soap] [e41e77a14eb1] SOAP ConsultarPorVehiculo Volkswagen Gol 2015 1.6 sistema=(todos) -> 7
+[21:51:23 INF] [Catalogo.Soap] [e41e77a14eb1] HTTP POST /ConsultaCompatibilidad.svc responded 200 in 18.8289 ms
+[21:51:24 INF] [Catalogo.Soap] [b67235328781] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:51:24 INF] [Catalogo.Soap] [b67235328781] SOAP ConsultarPorVehiculo Volkswagen Gol 2015 1.6 sistema=(todos) -> 7
+[21:51:24 INF] [Catalogo.Soap] [b67235328781] HTTP POST /ConsultaCompatibilidad.svc responded 200 in 6.5340 ms
+[21:51:26 INF] [Catalogo.Soap] [3408d130de8a] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:51:26 INF] [Catalogo.Soap] [3408d130de8a] SOAP ConsultarPorVehiculo Volkswagen Gol 2015 1.6 sistema=(todos) -> 7
+[21:51:26 INF] [Catalogo.Soap] [3408d130de8a] HTTP POST /ConsultaCompatibilidad.svc responded 200 in 3.4090 ms
+[21:51:27 INF] [Catalogo.Soap] [977fce6fe9e4] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:51:27 INF] [Catalogo.Soap] [977fce6fe9e4] SOAP ConsultarPorVehiculo Volkswagen Gol 2015 1.6 sistema=(todos) -> 7
+[21:51:27 INF] [Catalogo.Soap] [977fce6fe9e4] HTTP POST /ConsultaCompatibilidad.svc responded 200 in 2.5064 ms
+[21:51:29 INF] [Catalogo.Soap] [4cd7c209e8c3] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:51:29 INF] [Catalogo.Soap] [4cd7c209e8c3] SOAP ConsultarPorVehiculo Volkswagen Gol 2015 1.6 sistema=(todos) -> 7
+[21:51:29 INF] [Catalogo.Soap] [4cd7c209e8c3] HTTP POST /ConsultaCompatibilidad.svc responded 200 in 3.2321 ms
+[21:51:30 INF] [Catalogo.Soap] [f8782e7a313b] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:51:30 INF] [Catalogo.Soap] [f8782e7a313b] SOAP ConsultarPorVehiculo Volkswagen Gol 2015 1.6 sistema=(todos) -> 7
+[21:51:30 INF] [Catalogo.Soap] [f8782e7a313b] HTTP POST /ConsultaCompatibilidad.svc responded 200 in 3.1746 ms
+[21:51:55 INF] [Catalogo.Soap] [9320e8b13452] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:51:55 INF] [Catalogo.Soap] [9320e8b13452] SOAP ConsultarPorVehiculo Volkswagen Gol 2015 1.6 sistema=(todos) -> 7
+[21:51:55 INF] [Catalogo.Soap] [9320e8b13452] HTTP POST /ConsultaCompatibilidad.svc responded 200 in 4.5443 ms
+[21:52:00 INF] [Catalogo.Soap] [a8766d62fd35] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:52:00 INF] [Catalogo.Soap] [a8766d62fd35] SOAP ConsultarPorVehiculo Volkswagen Gol 2015 1.6 sistema=(todos) -> 7
+[21:52:00 INF] [Catalogo.Soap] [a8766d62fd35] HTTP POST /ConsultaCompatibilidad.svc responded 200 in 6.6244 ms
+[21:52:03 INF] [Catalogo.Soap] [35c958faf47b] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:52:03 INF] [Catalogo.Soap] [35c958faf47b] SOAP ConsultarPorVehiculo Volkswagen Gol 2015 1.6 sistema=(todos) -> 7
+[21:52:03 INF] [Catalogo.Soap] [35c958faf47b] HTTP POST /ConsultaCompatibilidad.svc responded 200 in 2.7433 ms
+[21:52:06 INF] [Catalogo.Soap] [7c26179d8900] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:52:06 INF] [Catalogo.Soap] [7c26179d8900] SOAP ConsultarPorVehiculo Volkswagen Gol 2015 1.6 sistema=(todos) -> 7
+[21:52:06 INF] [Catalogo.Soap] [7c26179d8900] HTTP POST /ConsultaCompatibilidad.svc responded 200 in 4.5788 ms
+[21:52:26 INF] [Catalogo.Soap] [dd7a543af3d9] HTTP GET /ConsultaCompatibilidad.svc responded 200 in 2189.4433 ms
+[21:52:33 INF] [Catalogo.Soap] [be8c9a915cd9] HTTP GET /ConsultaCompatibilidad.svc responded 200 in 3593.6485 ms

@@ -41,7 +41,7 @@ Los docs son entregables evaluados tanto como el código. Cada etapa suma sobre 
   capa de servicios**.
 - **Entregable:** app funcional + documentación de patrones aplicados + diagrama de capas.
 
-### Segunda Parte — integración sincrónica y asincrónica (**en curso**: IA implementada)
+### Segunda Parte — integración sincrónica y asincrónica (**en curso**: IA y SOAP implementados)
 - ≥1 servicio **SOAP** (WSDL + contrato) y ≥2 servicios **REST** (OpenAPI/Swagger).
 - Mensajería con colas (RabbitMQ decidido), productores y consumidores (ej. `BusquedaCreada`).
 - Integración SOA / microservicios ligeros.
@@ -84,17 +84,22 @@ src/
                            CatalogoLocal, CatalogoVehiculosLocal. → Domain, Common, Contracts
   RepMatch.Clientes.Rest/  Adaptadores remotos: CatalogoRemoto, CatalogoVehiculosRemoto y
                            DiagnosticadorRemoto (HttpClient tipado). → Common, Contracts
+  RepMatch.Clientes.Soap/  Adaptador SOAP: CatalogoSoap (tercera ICatalogoRepuestos) sobre el proxy que
+                           genera dotnet-svcutil desde el WSDL (ServicioSoap/, no editar a mano).
+                           → Common, Contracts. No referencia al host SOAP.
   RepMatch.IA/             Componente de IA: DiagnosticadorLlm (Groq/Gemini, API compatible con
                            OpenAI), DiagnosticadorLocal (TF-IDF + k-NN sobre Datos/sintomas.json,
                            embebido), DiagnosticadorConRespaldo, FiltroDatosPersonales. → Common, Contracts
   RepMatch.Catalogo.Api/   Host REST del catálogo (controllers, OpenAPI en /openapi/v1.json).
                            Siempre resuelve ICatalogoRepuestos con CatalogoLocal e
                            ICatalogoVehiculos con CatalogoVehiculosLocal; IDiagnosticador en proceso.
+  RepMatch.Catalogo.Soap/  Host SOAP del catálogo (CoreWCF): contrato IConsultaCompatibilidad, WSDL
+                           en /ConsultaCompatibilidad.svc?wsdl. Resuelve con CatalogoLocal.
   RepMatch.IA.Api/         Host REST de la IA: POST /api/diagnostico, OpenAPI. Sin base de datos.
-  RepMatch.Web/            Presentación Blazor Server. FabricaCatalogo y FabricaDiagnostico eligen
-                           Local/Remoto.
+  RepMatch.Web/            Presentación Blazor Server. FabricaCatalogo elige Local/Remoto/Soap y
+                           FabricaDiagnostico, Local/Remoto.
 tests/RepMatch.Tests/      Dominio/, Persistencia/, Aplicacion/, Presentacion/, Integracion/
-                           (WebApplicationFactory sobre Catalogo.Api) e IA/ (también sobre IA.Api)
+                           (WebApplicationFactory sobre Catalogo.Api y Catalogo.Soap) e IA/ (también sobre IA.Api)
 tests/RepMatch.E2E/        Pruebas de punta a punta con Playwright contra la app levantada. NO está
                            en RepMatch.slnx a propósito (el `dotnet test` de la raíz corre sin
                            entorno); se corren con scripts/e2e.sh. Ver su README.
@@ -113,7 +118,10 @@ scripts/evidencias.sh      regenera docs/evidencias/ (logs + mediciones local vs
   caminos levantando la Web dos veces, una con cada valor de `Catalogo:Modo` (la página `/acceso`
   ya no existe).
   `ExtensionesAplicacion` **no** registra `ICatalogoRepuestos` a propósito: es decisión del host.
-  La futura implementación SOAP es una tercera estrategia, sin tocar interfaz ni consumidores.
+  `CatalogoSoap` es la tercera estrategia (Segunda Parte), sin tocar interfaz ni consumidores. En
+  `Catalogo:Modo=Soap` los repuestos van por SOAP y los vehículos por REST; es el modo de la Web en
+  compose, para que cada búsqueda use los dos protocolos. `CatalogoSoap` traduce los errores de WCF
+  a `HttpRequestException`: es lo que atrapan la fachada y el observador, no lo cambies.
 - **Errores esperables → `ResultadoOperacion<T>`**, no excepciones. Excepciones solo para lo
   verdaderamente excepcional.
 - **Eventos de dominio**: `EntidadBase` acumula eventos (`RegistrarEvento`); `Busqueda` emite
@@ -138,7 +146,7 @@ scripts/evidencias.sh      regenera docs/evidencias/ (logs + mediciones local vs
   IA). El ingreso es comisión de afiliado por `Derivacion` (`GET /derivar/{ofertaId}`) y el plan Pro
   del mecánico, sin cobro real. El ranking de ofertas depende solo del precio: no lo atar a quién paga.
 - **Configuración externalizada**: todo se sobreescribe por variable de entorno (`Seccion__Clave`):
-  `Catalogo:Modo` (`Local`/`Remoto`), `Catalogo:UrlBaseRemota`, `IA:Modo`, `IA:UrlBaseRemota`,
+  `Catalogo:Modo` (`Local`/`Remoto`/`Soap`), `Catalogo:UrlBaseRemota`, `Catalogo:UrlSoap`, `IA:Modo`, `IA:UrlBaseRemota`,
   `IA:Llm:*` (`ApiKey` solo por entorno o `.env`, nunca en el repo), `Persistencia:Proveedor`
   (`InMemory`/`Postgres`), `ConnectionStrings:RepMatch`. Puertos del host en `.env`.
 - **Logging/trazabilidad**: cada host llama `UsarSerilog(nombre)` y `UsarCorrelacion()`; el id de
@@ -155,9 +163,10 @@ capas está en `docs/diagramas/capas.md`. Al agregar un patrón, documentarlo co
 ```bash
 dotnet build && dotnet test                                            # sin Docker, InMemory
 dotnet run --project src/RepMatch.Catalogo.Api --urls http://localhost:5081
+dotnet run --project src/RepMatch.Catalogo.Soap --urls http://localhost:5082
 dotnet run --project src/RepMatch.IA.Api --urls http://localhost:5083
 dotnet run --project src/RepMatch.Web --urls http://localhost:5080    # GET /evidencia/catalogo mide el modo activo
-docker compose up --build --wait                                       # web 8080, api 8081, ia 8083, pg 5432 (Web en modo Remoto)
+docker compose up --build --wait                                       # web 8080, api 8081, soap 8082, ia 8083, pg 5432 (Web en modo Soap)
 docker compose --profile test run --rm tests                           # pruebas sin SDK
 docker compose --profile local up --build web-local                    # Web en modo Local (8090)
 bash scripts/evidencias.sh                                             # regenera docs/evidencias/

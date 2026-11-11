@@ -1,8 +1,8 @@
 # Pruebas automatizadas de RepMatch
 # Generado por scripts/evidencia-pruebas.sh. No editar a mano.
 
-Fecha:        2026-11-10 20:51 -0300
-Commit:       568386e
+Fecha:        2026-11-10 21:54 -0300
+Commit:       9c2b832 + cambios sin commitear
 SDK:          10.0.402
 Comando:      dotnet build RepMatch.slnx --no-incremental && dotnet test RepMatch.slnx --no-build
 Advertencias: 0
@@ -10,4 +10,4 @@ Resultado:    todas correctas
 
 ## Resumen por proyecto de pruebas
 
-Correctas! - Con error:     0, Superado:   137, Omitido:     0, Total:   137, Duración: 9 s - RepMatch.Tests.dll (net10.0)
+Correctas! - Con error:     0, Superado:   150, Omitido:     0, Total:   150, Duración: 13 s - RepMatch.Tests.dll (net10.0)

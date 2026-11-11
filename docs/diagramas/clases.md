@@ -379,7 +379,7 @@ El modelo de dominio no muestra los patrones de la Primera Parte: viven en `Apli
 diagrama muestra solo esas clases, con los miembros que intervienen en cada patrón. Cada patrón
 está en un recuadro con su nombre (un `namespace` de Mermaid) y sus clases llevan el color de la
 tabla de abajo. Mermaid no permite colorear el fondo de los recuadros de un diagrama de clases, por
-eso el color va en las clases. `CatalogoRemoto` y `CatalogoVehiculosRemoto` están en el recuadro de
+eso el color va en las clases. `CatalogoRemoto`, `CatalogoVehiculosRemoto` y `CatalogoSoap` están en el recuadro de
 Adapter, aunque también son estrategias de `ICatalogoRepuestos` / `ICatalogoVehiculos`: una clase solo
 puede estar en un recuadro. Las clases grises son la capa de servicios, que no implementa ningún
 patrón por sí misma. El detalle de cada patrón (qué problema resuelve, qué pasaría sin él, código)
@@ -494,6 +494,11 @@ classDiagram
             <<Strategy / Adapter>>
             -HttpClient http
         }
+
+        class CatalogoSoap {
+            <<Strategy / Adapter>>
+            -FabricaCanalSoap fabrica
+        }
     }
 
     namespace Observer {
@@ -576,6 +581,7 @@ classDiagram
 
     FabricaCatalogo ..> CatalogoLocal : registra
     FabricaCatalogo ..> CatalogoRemoto : registra
+    FabricaCatalogo ..> CatalogoSoap : registra
     FabricaCatalogo ..> CatalogoVehiculosLocal : registra
     FabricaCatalogo ..> CatalogoVehiculosRemoto : registra
     FabricaCatalogo ..> ICatalogoRepuestos : enlaza segun Catalogo Modo
@@ -583,6 +589,7 @@ classDiagram
 
     ICatalogoRepuestos <|.. CatalogoLocal
     ICatalogoRepuestos <|.. CatalogoRemoto
+    ICatalogoRepuestos <|.. CatalogoSoap
     ICatalogoVehiculos <|.. CatalogoVehiculosLocal
     ICatalogoVehiculos <|.. CatalogoVehiculosRemoto
 
@@ -639,6 +646,7 @@ classDiagram
     style ICatalogoVehiculos fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#111
     style CatalogoVehiculosLocal fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#111
     style CatalogoRemoto fill:#ede9fe,stroke:#6d28d9,stroke-width:2px,color:#111
+    style CatalogoSoap fill:#ede9fe,stroke:#6d28d9,stroke-width:2px,color:#111
     style CatalogoVehiculosRemoto fill:#ede9fe,stroke:#6d28d9,stroke-width:2px,color:#111
     style IDespachadorEventos fill:#fef3c7,stroke:#b45309,stroke-width:2px,color:#111
     style DespachadorEventos fill:#fef3c7,stroke:#b45309,stroke-width:2px,color:#111
@@ -662,7 +670,7 @@ classDiagram
 |---|---|---|---|
 | Factory | Rojo | `FabricaCatalogo.AgregarCatalogo`; `FabricaDiagnostico.AgregarDiagnostico` repite el patrón para `IDiagnosticador` y no se dibuja | `RepMatch.Web` |
 | Strategy | Azul | `ICatalogoRepuestos` / `ICatalogoVehiculos` con sus implementaciones `*Local` y `*Remoto`; `IDiagnosticador`, cuyas implementaciones (`DiagnosticadorLlm`, `DiagnosticadorLocal`, `DiagnosticadorConRespaldo` en `RepMatch.IA` y `DiagnosticadorRemoto`) se describen en [patrones.md](../patrones.md#el-componente-de-ia-y-los-mismos-patrones) y no se dibujan | `Contracts`, `Aplicacion`, `Clientes.Rest`, `IA` |
-| Adapter | Violeta | `CatalogoRemoto`, `CatalogoVehiculosRemoto` (HTTP → contrato) | `RepMatch.Clientes.Rest` |
+| Adapter | Violeta | `CatalogoRemoto`, `CatalogoVehiculosRemoto` (HTTP → contrato); `CatalogoSoap` (SOAP → contrato, Segunda Parte) | `RepMatch.Clientes.Rest`, `RepMatch.Clientes.Soap` |
 | Repository | Verde | `I*Repository` (interfaces) y `*Repository` (EF Core) | `Domain` y `Persistence` |
 | Unit of Work | Turquesa | `IUnitOfWork` / `UnitOfWork` | `Domain` y `Persistence` |
 | Observer | Ámbar | `IDespachadorEventos`, `DespachadorEventos`, `IObservadorEventoDominio`, `ObservadorCompatibilidad`; los eventos (`BusquedaCreada`, `BusquedaCompartida`, `DiagnosticoValidado`, `DerivacionATienda`) están en el modelo de dominio | `Aplicacion` y `Domain` |
@@ -1085,6 +1093,11 @@ classDiagram
             <<Strategy / Adapter>>
             -HttpClient http
         }
+
+        class CatalogoSoap {
+            <<Strategy / Adapter>>
+            -FabricaCanalSoap fabrica
+        }
     }
 
     namespace Observer {
@@ -1174,6 +1187,7 @@ classDiagram
 
     FabricaCatalogo ..> CatalogoLocal : registra
     FabricaCatalogo ..> CatalogoRemoto : registra
+    FabricaCatalogo ..> CatalogoSoap : registra
     FabricaCatalogo ..> CatalogoVehiculosLocal : registra
     FabricaCatalogo ..> CatalogoVehiculosRemoto : registra
     FabricaCatalogo ..> ICatalogoRepuestos : enlaza segun Catalogo Modo
@@ -1181,6 +1195,7 @@ classDiagram
 
     ICatalogoRepuestos <|.. CatalogoLocal
     ICatalogoRepuestos <|.. CatalogoRemoto
+    ICatalogoRepuestos <|.. CatalogoSoap
     ICatalogoVehiculos <|.. CatalogoVehiculosLocal
     ICatalogoVehiculos <|.. CatalogoVehiculosRemoto
 
@@ -1254,6 +1269,7 @@ classDiagram
     style ICatalogoVehiculos fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#111
     style CatalogoVehiculosLocal fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#111
     style CatalogoRemoto fill:#ede9fe,stroke:#6d28d9,stroke-width:2px,color:#111
+    style CatalogoSoap fill:#ede9fe,stroke:#6d28d9,stroke-width:2px,color:#111
     style CatalogoVehiculosRemoto fill:#ede9fe,stroke:#6d28d9,stroke-width:2px,color:#111
     style IDespachadorEventos fill:#fef3c7,stroke:#b45309,stroke-width:2px,color:#111
     style DespachadorEventos fill:#fef3c7,stroke:#b45309,stroke-width:2px,color:#111
