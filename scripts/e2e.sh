@@ -153,8 +153,16 @@ fi
 
 # La linea de resumen de dotnet test de cada fase, en espaniol o en ingles segun el SDK.
 linea_resumen() {
-  grep -hE '(Correctas!|Con error!|Passed!|Failed!) +- ' "$RESULTADOS/$1.log" 2>/dev/null \
-    | sed -e 's/^ *//' -e 's/ - [^ ]*\.dll.*$//' | tail -1
+  local log="$RESULTADOS/$1.log"
+  local resumen
+  resumen="$(grep -hE '(Correctas!|Con error!|Passed!|Failed!) +- ' "$log" 2>/dev/null \
+    | sed -e 's/^ *//' -e 's/ - [^ ]*\.dll.*$//' | tail -1 || true)"
+  if [ -n "$resumen" ]; then
+    printf '%s' "$resumen"
+  else
+    grep -E '^(Pruebas totales:|[[:space:]]+Correcto:|[[:space:]]+Omitido:|[[:space:]]+Error:)' "$log" \
+      | sed 's/^[[:space:]]*//' | paste -sd ';' -
+  fi
 }
 
 {
