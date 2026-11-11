@@ -17,6 +17,7 @@ public class Busqueda : EntidadBase
     private readonly List<string> _codigosObjetivo = [];
     private readonly List<string> _codigosRecomendados = [];
     private readonly List<string> _causasProbables = [];
+    private readonly List<string> _codigosConPrecios = [];
 
     private Busqueda() { Vehiculo = null!; }   // requerido por EF Core
 
@@ -51,6 +52,14 @@ public class Busqueda : EntidadBase
     public IReadOnlyCollection<string> CodigosObjetivo => _codigosObjetivo.AsReadOnly();
 
     public IReadOnlyCollection<Oferta> Ofertas => _ofertas.AsReadOnly();
+
+    /// <summary>Ultima vez que alguna tienda respondio por las piezas de esta busqueda. null si
+    /// todavia no se consultaron precios.</summary>
+    public DateTimeOffset? PreciosConsultadosEn { get; private set; }
+
+    /// <summary>Piezas por las que ya se pregunto a las tiendas, tengan o no ofertas. Sin esto, una
+    /// pieza que ninguna tienda publica se volveria a consultar cada vez que se abre la busqueda.</summary>
+    public IReadOnlyCollection<string> CodigosConPrecios => _codigosConPrecios.AsReadOnly();
 
     /// <summary>Sistema que la IA leyo en el texto libre. null si la busqueda no paso por la IA
     /// (texto vacio o componente caido): entonces los codigos salen solo por compatibilidad.</summary>
@@ -204,14 +213,97 @@ public class Busqueda : EntidadBase
         Estado = EstadoBusqueda.Diagnosticada;
     }
 
+    /// <summary>Agrega ofertas sin duplicar publicaciones: si ya estaba, se actualiza con la captura
+    /// nueva. Las que no llegaron no se tocan (para eso esta <see cref="ActualizarOfertas"/>).</summary>
     public void RegistrarOfertas(IEnumerable<Oferta> ofertas)
     {
         ArgumentNullException.ThrowIfNull(ofertas);
         ExcepcionDominio.Si(Estado == EstadoBusqueda.Fallida,
             "No se pueden agregar ofertas a una busqueda fallida.");
 
-        _ofertas.AddRange(ofertas);
+        Incorporar(ofertas);
         Estado = EstadoBusqueda.Completada;
+    }
+
+    /// <summary>
+    /// Resultado de consultar precios para unas piezas. Agrega lo nuevo, actualiza lo que ya estaba
+    /// y marca como no disponible lo que una tienda que SI respondio dejo de publicar. Las ofertas
+    /// de una tienda que no respondio quedan como estaban: que una tienda este caida no significa
+    /// que se quedo sin stock.
+    /// </summary>
+    /// <param name="codigosConsultados">Piezas por las que se pregunto.</param>
+    /// <param name="tiendasQueRespondieron">Si esta vacia no se registra la consulta: la proxima
+    /// vez que se abra la busqueda se vuelve a intentar.</param>
+    public void ActualizarOfertas(
+        IEnumerable<string> codigosConsultados,
+        IEnumerable<string> tiendasQueRespondieron,
+        IEnumerable<Oferta> capturadas)
+    {
+        ArgumentNullException.ThrowIfNull(codigosConsultados);
+        ArgumentNullException.ThrowIfNull(tiendasQueRespondieron);
+        ArgumentNullException.ThrowIfNull(capturadas);
+        ExcepcionDominio.Si(Estado == EstadoBusqueda.Fallida,
+            "No se pueden agregar ofertas a una busqueda fallida.");
+        ExcepcionDominio.Si(Estado is EstadoBusqueda.Borrador or EstadoBusqueda.Pendiente,
+            "La busqueda todavia no tiene piezas para buscar precios.");
+
+        var codigos = Normalizar(codigosConsultados);
+        var respondieron = tiendasQueRespondieron
+            .Where(t => !string.IsNullOrWhiteSpace(t))
+            .Select(t => t.Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var nuevas = capturadas.ToList();
+        var ahora = DateTimeOffset.UtcNow;
+
+        foreach (var vieja in _ofertas.Where(o => o.Disponible
+                     && codigos.Contains(o.CodigoRepuesto)
+                     && respondieron.Contains(o.NombreTienda)
+                     && !nuevas.Any(o.EsLaMismaPublicacionQue)).ToList())
+            vieja.MarcarNoDisponible(ahora);
+
+        Incorporar(nuevas);
+
+        if (respondieron.Count > 0)
+        {
+            foreach (var codigo in codigos.Where(c => !_codigosConPrecios.Contains(c)))
+                _codigosConPrecios.Add(codigo);
+            PreciosConsultadosEn = ahora;
+        }
+
+        Estado = EstadoBusqueda.Completada;
+    }
+
+    /// <summary>
+    /// Piezas que necesitan precios: las que propuso el sistema y las que recomendo el mecanico, si
+    /// nunca se consultaron o si la ultima consulta ya vencio. Incluir las del mecanico es lo que
+    /// permite que el cliente compre lo que el profesional le recomendo, y que esa derivacion se le
+    /// atribuya.
+    /// </summary>
+    public IReadOnlyList<string> CodigosQueNecesitanPrecios(TimeSpan vigencia)
+    {
+        var piezas = _codigosObjetivo.Concat(_codigosRecomendados).Distinct().ToList();
+
+        return PreciosVencidos(vigencia)
+            ? piezas
+            : [.. piezas.Where(c => !_codigosConPrecios.Contains(c))];
+    }
+
+    public bool PreciosVencidos(TimeSpan vigencia) =>
+        PreciosConsultadosEn is null || DateTimeOffset.UtcNow - PreciosConsultadosEn > vigencia;
+
+    private void Incorporar(IEnumerable<Oferta> ofertas)
+    {
+        foreach (var oferta in ofertas)
+        {
+            ArgumentNullException.ThrowIfNull(oferta);
+            ExcepcionDominio.Si(oferta.BusquedaId != Id, "La oferta es de otra busqueda.");
+
+            var existente = _ofertas.FirstOrDefault(o => o.EsLaMismaPublicacionQue(oferta));
+            if (existente is null)
+                _ofertas.Add(oferta);
+            else if (!ReferenceEquals(existente, oferta))
+                existente.ActualizarCon(oferta);
+        }
     }
 
     public void Fallar(string motivo)

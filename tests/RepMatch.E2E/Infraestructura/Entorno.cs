@@ -18,7 +18,7 @@ public static class Entorno
     public static string UrlCatalogoSoap => Leer("E2E_URL_CATALOGO_SOAP", "http://localhost:5082");
 
     /// <summary>
-    /// Que servicio esta caido a proposito: Normal, SinIA, SinCatalogo o SinSoap. Lo fija scripts/e2e.sh
+    /// Que servicio esta caido a proposito: Normal, SinIA, SinCatalogo, SinSoap o SinTiendas. Lo fija scripts/e2e.sh
     /// en cada fase. Las pruebas de resiliencia se omiten salvo en su escenario, y las comunes se
     /// omiten fuera de Normal, asi una corrida nunca mezcla expectativas.
     /// </summary>
@@ -44,6 +44,7 @@ public static class Escenarios
     public const string SinIA = "SinIA";
     public const string SinCatalogo = "SinCatalogo";
     public const string SinSoap = "SinSoap";
+    public const string SinTiendas = "SinTiendas";
 }
 
 /// <summary>Cuentas de DatosSemilla. Todas con la misma contrasenia.</summary>

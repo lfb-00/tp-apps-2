@@ -58,3 +58,13 @@ public enum NivelUrgencia
     Alta = 3,
     Critica = 4
 }
+
+/// <summary>
+/// Que tan seguro es que una oferta sea la pieza del catalogo. Se le muestra a la persona: una
+/// coincidencia por nombre puede ser otra medida (una bateria de 40 Ah cuando el auto lleva 60 Ah).
+/// </summary>
+public enum CoincidenciaOferta
+{
+    PorNombre = 0,
+    PorCodigo = 1
+}

@@ -8,6 +8,7 @@
     <Project Path="src/RepMatch.Common/RepMatch.Common.csproj" />
     <Project Path="src/RepMatch.Contracts/RepMatch.Contracts.csproj" />
     <Project Path="src/RepMatch.Domain/RepMatch.Domain.csproj" />
+    <Project Path="src/RepMatch.Fuentes.Vtex/RepMatch.Fuentes.Vtex.csproj" />
     <Project Path="src/RepMatch.IA/RepMatch.IA.csproj" />
     <Project Path="src/RepMatch.IA.Api/RepMatch.IA.Api.csproj" />
     <Project Path="src/RepMatch.Persistence/RepMatch.Persistence.csproj" />
@@ -15,5 +16,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/RepMatch.Tests/RepMatch.Tests.csproj" />
+    <Project Path="tests/RepMatch.TiendaSimulada/RepMatch.TiendaSimulada.csproj" />
   </Folder>
 </Solution>

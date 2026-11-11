@@ -7,8 +7,9 @@ El usuario identifica su vehículo, describe el problema en lenguaje natural, y 
 las ofertas de varios sitios reales. **No vende ni almacena stock**: normaliza, compara y deriva a la
 tienda de origen.
 
-> **Alcance de este repo: TP Inicial, Primera Parte y, de la Segunda Parte, el componente de IA y el
-> servicio SOAP.** La aplicación es el comparador. Mensajería y tiendas externas todavía no están.
+> **Alcance de este repo: TP Inicial, Primera Parte y, de la Segunda Parte, el componente de IA, el
+> servicio SOAP y los precios de tiendas reales (Easy y Frávega, por la API pública de VTEX).** La
+> aplicación es el comparador. La mensajería y eBay todavía no están.
 > Diagramas, informe, evidencias y patrones están en `docs/`. El seguimiento del trabajo está
 > en `plan.md` y `status.md`.
 
@@ -30,6 +31,25 @@ Hay dos fuentes, y la respuesta dice cuál contestó:
 Se expone por REST en `RepMatch.IA.Api` (`POST /api/diagnostico`) y la Web lo usa en proceso o
 remoto según `IA:Modo`, como el catálogo. Funciona también sin sesión: el texto se diagnostica y
 no se guarda.
+
+## Precios de las tiendas
+
+Después de mostrar el diagnóstico y las piezas, la Web busca los precios en **Easy** y **Frávega**
+con la API pública de catálogo de VTEX (sin credenciales, nunca scraping). Mientras tanto cada pieza
+muestra "Buscando precios…": una tienda lenta no demora el diagnóstico.
+
+- **Cliente**: ve las ofertas de cada pieza, de la más barata a la más cara, con la tienda, quién
+  vende y el precio de lista si hay descuento. "Ir a la tienda" pasa por `/derivar` (comisión).
+- **Mecánico**: ve las mismas ofertas con enlace directo a la tienda, para que su clic no cuente
+  como una derivación atribuida a él. Si corrige el diagnóstico, también se buscan los precios de lo
+  que recomendó.
+- **Sin sesión**: "desde $X en N tiendas" e "Ingresá para ver dónde".
+
+Lo que se encuentra por nombre se advierte ("verificá que sea la medida de tu auto"). Si una tienda
+no responde, la pantalla lo avisa y muestra lo de las demás. La búsqueda no informa el envío: los
+precios son de referencia y el envío se calcula en la tienda. Del catálogo semilla, las tiendas
+publican sobre todo baterías; para las demás piezas la pantalla dice que ninguna tienda conectada
+la publica. Detalle en la sección 6.9 del [informe](docs/informe-arquitectura.md).
 
 ## Roles y modelo de negocio
 
@@ -176,11 +196,15 @@ src/
   RepMatch.Clientes.Rest/   adaptador remoto           · CatalogoRemoto, CatalogoVehiculosRemoto y DiagnosticadorRemoto
   RepMatch.Clientes.Soap/   adaptador SOAP             · CatalogoSoap y el proxy generado desde el WSDL
   RepMatch.IA/              componente de IA           · LLM, clasificador local y respaldo entre ambos
+  RepMatch.Fuentes.Vtex/    adaptador de API externa   · FuenteVtex: precios de Easy y Frávega (VTEX)
   RepMatch.Catalogo.Api/    host REST del catálogo
   RepMatch.Catalogo.Soap/   host SOAP del catálogo (CoreWCF) · WSDL en /ConsultaCompatibilidad.svc?wsdl
   RepMatch.IA.Api/          host REST del componente de IA · sin base de datos
   RepMatch.Web/             presentación (Blazor Server)
 tests/RepMatch.Tests/       pruebas
+tests/RepMatch.E2E/         pruebas de punta a punta con Playwright (ver su README)
+tests/RepMatch.TiendaSimulada/ simulador de tiendas VTEX para las pruebas de punta a punta
+tests/fixtures/vtex/        respuestas reales grabadas de Easy y Frávega
 docs/                        diagramas, informe y evidencias
 scripts/evidencias.sh        genera las evidencias del entregable
 ```
@@ -222,17 +246,17 @@ El acceso va por EF Core 10 con Npgsql, detrás de los repositorios declarados e
 esquema y los datos semilla se crean solos al arrancar (`EnsureCreatedAsync` + `DatosSemilla`), así
 que **no hay migraciones que correr a mano**. Es idempotente: cada grupo de datos semilla se carga
 solo si todavía falta. Al incorporar una tabla o columna nueva (por ejemplo, el catálogo de
-vehículos, los roles y la tabla `derivaciones`, o las columnas del diagnóstico en `busquedas`), una base existente debe recrearse con
+vehículos, los roles y la tabla `derivaciones`, las columnas del diagnóstico en `busquedas` o los
+datos de la tienda en `ofertas`), una base existente debe recrearse con
 `docker compose down -v` antes de levantar Compose otra vez.
 
 Las entidades persistidas son `Cliente`, `Vehiculo`, `ConfiguracionVehiculo`, `Repuesto`,
 `AplicacionVehiculo`, `Busqueda`, `Oferta` y `Derivacion`. El catálogo vehicular contiene las combinaciones
 permitidas de marca, modelo, año y motor que consumen los selectores de la Web. Ojo con el alcance:
 la base guarda el **catálogo propio y las búsquedas de los usuarios**,
-no un inventario. RepMatch no almacena stock — cuando estén los adaptadores a tiendas (Segunda
-Parte), las ofertas externas se van a capturar como resultado de una búsqueda, con su fecha de
-captura, porque los precios envejecen rápido. Hoy la entidad `Oferta` existe, pero no se captura
-ninguna.
+no un inventario. RepMatch no almacena stock: las ofertas de las tiendas se guardan como resultado
+de una búsqueda, con su fecha de captura, porque los precios envejecen rápido. Se vuelven a
+consultar cuando vencen (`Ofertas:VigenciaMinutos`).
 
 Si la base todavía no acepta conexiones cuando arranca un servicio, `InicializarBaseAsync` reintenta
 hasta diez veces con espera creciente. En compose eso además está cubierto por el `healthcheck` de
@@ -256,10 +280,16 @@ Todo se puede sobreescribir por variable de entorno (`Seccion__Clave`).
 | `IA:Llm:UrlBase` | API compatible con OpenAI | `https://api.groq.com/openai/v1/` |
 | `IA:Llm:Modelo` | modelo del proveedor | `llama-3.3-70b-versatile` |
 | `IA:Llm:TimeoutSegundos` | espera máxima al LLM antes de responder con el local (1 a 60) | `4` |
+| `Ofertas:TimeoutGlobalSegundos` | tope para todas las tiendas juntas (1 a 60) | `8` |
+| `Ofertas:VigenciaMinutos` | después de esto los precios se vuelven a consultar | `60` |
+| `Ofertas:Tiendas:N:Nombre`, `:UrlBase`, `:Moneda`, `:PrefijosCategoria` | una entrada por tienda VTEX; sumar una tienda es sumar una entrada | Easy (`https://www.easy.com.ar`, `/Automotor/`) y Frávega (`https://www.fravega.com`, `/Autos, Motos y Otros/`) |
+| `Ofertas:Tiendas:N:TimeoutSegundos`, `:PedidosSimultaneos`, `:ResultadosPorTermino`, `:CacheMinutos` | límites por tienda | `5`, `2`, `10`, `10` |
 | `ProteccionDatos:DirectorioClaves` | directorio de las claves que cifran la sesión (solo Web) | vacío: las maneja ASP.NET Core (en compose: `/claves`, en un volumen) |
 
 Y los puertos del host, vía `.env` (ver `.env.example`): `PUERTO_WEB`, `PUERTO_CATALOGO`,
-`PUERTO_IA`, `PUERTO_POSTGRES`, `PUERTO_WEB_LOCAL`.
+`PUERTO_IA`, `PUERTO_POSTGRES`, `PUERTO_WEB_LOCAL`. En compose, `OFERTAS_URL_EASY`,
+`OFERTAS_URL_FRAVEGA` y `OFERTAS_CACHE_MINUTOS` cambian las tiendas: `scripts/e2e.sh` las apunta a
+`tienda-simulada`.
 
 ## Documentación
 
@@ -269,7 +299,7 @@ Y los puertos del host, vía `.env` (ver `.env.example`): `PUERTO_WEB`, `PUERTO_
 - [Diagrama de componentes](docs/diagramas/componentes.md)
 - [Diagrama de despliegue](docs/diagramas/despliegue.md)
 - [Arquitectura en capas](docs/diagramas/capas.md)
-- [Diagramas de secuencia (búsquedas, login, alta de vehículo, catálogo, eliminación de cuenta y diagnóstico por IA)](docs/diagramas/secuencia.md)
+- [Diagramas de secuencia (búsquedas, login, alta de vehículo, catálogo, eliminación de cuenta, diagnóstico por IA, SOAP y precios de las tiendas)](docs/diagramas/secuencia.md)
 
 ## Stack
 

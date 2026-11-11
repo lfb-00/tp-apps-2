@@ -204,4 +204,43 @@ public class ModeloEfTests
             Assert.Equal("Pastillas Bosch", Assert.Single(busqueda.Ofertas).Titulo);
         }
     }
+
+    [Fact]
+    public async Task Persiste_los_datos_de_la_tienda_y_cuando_se_consultaron_los_precios()
+    {
+        var nombreBase = Guid.NewGuid().ToString();
+        var clienteId = Guid.NewGuid();
+
+        await using (var contexto = CrearContexto(nombreBase))
+        {
+            var busqueda = new RepMatch.Domain.Entidades.Busqueda(
+                clienteId, new DatosVehiculo("Volkswagen", "Gol", 2015, "1.6"), "no arranca a la manana");
+            busqueda.AsignarCodigosObjetivo(["BATE-12V-60AH"]);
+            busqueda.ActualizarOfertas(["BATE-12V-60AH"], ["Easy"],
+            [
+                new RepMatch.Domain.Entidades.Oferta(
+                    busqueda.Id, "BATE-12V-60AH", "Easy", "Batería 12X65 Cm Cb410 Enerbox",
+                    Dinero.Pesos(100810m), "https://www.easy.com.ar/bateria-enerbox-tipo-12x65-cb410-1304479/p",
+                    precioLista: Dinero.Pesos(118600m),
+                    coincidencia: RepMatch.Domain.Entidades.CoincidenciaOferta.PorNombre,
+                    marca: "Enerbox", ean: "7797535000843", referenciaTienda: "1304479", vendedor: "EASY")
+            ]);
+            await contexto.Busquedas.AddAsync(busqueda);
+            await contexto.SaveChangesAsync();
+        }
+
+        await using (var contexto = CrearContexto(nombreBase))
+        {
+            var busqueda = await contexto.Busquedas.Include(b => b.Ofertas).SingleAsync(b => b.ClienteId == clienteId);
+
+            Assert.NotNull(busqueda.PreciosConsultadosEn);
+            Assert.Equal(["BATE-12V-60AH"], busqueda.CodigosConPrecios);
+            var oferta = Assert.Single(busqueda.Ofertas);
+            Assert.Equal(118600m, oferta.PrecioLista!.Monto);
+            Assert.Equal("7797535000843", oferta.Ean);
+            Assert.Equal("1304479", oferta.ReferenciaTienda);
+            Assert.Equal("Enerbox", oferta.Marca);
+            Assert.Equal("EASY", oferta.Vendedor);
+        }
+    }
 }

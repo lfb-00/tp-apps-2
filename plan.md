@@ -19,7 +19,7 @@ A session is done when the home page is the search and the result is part cards:
 
 UI copy is Spanish. Course files in `docs/` stay Spanish. This file and `status.md` stay English.
 
-Do not fake a shop comparison. There are no prices and no stores until an offer is actually captured. `Busqueda.RegistrarOfertas` is unused. Do not render empty price columns.
+Do not fake a shop comparison. Prices and stores come only from captured offers (`ServicioOfertas`, VTEX). Do not render empty price columns: a part without offers says so.
 
 ## Constraints
 
@@ -83,6 +83,7 @@ Before slice 2: commit the roles and AI work that is still uncommitted in the tr
 - Polly per source (timeout, retry, circuit breaker). Use `IMemoryCache`; Redis only if asked.
 - Offers render on the result only when captured; `/derivar/{ofertaId}` then works for real. Ranking by price only.
 - #29/#30 (EAN match, validating name matches): only the EAN part if cheap; the rest is Integrador.
+- Done 2026-11-10 in `feature/ofertas-vtex`: `ServicioOfertas` (#4) and the VTEX adapter (#18), prices loaded after the parts, `IMemoryCache` per store. The EAN is stored; cross-store identity by EAN (#29) goes in its own PR. Pending in this slice: eBay (#17), Polly (#20), #19 only if a third REST service is needed.
 
 ### Slice 5. Docs and evidence (#21).
 

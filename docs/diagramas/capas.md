@@ -20,6 +20,7 @@ flowchart TB
         DES["DespachadorEventos"]
         OBS["ObservadorCompatibilidad"]
         SD["ServicioDiagnostico"]
+        SO["ServicioOfertas"]
         LOC["CatalogoLocal · CatalogoVehiculosLocal"]
     end
 
@@ -35,10 +36,17 @@ flowchart TB
         SOA["CatalogoSoap<br/>proxy generado desde el WSDL"]
     end
 
+    subgraph vtex["Adaptador de API externa · RepMatch.Fuentes.Vtex"]
+        VTX["FuenteVtex · LectorVtex<br/>una instancia por tienda"]
+    end
+
+    TIENDAS(["Tiendas VTEX<br/>Easy · Frávega"])
+
     subgraph contratos["Contratos · RepMatch.Contracts"]
         IC["ICatalogoRepuestos"]
         ICV["ICatalogoVehiculos"]
         ID["IDiagnosticador"]
+        IFO["IFuenteOfertas"]
     end
 
     subgraph utilidad["Utilidad · RepMatch.Common"]
@@ -66,6 +74,13 @@ flowchart TB
     FAC --> SB
     FAC --> SM
     FAC --> SD
+    FAC --> SO
+    SO --> IFO
+    SO --> IC
+    SO --> REPO
+    VTX -. implementa .-> IFO
+    VTX --> COM
+    VTX == "HTTPS · JSON" ==> TIENDAS
     FAC --> IC
     FAC --> ICV
     FAC --> COM
@@ -102,7 +117,8 @@ implementaciones locales están en `Aplicacion` y llegan a la base por las inter
 Las remotas están en `Clientes.Rest` y salen por HTTP; la de SOAP (Segunda Parte), en
 `Clientes.Soap`, sale por SOAP contra `Catalogo.Soap`. Ninguna toca Persistence. `FabricaCatalogo`
 enlaza cada contrato con una sola implementación al arrancar; en modo `Soap`, repuestos por SOAP y
-vehículos por REST.
+vehículos por REST. `IFuenteOfertas` es distinto: no se elige una, `ServicioOfertas` usa todas las
+tiendas configuradas a la vez, y cada `FuenteVtex` sale por HTTPS a la API pública de su tienda.
 
 La presentación no referencia repositorios ni el despachador. Las páginas entran por la fachada.
 `SelectorVehiculo` consulta `ICatalogoVehiculos` para cargar las opciones, y la fachada usa el mismo

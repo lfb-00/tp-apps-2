@@ -51,6 +51,14 @@ public sealed class BusquedaConfiguration : IEntityTypeConfiguration<Busqueda>
             .HasField("_codigosRecomendados")
             .UsePropertyAccessMode(PropertyAccessMode.Field);
 
+        // Precios: cuando se consultaron por ultima vez y para que piezas, para no volver a
+        // preguntarle a las tiendas cada vez que se abre la busqueda.
+        b.Property(x => x.PreciosConsultadosEn);
+
+        b.PrimitiveCollection<IReadOnlyCollection<string>>(nameof(Busqueda.CodigosConPrecios))
+            .HasField("_codigosConPrecios")
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+
         b.HasMany(x => x.Ofertas)
             .WithOne()
             .HasForeignKey(o => o.BusquedaId)
@@ -81,6 +89,11 @@ public sealed class OfertaConfiguration : IEntityTypeConfiguration<Oferta>
         b.Property(o => o.UrlOriginal).HasMaxLength(1000).IsRequired();
         b.Property(o => o.Disponible).IsRequired();
         b.Property(o => o.CapturadaEn).IsRequired();
+        b.Property(o => o.Coincidencia).HasConversion<string>().HasMaxLength(20).IsRequired();
+        b.Property(o => o.Marca).HasMaxLength(80);
+        b.Property(o => o.Ean).HasMaxLength(20);
+        b.Property(o => o.ReferenciaTienda).HasMaxLength(80);
+        b.Property(o => o.Vendedor).HasMaxLength(120);
 
         b.OwnsOne(o => o.Precio, d =>
         {
@@ -95,5 +108,13 @@ public sealed class OfertaConfiguration : IEntityTypeConfiguration<Oferta>
             d.Property(p => p.Monto).HasColumnName("envio_monto").HasPrecision(18, 2);
             d.Property(p => p.Moneda).HasColumnName("envio_moneda").HasMaxLength(3);
         });
+
+        b.OwnsOne(o => o.PrecioLista, d =>
+        {
+            d.Property(p => p.Monto).HasColumnName("precio_lista_monto").HasPrecision(18, 2);
+            d.Property(p => p.Moneda).HasColumnName("precio_lista_moneda").HasMaxLength(3);
+        });
+
+        b.HasIndex(o => o.Ean);
     }
 }

@@ -1,0 +1,135 @@
+@using System.Globalization
+@* Precios de una pieza. La misma tarjeta para los tres roles, con lo que a cada uno le toca:
+   el anonimo ve "desde cuanto" sin donde; el cliente ve las ofertas y deriva por /derivar (es la
+   comision); el mecanico ve las ofertas con link directo a la tienda, para que su propio clic no
+   cuente como una derivacion atribuida a el. El orden es solo por precio. *@
+
+<div class="precios" data-codigo="@CodigoRepuesto">
+    @if (Cargando)
+    {
+        <p class="precios-cargando" role="status"><span class="ai-spin"><AiIcon Size="14" /></span> Buscando precios…</p>
+    }
+    else if (Resumen is not null)
+    {
+        @if (Resumen.Desde is { } desde)
+        {
+            <p class="precios-resumen">
+                Desde <strong>@Importe(desde, Resumen.Moneda)</strong>
+                en @Resumen.Tiendas @(Resumen.Tiendas == 1 ? "tienda" : "tiendas")
+            </p>
+            <a class="link-marca" href="/login">Ingresá para ver dónde</a>
+        }
+        else
+        {
+            <p class="precios-vacio">@SinOfertas</p>
+        }
+    }
+    else if (Ofertas is not null)
+    {
+        var disponibles = Ordenadas();
+        if (disponibles.Count == 0)
+        {
+            <p class="precios-vacio">@SinOfertas</p>
+        }
+        else
+        {
+            <ul class="ofertas">
+                @foreach (var oferta in disponibles.Take(Maximo))
+                {
+                    <li class="oferta">
+                        <div class="oferta-precio">
+                            <strong>@Importe(oferta.PrecioTotal, oferta.Moneda)</strong>
+                            @if (oferta.PrecioLista is { } lista)
+                            {
+                                <s>@Importe(lista, oferta.Moneda)</s>
+                            }
+                        </div>
+                        <div class="oferta-datos">
+                            <span class="oferta-titulo">@oferta.Titulo</span>
+                            <span class="oferta-tienda">
+                                @oferta.NombreTienda
+                                @if (!string.IsNullOrWhiteSpace(oferta.Vendedor)
+                                     && !oferta.Vendedor.Equals(oferta.NombreTienda, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <span> · vende @oferta.Vendedor</span>
+                                }
+                            </span>
+                            @if (Recomendados?.Contains(oferta.CodigoRepuesto) == true)
+                            {
+                                <span class="etiqueta etiqueta-ok">Recomendada por @(ParaMecanico ? "vos" : "tu mecánico")</span>
+                            }
+                            @if (oferta.Coincidencia == CoincidenciasOferta.PorNombre)
+                            {
+                                <small class="oferta-aviso">Coincide por nombre: verificá que sea la medida de tu auto.</small>
+                            }
+                        </div>
+                        @if (ParaMecanico)
+                        {
+                            <a class="link-marca" href="@oferta.UrlOriginal" target="_blank" rel="noopener noreferrer">Ver en la tienda</a>
+                        }
+                        else
+                        {
+                            <a class="link-marca" href="/derivar/@oferta.Id" target="_blank" rel="noopener">Ir a la tienda</a>
+                        }
+                    </li>
+                }
+            </ul>
+            @if (disponibles.Count > Maximo)
+            {
+                <p class="mas">+@(disponibles.Count - Maximo) @(disponibles.Count - Maximo == 1 ? "oferta más" : "ofertas más")</p>
+            }
+        }
+    }
+</div>
+
+@code {
+    private static readonly CultureInfo Argentina = CultureInfo.GetCultureInfo("es-AR");
+
+    [Parameter, EditorRequired]
+    public string CodigoRepuesto { get; set; } = "";
+
+    /// <summary>Ofertas de la busqueda (de todas las piezas: se filtran aca). null si todavia no se pidieron.</summary>
+    [Parameter]
+    public IReadOnlyList<OfertaDto>? Ofertas { get; set; }
+
+    /// <summary>Para el anonimo, en lugar de <see cref="Ofertas"/>.</summary>
+    [Parameter]
+    public ResumenPreciosDto? Resumen { get; set; }
+
+    [Parameter]
+    public bool Cargando { get; set; }
+
+    [Parameter]
+    public bool ParaMecanico { get; set; }
+
+    [Parameter]
+    public IReadOnlyCollection<string>? Recomendados { get; set; }
+
+    [Parameter]
+    public int Maximo { get; set; } = 3;
+
+    /// <summary>Alguna tienda no respondio: sin ofertas no se puede afirmar que nadie la publique.</summary>
+    [Parameter]
+    public bool HuboTiendasSinRespuesta { get; set; }
+
+    private string SinOfertas => HuboTiendasSinRespuesta
+        ? "Sin precios por ahora: no todas las tiendas respondieron."
+        : "Ninguna tienda conectada la publica por ahora.";
+
+    /// <summary>Disponibles de esta pieza, de la mas barata a la mas cara. Una moneda a la vez:
+    /// primero pesos, despues el resto, nunca mezcladas en un mismo orden.</summary>
+    private List<OfertaDto> Ordenadas() =>
+    [
+        .. (Ofertas ?? [])
+            .Where(o => o.Disponible && o.CodigoRepuesto.Equals(CodigoRepuesto, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(o => o.Moneda == "ARS" ? 0 : 1)
+            .ThenBy(o => o.Moneda)
+            .ThenBy(o => o.PrecioTotal)
+    ];
+
+    private static string Importe(decimal monto, string moneda)
+    {
+        var numero = monto.ToString(monto % 1 == 0 ? "N0" : "N2", Argentina);
+        return moneda == "ARS" ? $"$ {numero}" : $"{moneda} {numero}";
+    }
+}

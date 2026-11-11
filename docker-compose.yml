@@ -14,6 +14,10 @@
 #   docker compose --profile test run --rm tests        -> corre las pruebas
 #   docker compose --profile local up --build web-local -> la misma Web en modo Local
 #
+# Los precios salen de las tiendas reales (easy.com.ar y fravega.com, API publica de VTEX).
+# scripts/e2e.sh las cambia por el simulador (perfil "simulacion") con OFERTAS_URL_EASY y
+# OFERTAS_URL_FRAVEGA, para que las pruebas no dependan de precios que cambian todos los dias.
+#
 # Los puertos del host se pueden cambiar con un archivo .env (ver .env.example) para
 # evitar choques con lo que cada uno tenga corriendo.
 
@@ -27,6 +31,13 @@ x-llm: &llm
   IA__Llm__ApiKey: "${IA_LLM_APIKEY:-}"
   IA__Llm__UrlBase: "${IA_LLM_URLBASE:-https://api.groq.com/openai/v1/}"
   IA__Llm__Modelo: "${IA_LLM_MODELO:-llama-3.3-70b-versatile}"
+
+# Tiendas donde buscar precios. Por defecto las reales; las pruebas las apuntan al simulador.
+x-tiendas: &tiendas
+  Ofertas__Tiendas__0__UrlBase: "${OFERTAS_URL_EASY:-https://www.easy.com.ar}"
+  Ofertas__Tiendas__0__CacheMinutos: "${OFERTAS_CACHE_MINUTOS:-10}"
+  Ofertas__Tiendas__1__UrlBase: "${OFERTAS_URL_FRAVEGA:-https://www.fravega.com}"
+  Ofertas__Tiendas__1__CacheMinutos: "${OFERTAS_CACHE_MINUTOS:-10}"
 
 services:
   postgres:
@@ -105,7 +116,7 @@ services:
     image: repmatch/web:tp-inicial
     container_name: repmatch-web
     environment:
-      <<: *conexion-postgres
+      <<: [*conexion-postgres, *tiendas]
       ASPNETCORE_ENVIRONMENT: Development
       # Repuestos por SOAP contra catalogo-soap; opciones de vehiculo por REST contra
       # catalogo-api. Catalogo__Modo=Remoto o Local cambian el camino sin recompilar.
@@ -145,7 +156,7 @@ services:
       dockerfile: src/RepMatch.Web/Dockerfile
     container_name: repmatch-web-local
     environment:
-      <<: [*conexion-postgres, *llm]
+      <<: [*conexion-postgres, *llm, *tiendas]
       ASPNETCORE_ENVIRONMENT: Development
       Catalogo__Modo: Local
       IA__Modo: Local
@@ -157,6 +168,18 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    networks: [repmatch]
+
+  # Simulador de tiendas VTEX con busquedas reales grabadas (tests/fixtures/vtex). Solo lo usan
+  # las pruebas de punta a punta: scripts/e2e.sh apunta la Web aca y lo frena en la fase
+  # SinTiendas para probar que la busqueda sigue andando sin precios.
+  tienda-simulada:
+    profiles: [simulacion]
+    build:
+      context: .
+      dockerfile: tests/RepMatch.TiendaSimulada/Dockerfile
+    image: repmatch/tienda-simulada:segunda
+    container_name: repmatch-tienda-simulada
     networks: [repmatch]
 
   # Corre las pruebas sin necesidad de tener el SDK de .NET instalado.

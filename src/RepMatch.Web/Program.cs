@@ -3,6 +3,7 @@ using RepMatch.Common.Resultados;
 using RepMatch.Contracts;
 using RepMatch.Contracts.Dtos;
 using RepMatch.Contracts.Configuracion;
+using RepMatch.Fuentes.Vtex;
 using RepMatch.Persistence;
 using RepMatch.Web.Components;
 using RepMatch.Web.Servicios;
@@ -18,6 +19,8 @@ builder.Services.AddRazorComponents()
 // Registra la capa de datos, la de logica de negocio y las dos formas de alcanzar el catalogo.
 builder.Services.AgregarCatalogo(builder.Configuration);
 builder.Services.AgregarDiagnostico(builder.Configuration);
+// Tiendas donde buscar precios (API publica de VTEX). Cada una sale de la seccion "Ofertas".
+builder.Services.AgregarFuentesOfertas(builder.Configuration);
 builder.Services.AgregarProteccionDatos(builder.Configuration);
 builder.Services.AddScoped<RepMatch.Web.Servicios.SesionActual>();
 builder.Services.AddScoped<RepMatch.Web.Servicios.TemaActual>();
@@ -109,6 +112,9 @@ try
     Log.Information("Modo de acceso a la IA: {Modo} ({Url})",
         opcionesIA.Modo,
         opcionesIA.Modo == ModoAccesoIA.Remoto ? opcionesIA.UrlBaseRemota : "en proceso");
+    var tiendas = app.Services.GetServices<IFuenteOfertas>().Select(f => f.Nombre).ToList();
+    Log.Information("Tiendas para precios: {Tiendas}",
+        tiendas.Count == 0 ? "ninguna (la busqueda muestra piezas sin precios)" : string.Join(", ", tiendas));
 
     await app.RunAsync();
 }

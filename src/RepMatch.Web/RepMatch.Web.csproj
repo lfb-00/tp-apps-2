@@ -13,6 +13,7 @@
     <ProjectReference Include="..\RepMatch.Clientes.Rest\RepMatch.Clientes.Rest.csproj" />
     <ProjectReference Include="..\RepMatch.Clientes.Soap\RepMatch.Clientes.Soap.csproj" />
     <ProjectReference Include="..\RepMatch.IA\RepMatch.IA.csproj" />
+    <ProjectReference Include="..\RepMatch.Fuentes.Vtex\RepMatch.Fuentes.Vtex.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
