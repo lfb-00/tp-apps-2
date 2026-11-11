@@ -17,8 +17,17 @@ public static class Entorno
     /// <summary>El servicio SOAP del catalogo, para pedirle el WSDL directamente.</summary>
     public static string UrlCatalogoSoap => Leer("E2E_URL_CATALOGO_SOAP", "http://localhost:5082");
 
+    /// <summary>El worker de la cola, para leer el registro de comisiones que arma al consumir.</summary>
+    public static string UrlWorker => Leer("E2E_URL_WORKER", "http://localhost:5085");
+
+    /// <summary>La API de administracion de RabbitMQ (la misma que usa la UI del puerto 15672).</summary>
+    public static string UrlRabbitMq => Leer("E2E_URL_RABBITMQ", "http://localhost:15672");
+
+    public static string UsuarioRabbitMq => Leer("E2E_RABBITMQ_USUARIO", "repmatch");
+    public static string ContrasenaRabbitMq => Leer("E2E_RABBITMQ_CONTRASENA", "repmatch");
+
     /// <summary>
-    /// Que servicio esta caido a proposito: Normal, SinIA, SinCatalogo, SinSoap o SinTiendas. Lo fija scripts/e2e.sh
+    /// Que servicio esta caido a proposito: Normal, SinIA, SinCatalogo, SinSoap, SinTiendas o SinCola. Lo fija scripts/e2e.sh
     /// en cada fase. Las pruebas de resiliencia se omiten salvo en su escenario, y las comunes se
     /// omiten fuera de Normal, asi una corrida nunca mezcla expectativas.
     /// </summary>
@@ -45,6 +54,7 @@ public static class Escenarios
     public const string SinCatalogo = "SinCatalogo";
     public const string SinSoap = "SinSoap";
     public const string SinTiendas = "SinTiendas";
+    public const string SinCola = "SinCola";
 }
 
 /// <summary>Cuentas de DatosSemilla. Todas con la misma contrasenia.</summary>

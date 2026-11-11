@@ -1,9 +1,10 @@
 # Diagrama de componentes — RepMatch
 
-Nueve componentes reutilizables e independientes (la consigna pide un mínimo de tres) más cuatro
+Diez componentes reutilizables e independientes (la consigna pide un mínimo de tres) más cinco
 hosts ejecutables. De la Segunda Parte son `RepMatch.IA` y su host `RepMatch.IA.Api`, el cliente
-SOAP `RepMatch.Clientes.Soap` con su host `RepMatch.Catalogo.Soap`, y `RepMatch.Fuentes.Vtex`, el
-adaptador de la API externa de las tiendas. Cada componente es un proyecto .NET separado, cada uno con su `.csproj` y sus
+SOAP `RepMatch.Clientes.Soap` con su host `RepMatch.Catalogo.Soap`, `RepMatch.Fuentes.Vtex`, el
+adaptador de la API externa de las tiendas, y `RepMatch.Mensajeria` con el host
+`RepMatch.Notificaciones.Worker`, la cola de mensajes. Cada componente es un proyecto .NET separado, cada uno con su `.csproj` y sus
 referencias declaradas.
 
 ## Componentes
@@ -13,12 +14,13 @@ referencias declaradas.
 | `RepMatch.Domain` | **Dominio** | Entidades, value objects, eventos e interfaces de repositorio | *nada* |
 | `RepMatch.Persistence` | **Acceso a datos** | `DbContext`, mapeos, repositorios, unidad de trabajo | Domain (y una referencia declarada a Common que hoy ningún archivo usa) |
 | `RepMatch.Common` | **Utilidad** | Validación, logging, configuración, `ResultadoOperacion<T>`, medición de latencia, correlación | *nada del proyecto* |
-| `RepMatch.Contracts` | Contratos | DTOs, `ICatalogoRepuestos`, `ICatalogoVehiculos`, `IDiagnosticador`, `IFuenteOfertas`, `OpcionesCatalogo`, `OpcionesIA`, `OpcionesOfertas` | *nada del proyecto* |
-| `RepMatch.Aplicacion` | Lógica de negocio | Servicios (incluidos `ServicioDiagnostico` y `ServicioOfertas`), `FachadaAplicacion`, despacho y observadores de eventos, mapeadores, validadores (incluido `ValidadorCandidatoOferta`), `CatalogoLocal`, `CatalogoVehiculosLocal` | Domain, Common, Contracts |
+| `RepMatch.Contracts` | Contratos | DTOs, `ICatalogoRepuestos`, `ICatalogoVehiculos`, `IDiagnosticador`, `IFuenteOfertas`, `IEventBus` y los eventos de integración, `OpcionesCatalogo`, `OpcionesIA`, `OpcionesOfertas`, `OpcionesMensajeria` | *nada del proyecto* |
+| `RepMatch.Aplicacion` | Lógica de negocio | Servicios (incluidos `ServicioDiagnostico`, `ServicioOfertas` y `ServicioComisiones`), `FachadaAplicacion`, despacho y observadores de eventos (incluido `PublicadorEventos`), mapeadores, validadores (incluido `ValidadorCandidatoOferta`), `CatalogoLocal`, `CatalogoVehiculosLocal` | Domain, Common, Contracts |
 | `RepMatch.Clientes.Rest` | Adaptador remoto | `CatalogoRemoto`, `CatalogoVehiculosRemoto`, `DiagnosticadorRemoto`, propagación de correlación | Common, Contracts |
 | `RepMatch.IA` | Componente de IA | `DiagnosticadorLlm`, `DiagnosticadorLocal` (TF-IDF + k-NN), `DiagnosticadorConRespaldo`, filtro de datos personales, corpus de síntomas embebido | Common, Contracts |
 | `RepMatch.Clientes.Soap` | Adaptador SOAP | `CatalogoSoap` y el proxy generado desde el WSDL de `Catalogo.Soap` | Common, Contracts |
 | `RepMatch.Fuentes.Vtex` | Adaptador resiliente de API externa | `FuenteVtex` (una instancia por tienda, con timeout, reintentos y circuito), `LectorVtex`, caché distribuida, `AgregarFuentesOfertas` | Common, Contracts |
+| `RepMatch.Mensajeria` | Mensajería | `BusRabbitMq` (`IEventBus` sobre `RabbitMQ.Client`), `ConexionRabbitMq`, `TopologiaRabbitMq`, la base de consumidores `ConsumidorRabbitMq<T>` | Common, Contracts |
 
 ## Diagrama
 
@@ -38,6 +40,10 @@ flowchart TB
         SVCSOAP["ServicioConsultaCompatibilidad<br/><i>«contrato» IConsultaCompatibilidad · WSDL</i>"]
     end
 
+    subgraph host_worker["🖥️ Host: RepMatch.Notificaciones.Worker"]
+        CONS["ConsumidorComisiones · ConsumidorActividad<br/><i>GET /api/comisiones</i>"]
+    end
+
     subgraph host_ia["🖥️ Host: RepMatch.IA.Api (REST)"]
         CTRLIA["DiagnosticoController"]
     end
@@ -45,13 +51,14 @@ flowchart TB
     subgraph comp["📦 Componentes reutilizables"]
         subgraph app_sub["RepMatch.Aplicacion"]
             FACH["FachadaAplicacion<br/><i>patrón Facade</i>"]
-            APP["ServicioClientes · ServicioBusquedas<br/>ServicioMecanicos · ServicioRevisiones · ServicioDerivaciones<br/>ServicioDiagnostico · ServicioOfertas · ObservadorCompatibilidad<br/>ValidadorCandidatoOferta<br/><b>CatalogoLocal · CatalogoVehiculosLocal</b>"]
+            APP["ServicioClientes · ServicioBusquedas<br/>ServicioMecanicos · ServicioRevisiones · ServicioDerivaciones<br/>ServicioDiagnostico · ServicioOfertas · ServicioComisiones<br/>ObservadorCompatibilidad · PublicadorEventos<br/>ValidadorCandidatoOferta<br/><b>CatalogoLocal · CatalogoVehiculosLocal</b>"]
         end
         REST["RepMatch.Clientes.Rest<br/><b>CatalogoRemoto · CatalogoVehiculosRemoto<br/>DiagnosticadorRemoto</b>"]
         SOAPC["RepMatch.Clientes.Soap<br/><b>CatalogoSoap</b><br/>proxy generado desde el WSDL"]
         IA["RepMatch.IA<br/><b>DiagnosticadorConRespaldo</b><br/>DiagnosticadorLlm · DiagnosticadorLocal"]
-        VTEX["RepMatch.Fuentes.Vtex<br/><b>FuenteVtex</b> · LectorVtex<br/>Polly: retry · timeout · circuit breaker"]
-        CON["RepMatch.Contracts<br/><b>«interface» ICatalogoRepuestos · ICatalogoVehiculos<br/>«interface» IDiagnosticador · IFuenteOfertas</b><br/>DTOs · OpcionesCatalogo · OpcionesIA · OpcionesOfertas"]
+        VTEX["RepMatch.Fuentes.Vtex<br/><b>FuenteVtex</b> · LectorVtex<br/>Polly: retry · timeout · circuit breaker · cache"]
+        MSG["RepMatch.Mensajeria<br/><b>BusRabbitMq</b> · ConsumidorRabbitMq&lt;T&gt;<br/>TopologiaRabbitMq"]
+        CON["RepMatch.Contracts<br/><b>«interface» ICatalogoRepuestos · ICatalogoVehiculos<br/>«interface» IDiagnosticador · IFuenteOfertas · IEventBus</b><br/>DTOs · eventos de integración · Opciones*"]
         PER["RepMatch.Persistence<br/>RepMatchDbContext · Repositorios · UnitOfWork"]
         DOM["RepMatch.Domain<br/>Entidades · Value objects<br/><b>«interface» IRepuestoRepository · IConfiguracionVehiculoRepository</b>"]
         COM["RepMatch.Common<br/>Validación · Logging · Configuración<br/>ResultadoOperacion · Cronometro"]
@@ -60,6 +67,7 @@ flowchart TB
     BD[("PostgreSQL<br/><i>o InMemory</i>")]
     LLM(["Proveedor LLM externo<br/><i>Groq o Gemini, opcional</i>"])
     TIENDAS(["Tiendas VTEX<br/><i>easy.com.ar · fravega.com</i>"])
+    MQ{{"RabbitMQ<br/><i>repmatch.eventos</i>"}}
 
     UI --> FACH
     UI -- SelectorVehiculo --> CON
@@ -81,6 +89,15 @@ flowchart TB
     UI -. "registra una por tienda (AgregarFuentesOfertas)" .-> VTEX
     VTEX == "HTTPS · JSON · API pública de catálogo" ==> TIENDAS
     VTEX --> COM
+    MSG -- implementa IEventBus --> CON
+    APP -- "IEventBus (PublicadorEventos)" --> CON
+    UI -. "registra (AgregarMensajeria)" .-> MSG
+    MSG == "AMQP" ==> MQ
+    MQ == "AMQP" ==> CONS
+    CONS --> MSG
+    CONS --> APP
+    CONS --> PER
+    MSG --> COM
     APP -- "IDiagnosticador" --> CON
 
     REST == "HTTP · JSON" ==> CTRL
@@ -111,6 +128,7 @@ flowchart TB
     style SOAPC fill:#fbf0e2,stroke:#9a5b13
     style IA fill:#f3ecfa,stroke:#6b3fa0
     style VTEX fill:#fbf0e2,stroke:#9a5b13
+    style MSG fill:#fef3c7,stroke:#b45309
     style DOM fill:#f6f7f9,stroke:#5b6472
 ```
 
@@ -152,6 +170,12 @@ las respuestas mediante `IDistributedCache`; `ServicioOfertas` clasifica los EAN
 tiendas y descarta las coincidencias probables por nombre que contradicen los datos conocidos del
 vehículo.
 
+La cola sigue el esquema del catálogo: `IEventBus` tiene una implementación real, `BusRabbitMq`, y
+una que no publica, `BusDesactivado`. `AgregarMensajeria` elige al arrancar según
+`Mensajeria:Habilitada`. El worker es otro host: consume la cola con las subclases de
+`ConsumidorRabbitMq<T>` y escribe en la misma base. El detalle está en el [flujo de
+mensajes](mensajes.md).
+
 También hay dos implementaciones de `ICatalogoVehiculos`: `CatalogoVehiculosLocal` consulta
 `IConfiguracionVehiculoRepository` y `CatalogoVehiculosRemoto` consume `GET /api/vehiculos/opciones`.
 `SelectorVehiculo` accede directamente al contrato para cargar los selectores; la fachada
@@ -175,6 +199,7 @@ descartó, está en [docs/patrones.md](../patrones.md).
 | **Strategy** | `ICatalogoRepuestos` con dos implementaciones; `IDiagnosticador` con LLM, local, respaldo y remota | Intercambiar el mecanismo sin tocar consumidores |
 | **Repository** | `I*Repository` en Domain, implementados en Persistence | Aislar el dominio del motor de datos |
 | **Unit of Work** | `IUnitOfWork` / `UnitOfWork` | Confirmar cambios como una transacción |
-| **Adapter** | `CatalogoRemoto`, `DiagnosticadorRemoto`, `DiagnosticadorLlm`, `FuenteVtex` | Adaptar un contrato HTTP (propio, del proveedor del LLM o de las tiendas) a las interfaces de `RepMatch.Contracts` |
+| **Adapter** | `CatalogoRemoto`, `DiagnosticadorRemoto`, `DiagnosticadorLlm`, `FuenteVtex`, `BusRabbitMq` | Adaptar un protocolo (HTTP propio, del proveedor del LLM o de las tiendas; AMQP de RabbitMQ) a las interfaces de `RepMatch.Contracts` |
+| **Template Method** | `ConsumidorRabbitMq<T>` | El algoritmo de consumo fijo (confirmar después de procesar, reintentar una vez, DLQ); cada consumidor solo escribe `ProcesarAsync` |
 | **Observer** | `DespachadorEventos` y `ObservadorCompatibilidad` | `BusquedaCreada` completa el diagnóstico y los códigos sin que `ServicioBusquedas` conozca el catálogo ni la IA. `BusquedaCompartida`, `DiagnosticoValidado` y `DerivacionATienda` se despachan igual y todavía no tienen observadores |
 | **Facade** | `FachadaAplicacion` | Coordina clientes, mecánicos, búsquedas, revisiones, derivaciones y repuestos; el selector consulta opciones vehiculares directamente |

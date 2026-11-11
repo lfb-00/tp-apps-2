@@ -40,10 +40,15 @@ public static class ExtensionesAplicacion
         servicios.AddScoped<ServicioDerivaciones>();
         servicios.AddScoped<ServicioDiagnostico>();
         servicios.AddScoped<ServicioOfertas>();
+        servicios.AddScoped<ServicioComisiones>();
         servicios.TryAddSingleton(new OpcionesOfertas());
         servicios.AddScoped<FachadaAplicacion>();
 
+        // El orden importa: el despachador llama a los observadores en el orden de registro. Primero
+        // el que completa la busqueda en proceso y despues el que publica a la cola.
         servicios.AddScoped<IObservadorEventoDominio, ObservadorCompatibilidad>();
+        servicios.AddScoped<IObservadorEventoDominio, PublicadorEventos>();
+        servicios.TryAddSingleton<RepMatch.Contracts.Mensajeria.IEventBus, BusDesactivado>();
         servicios.AddScoped<IDespachadorEventos, DespachadorEventos>();
 
         return servicios;

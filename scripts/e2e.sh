@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Pruebas de punta a punta (Playwright) contra el entorno completo de docker compose.
 #
-#   bash scripts/e2e.sh              # todo: base limpia, entorno, 5 fases de pruebas, apagado
+#   bash scripts/e2e.sh              # todo: base limpia, entorno, 6 fases de pruebas, apagado
 #   bash scripts/e2e.sh --dejar      # igual, pero deja el entorno levantado al terminar
 #   bash scripts/e2e.sh --docker     # fuerza correr las pruebas dentro de un contenedor
 #   bash scripts/e2e.sh --local      # fuerza correr las pruebas con el SDK de .NET de esta maquina
@@ -17,6 +17,7 @@
 #   3. SinCatalogo  con catalogo-api frenado (REST: vehiculos): la app no se tiene que caer.
 #   4. SinSoap      con catalogo-soap frenado (SOAP: repuestos): la busqueda avisa y no se cae.
 #   5. SinTiendas   con tienda-simulada frenada: se ven las piezas y un aviso, sin precios.
+#   6. SinCola      con rabbitmq frenado: buscar, compartir y salir a la tienda siguen andando.
 #
 # Los precios no salen de las tiendas reales sino de tienda-simulada, que responde con busquedas
 # reales grabadas de easy.com.ar y fravega.com: las pruebas pueden afirmar precios exactos.
@@ -26,7 +27,7 @@
 #
 # ATENCION: borra la base de datos local de compose (docker compose down -v), salvo --sin-reset.
 #
-# Termina con codigo 0 si las cinco fases pasan. Capturas, trazas, reportes .trx, la salida de
+# Termina con codigo 0 si las seis fases pasan. Capturas, trazas, reportes .trx, la salida de
 # cada fase y resumen.txt quedan en tests/RepMatch.E2E/resultados (fuera de git). Con
 # --evidencia, el resumen se copia a docs/evidencias para la entrega: el total de pruebas sale de
 # esa corrida y nadie lo escribe a mano en la documentacion.
@@ -48,7 +49,7 @@ for arg in "$@"; do
     --evidencia) EVIDENCIA=1 ;;
     --docker) MODO="docker" ;;
     --local) MODO="local" ;;
-    -h|--help) sed -n '2,35p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,36p' "$0"; exit 0 ;;
     *) echo "Opcion desconocida: $arg (ver --help)"; exit 2 ;;
   esac
 done
@@ -69,6 +70,8 @@ export OFERTAS_CACHE_MINUTOS=0
 PUERTO_WEB="${PUERTO_WEB:-8080}"
 PUERTO_WEB_LOCAL="${PUERTO_WEB_LOCAL:-8090}"
 PUERTO_CATALOGO_SOAP="${PUERTO_CATALOGO_SOAP:-8082}"
+PUERTO_WORKER="${PUERTO_WORKER:-8085}"
+PUERTO_RABBITMQ_UI="${PUERTO_RABBITMQ_UI:-15672}"
 
 if [ "$MODO" = "auto" ]; then
   if command -v dotnet >/dev/null && dotnet --list-sdks 2>/dev/null | grep -q '^10\.'; then
@@ -97,7 +100,7 @@ if [ "$RESET" -eq 1 ]; then
   compose down -v --remove-orphans
 fi
 
-paso "2/4 Levantando el entorno (web, web-local, catalogo-api, catalogo-soap, ia-api, tienda-simulada, postgres)"
+paso "2/4 Levantando el entorno (web, web-local, catalogo-api, catalogo-soap, ia-api, rabbitmq, worker, tienda-simulada, postgres)"
 compose up --build --wait
 
 paso "3/4 Preparando las pruebas"
@@ -117,7 +120,7 @@ correr() {
   if [ "$MODO" = "local" ]; then
     E2E_ESCENARIO="$escenario" \
     E2E_URL_WEB="http://localhost:$PUERTO_WEB" \
-    E2E_URL_WEB_LOCAL="http://localhost:$PUERTO_WEB_LOCAL"     E2E_URL_CATALOGO_SOAP="http://localhost:$PUERTO_CATALOGO_SOAP" \
+    E2E_URL_WEB_LOCAL="http://localhost:$PUERTO_WEB_LOCAL"     E2E_URL_CATALOGO_SOAP="http://localhost:$PUERTO_CATALOGO_SOAP"     E2E_URL_WORKER="http://localhost:$PUERTO_WORKER"     E2E_URL_RABBITMQ="http://localhost:$PUERTO_RABBITMQ_UI"     E2E_RABBITMQ_USUARIO="${RABBITMQ_USUARIO:-repmatch}"     E2E_RABBITMQ_CONTRASENA="${RABBITMQ_CONTRASENA:-repmatch}" \
     E2E_RESULTADOS="$RESULTADOS" \
       dotnet test "$PROYECTO" -c Release --no-build --nologo \
         --results-directory "$RESULTADOS" \
@@ -130,7 +133,7 @@ correr() {
   fi
 }
 
-ESTADO_Normal="-"; ESTADO_SinIA="-"; ESTADO_SinCatalogo="-"; ESTADO_SinSoap="-"; ESTADO_SinTiendas="-"
+ESTADO_Normal="-"; ESTADO_SinIA="-"; ESTADO_SinCatalogo="-"; ESTADO_SinSoap="-"; ESTADO_SinTiendas="-"; ESTADO_SinCola="-"
 fallos=0
 fase() {
   local escenario="$1"; shift
@@ -163,6 +166,10 @@ compose up -d --wait catalogo-soap
 compose stop tienda-simulada
 fase SinTiendas --filter "Escenario=SinTiendas"
 compose up -d --wait tienda-simulada
+
+compose stop rabbitmq
+fase SinCola --filter "Escenario=SinCola"
+compose up -d --wait rabbitmq
 
 # En modo docker los archivos los escribio root dentro del contenedor: se devuelven al usuario.
 if [ "$MODO" = "docker" ] && command -v id >/dev/null; then
@@ -207,6 +214,7 @@ linea_resumen() {
   echo "| SinCatalogo (catalogo-api frenado) | $ESTADO_SinCatalogo | $(linea_resumen SinCatalogo) |"
   echo "| SinSoap (catalogo-soap frenado) | $ESTADO_SinSoap | $(linea_resumen SinSoap) |"
   echo "| SinTiendas (tienda-simulada frenada) | $ESTADO_SinTiendas | $(linea_resumen SinTiendas) |"
+  echo "| SinCola (rabbitmq frenado) | $ESTADO_SinCola | $(linea_resumen SinCola) |"
   echo
   echo "Las omitidas de la fase Normal son las de resiliencia (corren en su fase) y las que"
   echo "documentan errores conocidos (ver tests/RepMatch.E2E/README.md)."

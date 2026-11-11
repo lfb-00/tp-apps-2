@@ -553,6 +553,16 @@ classDiagram
             -IDistributedCache cache
             -ResiliencePipeline resiliencia
         }
+
+        class IEventBus {
+            <<interface>>
+            +PublicarAsync(mensaje)
+        }
+
+        class BusRabbitMq {
+            <<Adapter>>
+            -ConexionRabbitMq conexion
+        }
     }
 
     namespace Observer {
@@ -570,6 +580,11 @@ classDiagram
             <<interface>>
             +PuedeObservar(evento) bool
             +ObservarAsync(evento)
+        }
+
+        class PublicadorEventos {
+            <<Observer: productor de la cola>>
+            -IEventBus bus
         }
 
         class ObservadorCompatibilidad {
@@ -652,6 +667,9 @@ classDiagram
     IDespachadorEventos <|.. DespachadorEventos
     DespachadorEventos o-- "0..*" IObservadorEventoDominio : notifica
     IObservadorEventoDominio <|.. ObservadorCompatibilidad
+    IObservadorEventoDominio <|.. PublicadorEventos
+    PublicadorEventos --> IEventBus : despues de los observadores en proceso
+    IEventBus <|.. BusRabbitMq
     ObservadorCompatibilidad --> ServicioDiagnostico
     ServicioDiagnostico --> ICatalogoRepuestos
     ServicioDiagnostico --> IDiagnosticador : elige entre las compatibles
@@ -701,6 +719,9 @@ classDiagram
     style ServicioDerivaciones fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
     style ServicioDiagnostico fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
     style ServicioOfertas fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
+    style PublicadorEventos fill:#fef3c7,stroke:#b45309,stroke-width:2px,color:#111
+    style IEventBus fill:#ede9fe,stroke:#6d28d9,stroke-width:2px,color:#111
+    style BusRabbitMq fill:#ede9fe,stroke:#6d28d9,stroke-width:2px,color:#111
     style FabricaCatalogo fill:#fee2e2,stroke:#b91c1c,stroke-width:2px,color:#111
     style ICatalogoRepuestos fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#111
     style IDiagnosticador fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#111
@@ -734,10 +755,10 @@ classDiagram
 |---|---|---|---|
 | Factory | Rojo | `FabricaCatalogo.AgregarCatalogo`; `FabricaDiagnostico.AgregarDiagnostico` repite el patrón para `IDiagnosticador` y no se dibuja | `RepMatch.Web` |
 | Strategy | Azul | `ICatalogoRepuestos` / `ICatalogoVehiculos` con sus implementaciones `*Local` y `*Remoto`; `IDiagnosticador`, cuyas implementaciones (`DiagnosticadorLlm`, `DiagnosticadorLocal`, `DiagnosticadorConRespaldo` en `RepMatch.IA` y `DiagnosticadorRemoto`) se describen en [patrones.md](../patrones.md#el-componente-de-ia-y-los-mismos-patrones) y no se dibujan | `Contracts`, `Aplicacion`, `Clientes.Rest`, `IA` |
-| Adapter | Violeta | `CatalogoRemoto`, `CatalogoVehiculosRemoto` (HTTP → contrato); `CatalogoSoap` (SOAP → contrato, Segunda Parte); `FuenteVtex` (API pública de las tiendas VTEX → `IFuenteOfertas`, Segunda Parte) | `RepMatch.Clientes.Rest`, `RepMatch.Clientes.Soap`, `RepMatch.Fuentes.Vtex` |
+| Adapter | Violeta | `CatalogoRemoto`, `CatalogoVehiculosRemoto` (HTTP → contrato); `CatalogoSoap` (SOAP → contrato, Segunda Parte); `FuenteVtex` (API pública de las tiendas VTEX → `IFuenteOfertas`, Segunda Parte); `BusRabbitMq` (`IEventBus` → AMQP, Segunda Parte). La base de consumidores `ConsumidorRabbitMq<T>` (Template Method) se describe en [patrones.md](../patrones.md#template-method-consumidorrabbitmqt) y no se dibuja | `RepMatch.Clientes.Rest`, `RepMatch.Clientes.Soap`, `RepMatch.Fuentes.Vtex`, `RepMatch.Mensajeria` |
 | Repository | Verde | `I*Repository` (interfaces) y `*Repository` (EF Core) | `Domain` y `Persistence` |
 | Unit of Work | Turquesa | `IUnitOfWork` / `UnitOfWork` | `Domain` y `Persistence` |
-| Observer | Ámbar | `IDespachadorEventos`, `DespachadorEventos`, `IObservadorEventoDominio`, `ObservadorCompatibilidad`; los eventos (`BusquedaCreada`, `BusquedaCompartida`, `DiagnosticoValidado`, `DerivacionATienda`) están en el modelo de dominio | `Aplicacion` y `Domain` |
+| Observer | Ámbar | `IDespachadorEventos`, `DespachadorEventos`, `IObservadorEventoDominio`, `ObservadorCompatibilidad`, `PublicadorEventos`; los eventos (`BusquedaCreada`, `BusquedaCompartida`, `DiagnosticoValidado`, `DerivacionATienda`) están en el modelo de dominio | `Aplicacion` y `Domain` |
 | Facade | Rosa | `FachadaAplicacion` | `RepMatch.Aplicacion` |
 
 Las interfaces de repositorio y de unidad de trabajo pertenecen al componente de dominio aunque se
@@ -1209,6 +1230,16 @@ classDiagram
             -IDistributedCache cache
             -ResiliencePipeline resiliencia
         }
+
+        class IEventBus {
+            <<interface>>
+            +PublicarAsync(mensaje)
+        }
+
+        class BusRabbitMq {
+            <<Adapter>>
+            -ConexionRabbitMq conexion
+        }
     }
 
     namespace Observer {
@@ -1226,6 +1257,11 @@ classDiagram
             <<interface>>
             +PuedeObservar(evento) bool
             +ObservarAsync(evento)
+        }
+
+        class PublicadorEventos {
+            <<Observer: productor de la cola>>
+            -IEventBus bus
         }
 
         class ObservadorCompatibilidad {
@@ -1315,6 +1351,9 @@ classDiagram
     IDespachadorEventos <|.. DespachadorEventos
     DespachadorEventos o-- "0..*" IObservadorEventoDominio : notifica
     IObservadorEventoDominio <|.. ObservadorCompatibilidad
+    IObservadorEventoDominio <|.. PublicadorEventos
+    PublicadorEventos --> IEventBus : despues de los observadores en proceso
+    IEventBus <|.. BusRabbitMq
     ObservadorCompatibilidad --> ServicioDiagnostico
     ServicioDiagnostico --> ICatalogoRepuestos
     ServicioDiagnostico --> IDiagnosticador : elige entre las compatibles
@@ -1381,6 +1420,9 @@ classDiagram
     style ServicioDerivaciones fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
     style ServicioDiagnostico fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
     style ServicioOfertas fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
+    style PublicadorEventos fill:#fef3c7,stroke:#b45309,stroke-width:2px,color:#111
+    style IEventBus fill:#ede9fe,stroke:#6d28d9,stroke-width:2px,color:#111
+    style BusRabbitMq fill:#ede9fe,stroke:#6d28d9,stroke-width:2px,color:#111
     style FabricaCatalogo fill:#fee2e2,stroke:#b91c1c,stroke-width:2px,color:#111
     style ICatalogoRepuestos fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#111
     style IDiagnosticador fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#111

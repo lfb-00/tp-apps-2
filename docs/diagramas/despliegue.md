@@ -1,10 +1,11 @@
 # Diagrama de despliegue — RepMatch
 
 Dos topologías: la **implementada** (TP Inicial, Primera Parte y, de la Segunda Parte, el componente
-de IA, el servicio SOAP, los precios VTEX y su caché Redis), que se levanta con `docker compose up`, y la **prevista** para las entregas siguientes, que
+de IA, el servicio SOAP, las tiendas VTEX con caché Redis y la cola de mensajes), que se levanta
+con `docker compose up`, y la **prevista** para las entregas siguientes, que
 se documenta acá para mostrar que la arquitectura actual la admite sin rediseño.
 
-## Implementada — TP Inicial, Primera Parte, IA, SOAP y tiendas VTEX
+## Implementada — TP Inicial, Primera Parte, IA, SOAP, tiendas VTEX y cola
 
 ```mermaid
 flowchart TB
@@ -29,11 +30,19 @@ flowchart TB
             IA["RepMatch.IA.Api<br/>ASP.NET Core 10 · REST + OpenAPI<br/><b>:8080</b> → host :8083<br/>sin base de datos"]
         end
 
+        subgraph c6["Contenedor: repmatch-rabbitmq"]
+            MQ{{"RabbitMQ 4 · management<br/><b>:5672</b> AMQP · <b>:15672</b> UI<br/>volumen datos-rabbitmq"}}
+        end
+
+        subgraph c7["Contenedor: repmatch-worker"]
+            WK["RepMatch.Notificaciones.Worker<br/>ASP.NET Core 10 · consumidores<br/><b>:8080</b> → host :8085"]
+        end
+
         subgraph c3["Contenedor: repmatch-postgres"]
             P[("PostgreSQL 17<br/><b>:5432</b><br/>volumen datos-postgres")]
         end
 
-        subgraph c6["Contenedor: repmatch-redis"]
+        subgraph c8["Contenedor: repmatch-redis"]
             R[("Redis 7<br/><b>:6379</b><br/>caché distribuida de ofertas")]
         end
     end
@@ -46,6 +55,10 @@ flowchart TB
     A -- "Npgsql" --> P
     S -- "Npgsql" --> P
     W -- "IDistributedCache" --> R
+    W == "AMQP<br/>publica eventos" ==> MQ
+    A == "AMQP<br/>busqueda.creada" ==> MQ
+    MQ == "AMQP<br/>repmatch.comisiones · repmatch.actividad" ==> WK
+    WK -- "Npgsql" --> P
 
     LLM(["🌐 Proveedor LLM<br/>Groq o Gemini<br/><i>solo con IA_LLM_APIKEY</i>"])
     VT(["🌐 Tiendas VTEX<br/>www.easy.com.ar · www.fravega.com<br/><i>API pública de catálogo, sin credenciales</i>"])
@@ -59,6 +72,8 @@ flowchart TB
     style IA fill:#f3ecfa,stroke:#6b3fa0
     style P fill:#e6f4ec,stroke:#1f7a4d
     style R fill:#fce7f3,stroke:#be185d
+    style MQ fill:#fef3c7,stroke:#b45309
+    style WK fill:#fef3c7,stroke:#b45309
 ```
 
 ### Nodos
@@ -71,9 +86,12 @@ flowchart TB
 | `repmatch-ia-api` | build desde `src/RepMatch.IA.Api/Dockerfile` | 8083 | Host REST del componente de IA. Sin base: recibe los candidatos en la petición. Sin clave de LLM responde el clasificador local |
 | `repmatch-postgres` | `postgres:17-alpine` | 5432 | Persistencia, con volumen nombrado |
 | `repmatch-redis` | `redis:7-alpine` | — | Caché distribuida de las respuestas VTEX, compartida por las instancias de Web |
+| `repmatch-rabbitmq` | `rabbitmq:4-management` | 5672, 15672 | Broker de mensajes. Exchange `repmatch.eventos`, colas durables y DLQ ([flujo de mensajes](mensajes.md)). `hostname` fijo y volumen `datos-rabbitmq`, para que las colas durables sobrevivan a recrear el contenedor |
+| `repmatch-worker` | build desde `src/RepMatch.Notificaciones.Worker/Dockerfile` | 8085 | Consumidor de la cola: registro de comisiones por tienda y log de actividad. `/salud` y `GET /api/comisiones`. Espera a `rabbitmq`, `postgres` y `catalogo-api` (que crea el esquema) |
 | `repmatch-tienda-simulada` | build desde `tests/RepMatch.TiendaSimulada/Dockerfile`, perfil `simulacion` | — | Solo para las pruebas de punta a punta: responde como VTEX con búsquedas reales grabadas. `scripts/e2e.sh` apunta la Web acá con `OFERTAS_URL_EASY` y `OFERTAS_URL_FRAVEGA` |
 
-La Web sale a internet para consultar los precios en las tiendas. Sin salida, o con una tienda caída,
+La Web no depende de `rabbitmq` para arrancar: si el broker no está, publicar falla, se registra y
+la operación de la persona sigue. La Web sale a internet para consultar los precios en las tiendas. Sin salida, o con una tienda caída,
 la búsqueda funciona igual: muestra el diagnóstico y las piezas con un aviso de que no se pudieron
 consultar los precios.
 
@@ -132,12 +150,12 @@ flowchart TB
         SOAP["catalogo-soap :8082<br/>CoreWCF · WSDL"]
         P[("postgres :5432")]
         R[("redis :6379<br/>caché distribuida")]
+        MQ{{"rabbitmq :5672<br/>UI :15672"}}
+        WK["worker :8085<br/>consumidores"]
     end
 
     subgraph previsto["Previsto"]
         S["search-api :8084<br/>agregador de ofertas"]
-        WK["notificaciones-worker<br/>consumidores"]
-        MQ{{"rabbitmq :5672<br/>UI :15672"}}
     end
 
     subgraph externo["🌐 Fuentes externas reales"]
@@ -157,10 +175,10 @@ flowchart TB
     S --> VT
     SOAP --> P
     SOAP -. "previsto: decodificar VIN" .-> VP
-    IA --> MQ
-    W -- "BusquedaCreada" --> MQ
+    W -- "eventos" --> MQ
     MQ --> WK
-    MQ --> S
+    WK --> P
+    MQ -. "previsto: busqueda.creada" .-> S
 
     style W fill:#eaf2fa,stroke:#1f5f9e
     style A fill:#fbf0e2,stroke:#9a5b13

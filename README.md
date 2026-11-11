@@ -8,8 +8,8 @@ las ofertas de varios sitios reales. **No vende ni almacena stock**: normaliza, 
 tienda de origen.
 
 > **Alcance de este repo: TP Inicial, Primera Parte y, de la Segunda Parte, el componente de IA, el
-> servicio SOAP y los precios de tiendas reales (Easy y Frávega, por la API pública de VTEX).** La
-> aplicación es el comparador. La mensajería y eBay todavía no están.
+> servicio SOAP, los precios de tiendas reales (Easy y Frávega, por la API pública de VTEX) y la cola
+> de mensajes (RabbitMQ).** La aplicación es el comparador. eBay y las notificaciones todavía no están.
 > Diagramas, informe, evidencias y patrones están en `docs/`. El seguimiento del trabajo está
 > en `plan.md` y `status.md`.
 
@@ -54,6 +54,17 @@ informa el envío: los precios son de referencia y el envío se calcula en la ti
 semilla, las tiendas publican sobre todo baterías; para las demás piezas la pantalla dice que
 ninguna tienda conectada la publica. Detalle en la sección 6.9 del
 [informe](docs/informe-arquitectura.md).
+
+## Cola de mensajes
+
+Los hechos importantes (`busqueda.creada`, `busqueda.compartida`, `diagnostico.validado`,
+`derivacion.tienda`) se publican en **RabbitMQ** después de guardarse, y un **worker** los consume.
+Hoy el worker suma cada salida a una tienda al registro de comisiones por tienda y mes
+(`GET http://localhost:8085/api/comisiones`) y deja todo en un log de actividad con el mismo
+correlation id que la Web. Si RabbitMQ está caído, la app funciona igual y lo registra; si el worker
+está caído, los mensajes esperan en la cola. Un mensaje que no se puede procesar termina en su DLQ.
+UI de RabbitMQ: `http://localhost:15672` (`repmatch` / `repmatch`). Detalle en el
+[flujo de mensajes](docs/diagramas/mensajes.md).
 
 ## Roles y modelo de negocio
 
@@ -201,6 +212,8 @@ src/
   RepMatch.Clientes.Soap/   adaptador SOAP             · CatalogoSoap y el proxy generado desde el WSDL
   RepMatch.IA/              componente de IA           · LLM, clasificador local y respaldo entre ambos
   RepMatch.Fuentes.Vtex/    adaptador de API externa   · FuenteVtex: precios de Easy y Frávega (VTEX)
+  RepMatch.Mensajeria/      mensajería                 · IEventBus sobre RabbitMQ, topología, base de consumidores
+  RepMatch.Notificaciones.Worker/ consumidor de la cola · registro de comisiones y log de actividad
   RepMatch.Catalogo.Api/    host REST del catálogo
   RepMatch.Catalogo.Soap/   host SOAP del catálogo (CoreWCF) · WSDL en /ConsultaCompatibilidad.svc?wsdl
   RepMatch.IA.Api/          host REST del componente de IA · sin base de datos
@@ -289,10 +302,14 @@ Todo se puede sobreescribir por variable de entorno (`Seccion__Clave`).
 | `Ofertas:VigenciaMinutos` | después de esto los precios se vuelven a consultar | `60` |
 | `Ofertas:Tiendas:N:Nombre`, `:UrlBase`, `:Moneda`, `:PrefijosCategoria` | una entrada por tienda VTEX; sumar una tienda es sumar una entrada | Easy (`https://www.easy.com.ar`, `/Automotor/`) y Frávega (`https://www.fravega.com`, `/Autos, Motos y Otros/`) |
 | `Ofertas:Tiendas:N:TimeoutSegundos`, `:PedidosSimultaneos`, `:ResultadosPorTermino`, `:CacheMinutos` | límites por tienda | `5`, `2`, `10`, `10` |
+| `Mensajeria:Habilitada` | publicar y consumir en RabbitMQ | `false` (en compose: `true`) |
+| `Mensajeria:Host`, `:Puerto`, `:Usuario`, `:Contrasena` | conexión al broker | `localhost`, `5672`, `guest`, `guest` (en compose: `rabbitmq` y `RABBITMQ_USUARIO` / `RABBITMQ_CONTRASENA` del `.env`) |
+| `Mensajeria:TimeoutSegundos`, `:PausaTrasFallaSegundos` | espera máxima para conectar o confirmar, y cuánto no reintentar después de una falla | `3`, `30` |
 | `ProteccionDatos:DirectorioClaves` | directorio de las claves que cifran la sesión (solo Web) | vacío: las maneja ASP.NET Core (en compose: `/claves`, en un volumen) |
 
 Y los puertos del host, vía `.env` (ver `.env.example`): `PUERTO_WEB`, `PUERTO_CATALOGO`,
-`PUERTO_IA`, `PUERTO_POSTGRES`, `PUERTO_WEB_LOCAL`. En compose, `OFERTAS_URL_EASY`,
+`PUERTO_IA`, `PUERTO_POSTGRES`, `PUERTO_WEB_LOCAL`, `PUERTO_RABBITMQ`, `PUERTO_RABBITMQ_UI`,
+`PUERTO_WORKER`. En compose, `OFERTAS_URL_EASY`,
 `OFERTAS_URL_FRAVEGA` y `OFERTAS_CACHE_MINUTOS` cambian las tiendas: `scripts/e2e.sh` las apunta a
 `tienda-simulada`.
 
@@ -304,7 +321,8 @@ Y los puertos del host, vía `.env` (ver `.env.example`): `PUERTO_WEB`, `PUERTO_
 - [Diagrama de componentes](docs/diagramas/componentes.md)
 - [Diagrama de despliegue](docs/diagramas/despliegue.md)
 - [Arquitectura en capas](docs/diagramas/capas.md)
-- [Diagramas de secuencia (búsquedas, login, alta de vehículo, catálogo, eliminación de cuenta, diagnóstico por IA, SOAP y precios de las tiendas)](docs/diagramas/secuencia.md)
+- [Diagramas de secuencia (búsquedas, login, alta de vehículo, catálogo, eliminación de cuenta, diagnóstico por IA, SOAP, precios de las tiendas y la cola)](docs/diagramas/secuencia.md)
+- [Flujo de mensajes (RabbitMQ)](docs/diagramas/mensajes.md)
 
 ## Stack
 

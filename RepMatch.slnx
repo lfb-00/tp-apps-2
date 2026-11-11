@@ -11,6 +11,8 @@
     <Project Path="src/RepMatch.Fuentes.Vtex/RepMatch.Fuentes.Vtex.csproj" />
     <Project Path="src/RepMatch.IA/RepMatch.IA.csproj" />
     <Project Path="src/RepMatch.IA.Api/RepMatch.IA.Api.csproj" />
+    <Project Path="src/RepMatch.Mensajeria/RepMatch.Mensajeria.csproj" />
+    <Project Path="src/RepMatch.Notificaciones.Worker/RepMatch.Notificaciones.Worker.csproj" />
     <Project Path="src/RepMatch.Persistence/RepMatch.Persistence.csproj" />
     <Project Path="src/RepMatch.Web/RepMatch.Web.csproj" />
   </Folder>

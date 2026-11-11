@@ -21,6 +21,7 @@ flowchart TB
         OBS["ObservadorCompatibilidad"]
         SD["ServicioDiagnostico"]
         SO["ServicioOfertas"]
+        PUB["PublicadorEventos"]
         LOC["CatalogoLocal · CatalogoVehiculosLocal"]
     end
 
@@ -42,11 +43,18 @@ flowchart TB
 
     TIENDAS(["Tiendas VTEX<br/>Easy · Frávega"])
 
+    subgraph mensajeria["Mensajería · RepMatch.Mensajeria"]
+        BUS["BusRabbitMq · ConsumidorRabbitMq&lt;T&gt;"]
+    end
+
+    MQ{{"RabbitMQ"}}
+
     subgraph contratos["Contratos · RepMatch.Contracts"]
         IC["ICatalogoRepuestos"]
         ICV["ICatalogoVehiculos"]
         ID["IDiagnosticador"]
         IFO["IFuenteOfertas"]
+        IEB["IEventBus"]
     end
 
     subgraph utilidad["Utilidad · RepMatch.Common"]
@@ -88,6 +96,11 @@ flowchart TB
     SM --> DES
     DES --> OBS
     OBS --> SD
+    DES --> PUB
+    PUB --> IEB
+    BUS -. implementa .-> IEB
+    BUS --> COM
+    BUS == "AMQP" ==> MQ
     SD --> IC
     SD --> ID
     SC --> REPO
@@ -119,6 +132,8 @@ Las remotas están en `Clientes.Rest` y salen por HTTP; la de SOAP (Segunda Part
 enlaza cada contrato con una sola implementación al arrancar; en modo `Soap`, repuestos por SOAP y
 vehículos por REST. `IFuenteOfertas` es distinto: no se elige una, `ServicioOfertas` usa todas las
 tiendas configuradas a la vez, y cada `FuenteVtex` sale por HTTPS a la API pública de su tienda.
+`PublicadorEventos` es el último observador del despachador: publica los eventos por `IEventBus`,
+que implementa `BusRabbitMq` en `RepMatch.Mensajeria`. La capa de servicios no conoce RabbitMQ.
 
 La presentación no referencia repositorios ni el despachador. Las páginas entran por la fachada.
 `SelectorVehiculo` consulta `ICatalogoVehiculos` para cargar las opciones, y la fachada usa el mismo

@@ -41,6 +41,9 @@
     <ProjectReference Include="..\..\src\RepMatch.Web\RepMatch.Web.csproj" Aliases="Web" />
     <ProjectReference Include="..\..\src\RepMatch.IA\RepMatch.IA.csproj" />
     <ProjectReference Include="..\..\src\RepMatch.Fuentes.Vtex\RepMatch.Fuentes.Vtex.csproj" />
+    <ProjectReference Include="..\..\src\RepMatch.Mensajeria\RepMatch.Mensajeria.csproj" />
+    <!-- Mismo motivo que Web: el worker tambien expone su propia clase Program. -->
+    <ProjectReference Include="..\..\src\RepMatch.Notificaciones.Worker\RepMatch.Notificaciones.Worker.csproj" Aliases="Worker" />
     <!-- Mismo motivo que Web: IA.Api tambien expone su propia clase Program. -->
     <ProjectReference Include="..\..\src\RepMatch.IA.Api\RepMatch.IA.Api.csproj" Aliases="IAApi" />
   </ItemGroup>

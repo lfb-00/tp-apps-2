@@ -3,6 +3,7 @@ using RepMatch.Aplicacion.Catalogo;
 using RepMatch.Common.Logging;
 using RepMatch.Contracts;
 using RepMatch.IA;
+using RepMatch.Mensajeria;
 using RepMatch.Persistence;
 using Serilog;
 
@@ -26,6 +27,9 @@ builder.Services.AddScoped<ICatalogoVehiculos, CatalogoVehiculosLocal>();
 // ya tiene el catalogo y no tiene por que depender de que IA.Api este levantado.
 builder.Services.AgregarDiagnosticoIA(builder.Configuration);
 builder.Services.AddScoped<IDiagnosticador>(sp => sp.GetRequiredService<DiagnosticadorConRespaldo>());
+
+// Las busquedas creadas por la API tambien se publican en la cola, igual que las de la Web.
+builder.Services.AgregarMensajeria(builder.Configuration);
 
 var app = builder.Build();
 

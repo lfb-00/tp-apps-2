@@ -14,6 +14,10 @@
 #   docker compose --profile test run --rm tests        -> corre las pruebas
 #   docker compose --profile local up --build web-local -> la misma Web en modo Local
 #
+# Cola de mensajes (Segunda Parte): rabbitmq recibe los eventos que publican web y catalogo-api,
+# y worker los consume. UI de administracion en http://localhost:15672 (usuario y contrasena
+# RABBITMQ_USUARIO / RABBITMQ_CONTRASENA del .env, por defecto repmatch / repmatch).
+#
 # Los precios salen de las tiendas reales (easy.com.ar y fravega.com, API publica de VTEX).
 # scripts/e2e.sh las cambia por el simulador (perfil "simulacion") con OFERTAS_URL_EASY y
 # OFERTAS_URL_FRAVEGA, para que las pruebas no dependan de precios que cambian todos los dias.
@@ -38,6 +42,14 @@ x-tiendas: &tiendas
   Ofertas__Tiendas__0__CacheMinutos: "${OFERTAS_CACHE_MINUTOS:-10}"
   Ofertas__Tiendas__1__UrlBase: "${OFERTAS_URL_FRAVEGA:-https://www.fravega.com}"
   Ofertas__Tiendas__1__CacheMinutos: "${OFERTAS_CACHE_MINUTOS:-10}"
+
+# Cola de mensajes. Los servicios que publican o consumen la usan; si rabbitmq esta caido, la Web
+# y la API siguen funcionando y lo dejan en el log.
+x-mensajeria: &mensajeria
+  Mensajeria__Habilitada: "true"
+  Mensajeria__Host: rabbitmq
+  Mensajeria__Usuario: "${RABBITMQ_USUARIO:-repmatch}"
+  Mensajeria__Contrasena: "${RABBITMQ_CONTRASENA:-repmatch}"
 
 services:
   redis:
@@ -77,7 +89,7 @@ services:
     image: repmatch/catalogo-api:tp-inicial
     container_name: repmatch-catalogo-api
     environment:
-      <<: [*conexion-postgres, *llm]
+      <<: [*conexion-postgres, *llm, *mensajeria]
       # Development habilita /openapi/v1.json, que es parte del entregable.
       ASPNETCORE_ENVIRONMENT: Development
     ports:
@@ -126,7 +138,7 @@ services:
     image: repmatch/web:tp-inicial
     container_name: repmatch-web
     environment:
-      <<: [*conexion-postgres, *tiendas]
+      <<: [*conexion-postgres, *tiendas, *mensajeria]
       ConnectionStrings__Redis: redis:6379
       ASPNETCORE_ENVIRONMENT: Development
       # Repuestos por SOAP contra catalogo-soap; opciones de vehiculo por REST contra
@@ -157,6 +169,51 @@ services:
         condition: service_healthy
     networks: [repmatch]
 
+  # Broker de mensajes. El hostname fijo no es decorativo: RabbitMQ guarda los datos por nombre de
+  # nodo, y con un hostname al azar el volumen no se reconoceria al recrear el contenedor (las
+  # colas durables y sus mensajes se perderian).
+  rabbitmq:
+    image: rabbitmq:4-management
+    container_name: repmatch-rabbitmq
+    hostname: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: "${RABBITMQ_USUARIO:-repmatch}"
+      RABBITMQ_DEFAULT_PASS: "${RABBITMQ_CONTRASENA:-repmatch}"
+    ports:
+      - "${PUERTO_RABBITMQ:-5672}:5672"
+      - "${PUERTO_RABBITMQ_UI:-15672}:15672"
+    volumes:
+      - datos-rabbitmq:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks: [repmatch]
+
+  # Consumidor de la cola: registro de comisiones por tienda y log de actividad. Espera a que
+  # catalogo-api este sano porque ese servicio crea el esquema de la base.
+  worker:
+    build:
+      context: .
+      dockerfile: src/RepMatch.Notificaciones.Worker/Dockerfile
+    image: repmatch/worker:segunda
+    container_name: repmatch-worker
+    environment:
+      <<: [*conexion-postgres, *mensajeria]
+      ASPNETCORE_ENVIRONMENT: Development
+    ports:
+      - "${PUERTO_WORKER:-8085}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      catalogo-api:
+        condition: service_healthy
+    networks: [repmatch]
+
   # --- Perfiles opcionales -------------------------------------------------------------
 
   # La misma imagen de la Web, pero resolviendo el catalogo en proceso. Sirve para comparar
@@ -169,7 +226,7 @@ services:
       dockerfile: src/RepMatch.Web/Dockerfile
     container_name: repmatch-web-local
     environment:
-      <<: [*conexion-postgres, *llm, *tiendas]
+      <<: [*conexion-postgres, *llm, *tiendas, *mensajeria]
       ConnectionStrings__Redis: redis:6379
       ASPNETCORE_ENVIRONMENT: Development
       Catalogo__Modo: Local
@@ -221,6 +278,10 @@ services:
       E2E_URL_WEB: "http://web:8080"
       E2E_URL_WEB_LOCAL: "http://web-local:8080"
       E2E_URL_CATALOGO_SOAP: "http://catalogo-soap:8080"
+      E2E_URL_WORKER: "http://worker:8080"
+      E2E_URL_RABBITMQ: "http://rabbitmq:15672"
+      E2E_RABBITMQ_USUARIO: "${RABBITMQ_USUARIO:-repmatch}"
+      E2E_RABBITMQ_CONTRASENA: "${RABBITMQ_CONTRASENA:-repmatch}"
       E2E_ESCENARIO: "${E2E_ESCENARIO:-Normal}"
     volumes:
       - ./tests/RepMatch.E2E/resultados:/resultados
@@ -228,6 +289,7 @@ services:
 
 volumes:
   datos-postgres:
+  datos-rabbitmq:
   claves-web:
   claves-web-local:
 

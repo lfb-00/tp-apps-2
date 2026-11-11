@@ -41,9 +41,9 @@ Los docs son entregables evaluados tanto como el código. Cada etapa suma sobre 
   capa de servicios**.
 - **Entregable:** app funcional + documentación de patrones aplicados + diagrama de capas.
 
-### Segunda Parte — integración sincrónica y asincrónica (**en curso**: IA, SOAP y API externa VTEX implementados)
+### Segunda Parte — integración sincrónica y asincrónica (**en curso**: IA, SOAP, API externa VTEX y cola implementados)
 - ≥1 servicio **SOAP** (WSDL + contrato) y ≥2 servicios **REST** (OpenAPI/Swagger).
-- Mensajería con colas (RabbitMQ decidido), productores y consumidores (ej. `BusquedaCreada`).
+- Mensajería con colas (RabbitMQ implementado), productores y consumidores (ej. `BusquedaCreada`).
 - Integración SOA / microservicios ligeros.
 - ≥1 **API externa real** (VTEX implementado: Easy y Frávega; eBay pendiente. APIs oficiales, nunca scraping).
 - **Componente de IA** (acá: texto libre del problema → diagnóstico y repuestos
@@ -92,6 +92,12 @@ src/
                            embebido), DiagnosticadorConRespaldo, FiltroDatosPersonales. → Common, Contracts
   RepMatch.Fuentes.Vtex/   API externa: FuenteVtex (un IFuenteOfertas por tienda de Ofertas:Tiendas) y
                            LectorVtex (JSON del buscador de VTEX → OfertaExternaDto). → Common, Contracts
+  RepMatch.Mensajeria/     Cola: BusRabbitMq (IEventBus sobre RabbitMQ.Client), ConexionRabbitMq (una
+                           conexión por proceso, pausa tras una falla), TopologiaRabbitMq y la base
+                           ConsumidorRabbitMq<T> (ack tras procesar, un reintento, DLQ). → Common, Contracts
+  RepMatch.Notificaciones.Worker/ Host del consumidor: ConsumidorComisiones (derivacion.tienda →
+                           ServicioComisiones, idempotente) y ConsumidorActividad (todo al log).
+                           /salud y GET /api/comisiones. No crea el esquema ni siembra.
   RepMatch.Catalogo.Api/   Host REST del catálogo (controllers, OpenAPI en /openapi/v1.json).
                            Siempre resuelve ICatalogoRepuestos con CatalogoLocal e
                            ICatalogoVehiculos con CatalogoVehiculosLocal; IDiagnosticador en proceso.
@@ -130,9 +136,11 @@ scripts/evidencias.sh      regenera docs/evidencias/ (logs + mediciones local vs
   verdaderamente excepcional.
 - **Eventos de dominio**: `EntidadBase` acumula eventos (`RegistrarEvento`); `Busqueda` emite
   `BusquedaCreada`. El despacho in-process (`DespachadorEventos` → `ObservadorCompatibilidad`,
-  Observer) es de la Primera Parte. En la Segunda se registrará otra implementación de
-  `IDespachadorEventos` que publique a través de un `IEventBus` propio (sobre `RabbitMQ.Client`
-  directo, no MassTransit), sin tocar `ServicioBusquedas`.
+  Observer) es de la Primera Parte. En la Segunda se sumó `PublicadorEventos`, un observador más
+  registrado **después** de `ObservadorCompatibilidad`, que publica los cuatro eventos por
+  `IEventBus` (`RabbitMQ.Client` directo, no MassTransit). La búsqueda sigue sincrónica y
+  `ServicioBusquedas` no cambió. Broker caído → la operación sigue y queda en el log. Los mensajes
+  llevan ids, nunca el texto libre. Sin `Mensajeria:Habilitada` se usa `BusDesactivado`.
 - **Catálogo vehicular**: `ICatalogoVehiculos` tiene estrategias local y remota elegidas por
   la misma fábrica. `SelectorVehiculo` lo consulta directamente. La fachada valida la configuración
   antes de buscar piezas.
@@ -160,7 +168,7 @@ scripts/evidencias.sh      regenera docs/evidencias/ (logs + mediciones local vs
   `Catalogo:Modo` (`Local`/`Remoto`/`Soap`), `Catalogo:UrlBaseRemota`, `Catalogo:UrlSoap`, `IA:Modo`, `IA:UrlBaseRemota`,
   `IA:Llm:*` (`ApiKey` solo por entorno o `.env`, nunca en el repo), `Persistencia:Proveedor`
   (`InMemory`/`Postgres`), `ConnectionStrings:RepMatch`, `Ofertas:*` (tiendas, timeouts, vigencia,
-  cache). Puertos del host en `.env`.
+  cache), `Mensajeria:*` (habilitada, host, credenciales, timeout). Puertos del host en `.env`.
 - **Logging/trazabilidad**: cada host llama `UsarSerilog(nombre)` y `UsarCorrelacion()`; el id de
   correlación viaja Web → Catalogo.Api y Web → IA.Api (es parte de las evidencias).
 - Base: `EnsureCreatedAsync` + `DatosSemilla`, idempotente, con reintentos. **No hay migraciones.**

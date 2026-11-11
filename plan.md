@@ -68,6 +68,7 @@ Before slice 2: commit the roles and AI work that is still uncommitted in the tr
 - Worker `src/RepMatch.Notificaciones.Worker` consumes `busqueda.compartida` (notify the mechanic: a stored notification shown on `/taller`), `derivacion.tienda` (commission ledger per shop) and `busqueda.creada` (log/metrics). Idempotent by message id, ack after success.
 - Drop `AlertaPrecio` from #14: it does not exist in the domain and needs offers first.
 - AI over the queue is optional: only if time remains, a consumer that re-diagnoses with the LLM when the synchronous call fell back to local.
+- Done 2026-11-11 in `feature/mensajeria-rabbitmq`: broker, `IEventBus`, `PublicadorEventos` (all four events), worker with `derivacion.tienda` (commission ledger) and `busqueda.creada` and the rest (activity log). The `busqueda.compartida` notification for the mechanic is not built yet (new consumer on the same base). Verified only without a broker; needs a run with Docker.
 
 ### Slice 3. SOAP (#10, #11).
 
