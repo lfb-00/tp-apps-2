@@ -7,17 +7,28 @@ bien. Reemplazan la prueba manual de toda la web antes de aprobar un PR.
 ## Cómo correrlas
 
 Solo hace falta **Docker** (con `docker compose` v2) y **bash** (Linux, macOS, WSL o Git Bash).
+En Windows PowerShell, preferí el lanzador del repo para usar Git Bash explícitamente:
 
 ```bash
 bash scripts/e2e.sh
 ```
 
+```powershell
+.\scripts\bash.ps1 scripts\e2e.sh
+```
+
+Requiere Git for Windows; evita que `bash` resuelva por error al puente de WSL. El lanzador también
+acepta las opciones del script, por ejemplo `.\scripts\bash.ps1 scripts\e2e.sh --sin-reset`.
+
+El script usa el proyecto Compose aislado `repmatch-e2e`, nombres de contenedor y puertos propios.
+Sus volúmenes quedan separados de los de desarrollo; el reset no borra la base local.
+
 El script hace todo solo:
 
-1. Borra la base local (`docker compose down -v`) para arrancar siempre de la semilla.
-2. Levanta el entorno completo: `web` (8080, repuestos por SOAP y vehículos e IA por REST),
-   `web-local` (modo Local, 8090), `catalogo-api`, `catalogo-soap`, `ia-api`, `rabbitmq`, `worker`,
-   `tienda-simulada` y `postgres`.
+1. Borra los volúmenes del proyecto E2E (`repmatch-e2e`) para arrancar siempre de la semilla.
+2. Levanta el entorno completo: `web` (18080, repuestos por SOAP y vehículos e IA por REST),
+   `web-local` (modo Local, 18090), `catalogo-api`, `catalogo-soap`, `ia-api`, `rabbitmq`, `worker`,
+   `tienda-simulada` y `postgres`. Los puertos se pueden cambiar con `E2E_PUERTO_*`.
 3. Corre las pruebas en seis fases:
    - **Normal**: todo arriba. Como la Web busca los repuestos por SOAP, cada búsqueda prueba SOAP.
    - **SinIA**: frena `ia-api` y comprueba que la búsqueda sigue funcionando.
@@ -51,13 +62,13 @@ aparecen.
 | Opción | Qué hace |
 |---|---|
 | `--dejar` | No apaga el entorno al terminar, para mirar algo a mano. |
-| `--sin-reset` | No borra la base. Más rápido, pero arrastra datos de corridas anteriores. |
+| `--sin-reset` | Reutiliza la base E2E anterior sin borrarla; los volúmenes de desarrollo siguen aislados. |
 | `--evidencia` | Copia el resumen a `docs/evidencias/09-pruebas-e2e.txt` para la entrega. |
 | `--docker` | Fuerza correr las pruebas dentro de un contenedor. |
 | `--local` | Fuerza correr las pruebas con el SDK de la máquina. |
 
-Si un puerto está ocupado, se cambia en el `.env` (`PUERTO_WEB`, `PUERTO_WEB_LOCAL`) y el script
-lo respeta.
+Si un puerto E2E está ocupado, se cambia con su variable `E2E_PUERTO_*` correspondiente. El
+nombre del proyecto se puede personalizar con `E2E_COMPOSE_PROJECT_NAME`.
 
 ### Sin el script
 

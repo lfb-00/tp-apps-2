@@ -192,11 +192,23 @@ docker compose up --build --wait                                       # web 808
 docker compose --profile test run --rm tests                           # pruebas sin SDK
 docker compose --profile local up --build web-local                    # Web en modo Local (8090)
 bash scripts/evidencias.sh                                             # regenera docs/evidencias/
-bash scripts/e2e.sh                                                    # Playwright: levanta todo, 3 fases, apaga (borra la base)
+bash scripts/e2e.sh                                                    # Playwright: Compose aislado, 6 fases, apaga (borra volúmenes E2E)
 ```
 
-Si un cambio toca una pantalla, correr `bash scripts/e2e.sh`. Las pruebas que encontraron un
-error real están con `Skip` y un comentario: al arreglar el error, sacar el `Skip`.
+En Windows PowerShell, ejecutar scripts Bash con `.\scripts\bash.ps1 scripts\<nombre>.sh
+[opciones]`. El lanzador encuentra Git Bash desde la instalación de Git for Windows, fija
+`MSYS_NO_PATHCONV=1` y propaga el código de salida; no usar `bash` a secas, que puede resolver al
+puente de WSL. Por ejemplo, para las pruebas de punta a punta:
+
+```powershell
+.\scripts\bash.ps1 scripts\e2e.sh
+```
+
+E2E usa su propio proyecto Compose (`repmatch-e2e`), puertos y volúmenes: el reset no borra datos
+del entorno normal. Si un cambio toca una pantalla, correr `bash scripts/e2e.sh` (o el lanzador
+PowerShell en Windows).
+Las pruebas que encontraron un error real están con `Skip` y un comentario: al arreglar el error,
+sacar el `Skip`.
 
 La solución compila **sin advertencias**; mantenerlo así.
 

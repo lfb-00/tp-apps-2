@@ -64,7 +64,7 @@ services:
 
   postgres:
     image: postgres:17-alpine
-    container_name: repmatch-postgres
+    container_name: "${REPMATCH_CONTAINER_PREFIX:-}repmatch-postgres"
     environment:
       POSTGRES_DB: repmatch
       POSTGRES_USER: repmatch
@@ -87,7 +87,7 @@ services:
       context: .
       dockerfile: src/RepMatch.Catalogo.Api/Dockerfile
     image: repmatch/catalogo-api:tp-inicial
-    container_name: repmatch-catalogo-api
+    container_name: "${REPMATCH_CONTAINER_PREFIX:-}repmatch-catalogo-api"
     environment:
       <<: [*conexion-postgres, *llm, *mensajeria]
       # Development habilita /openapi/v1.json, que es parte del entregable.
@@ -106,7 +106,7 @@ services:
       context: .
       dockerfile: src/RepMatch.Catalogo.Soap/Dockerfile
     image: repmatch/catalogo-soap:segunda
-    container_name: repmatch-catalogo-soap
+    container_name: "${REPMATCH_CONTAINER_PREFIX:-}repmatch-catalogo-soap"
     environment:
       <<: *conexion-postgres
       ASPNETCORE_ENVIRONMENT: Development
@@ -123,7 +123,7 @@ services:
       context: .
       dockerfile: src/RepMatch.IA.Api/Dockerfile
     image: repmatch/ia-api:segunda
-    container_name: repmatch-ia-api
+    container_name: "${REPMATCH_CONTAINER_PREFIX:-}repmatch-ia-api"
     environment:
       <<: *llm
       ASPNETCORE_ENVIRONMENT: Development
@@ -136,14 +136,14 @@ services:
       context: .
       dockerfile: src/RepMatch.Web/Dockerfile
     image: repmatch/web:tp-inicial
-    container_name: repmatch-web
+    container_name: "${REPMATCH_CONTAINER_PREFIX:-}repmatch-web"
     environment:
       <<: [*conexion-postgres, *tiendas, *mensajeria]
       ConnectionStrings__Redis: redis:6379
       ASPNETCORE_ENVIRONMENT: Development
       # Repuestos por SOAP contra catalogo-soap; opciones de vehiculo por REST contra
       # catalogo-api. Catalogo__Modo=Remoto o Local cambian el camino sin recompilar.
-      Catalogo__Modo: Soap
+      Catalogo__Modo: "${CATALOGO_MODO:-Soap}"
       Catalogo__UrlSoap: "http://catalogo-soap:8080/ConsultaCompatibilidad.svc"
       Catalogo__UrlBaseRemota: "http://catalogo-api:8080"
       # La IA tambien por HTTP, contra IA.Api.
@@ -174,7 +174,7 @@ services:
   # colas durables y sus mensajes se perderian).
   rabbitmq:
     image: rabbitmq:4-management
-    container_name: repmatch-rabbitmq
+    container_name: "${REPMATCH_CONTAINER_PREFIX:-}repmatch-rabbitmq"
     hostname: rabbitmq
     environment:
       RABBITMQ_DEFAULT_USER: "${RABBITMQ_USUARIO:-repmatch}"
@@ -199,7 +199,7 @@ services:
       context: .
       dockerfile: src/RepMatch.Notificaciones.Worker/Dockerfile
     image: repmatch/worker:segunda
-    container_name: repmatch-worker
+    container_name: "${REPMATCH_CONTAINER_PREFIX:-}repmatch-worker"
     environment:
       <<: [*conexion-postgres, *mensajeria]
       ASPNETCORE_ENVIRONMENT: Development
@@ -224,7 +224,7 @@ services:
     build:
       context: .
       dockerfile: src/RepMatch.Web/Dockerfile
-    container_name: repmatch-web-local
+    container_name: "${REPMATCH_CONTAINER_PREFIX:-}repmatch-web-local"
     environment:
       <<: [*conexion-postgres, *llm, *tiendas, *mensajeria]
       ConnectionStrings__Redis: redis:6379
@@ -252,17 +252,36 @@ services:
       context: .
       dockerfile: tests/RepMatch.TiendaSimulada/Dockerfile
     image: repmatch/tienda-simulada:segunda
-    container_name: repmatch-tienda-simulada
+    container_name: "${REPMATCH_CONTAINER_PREFIX:-}repmatch-tienda-simulada"
     networks: [repmatch]
 
-  # Corre las pruebas sin necesidad de tener el SDK de .NET instalado.
-  # No depende de postgres: usan el proveedor InMemory.
+  # Corre las pruebas sin necesidad de tener el SDK de .NET instalado. Los casos con Testcontainers
+  # crean PostgreSQL y RabbitMQ temporales a traves del socket de Docker montado abajo.
   tests:
     profiles: [test]
     build:
       context: .
       dockerfile: tests/RepMatch.Tests/Dockerfile
     image: repmatch/tests:tp-inicial
+    environment:
+      REPMATCH_TESTCONTAINERS: "1"
+      TESTCONTAINERS_HOST_OVERRIDE: host.docker.internal
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks: [repmatch]
+
+  # Pruebas de carga k6 contra Web Local/Remota, IA REST y RabbitMQ.
+  carga:
+    profiles: [carga]
+    image: grafana/k6:0.54.0
+    environment:
+      RABBITMQ_USUARIO: "${RABBITMQ_USUARIO:-repmatch}"
+      RABBITMQ_CONTRASENA: "${RABBITMQ_CONTRASENA:-repmatch}"
+    volumes:
+      - ./tests/carga:/scripts:ro
+      - ./docs/evidencias:/evidencias
     networks: [repmatch]
 
   # Pruebas de punta a punta con Playwright, contra web (Remoto) y web-local (Local) por la red

@@ -110,14 +110,58 @@ docker compose --profile test run --rm tests
 
 Las pruebas de punta a punta recorren la web con un navegador real (Playwright): formularios,
 permisos, roles, el componente de IA y qué pasa cuando se cae la IA o el catálogo. Un solo
-comando levanta el entorno, corre todo y lo apaga; **borra la base local**:
+comando levanta un entorno aislado, corre todo y lo apaga; elimina solo los volúmenes de prueba,
+sin tocar la base local:
 
 ```bash
 bash scripts/e2e.sh
 ```
 
+En Windows, desde PowerShell, usá el lanzador que selecciona Git Bash automáticamente:
+
+```powershell
+.\scripts\bash.ps1 scripts\e2e.sh
+```
+
+El lanzador también acepta las opciones del script. Por ejemplo, para reutilizar los volúmenes de
+prueba:
+
+```
+
+E2E usa el proyecto Compose `repmatch-e2e`, nombres de contenedor con ese prefijo y puertos
+alternativos (Web `18080`, Web Local `18090`, API `18081`, SOAP `18082`, IA `18083`, PostgreSQL
+`15432`, RabbitMQ `25672`/UI `25673` y Worker `18085`). Se pueden cambiar con variables
+`E2E_PUERTO_*`; el proyecto puede cambiarse con `E2E_COMPOSE_PROJECT_NAME`.powershell
+.\scripts\bash.ps1 scripts\e2e.sh --sin-reset
+```
+
+Requiere Git for Windows; evita que `bash` resuelva por error al puente de WSL y
+configura `MSYS_NO_PATHCONV` para que Docker reciba las rutas sin conversiones de Git Bash.
+
 Detalle, opciones y cómo leer los resultados en
 [tests/RepMatch.E2E/README.md](tests/RepMatch.E2E/README.md).
+
+### Pruebas de carga
+
+Las mediciones básicas de catálogo local/remoto, diagnóstico IA y drenado de RabbitMQ se ejecutan
+con k6 contra Docker Compose:
+
+```bash
+bash scripts/carga.sh
+```
+
+En Windows PowerShell, ejecutalo con el mismo lanzador:
+
+```powershell
+.\scripts\bash.ps1 scripts\carga.sh
+```
+
+Por defecto usa 10 usuarios virtuales durante 30 segundos, envía 200 mensajes y mantiene el
+diagnóstico en el clasificador local para no consumir cuota externa. Se puede ajustar con
+`VUS`, `DURACION`, `MENSAJES` y `VUS_COLA`. `IA_CARGA_LLM=1` habilita el LLM configurado y puede
+consumir su cuota. Los resúmenes de k6 se guardan en `docs/evidencias/carga-*.json`; el informe,
+incluidas p50/p95/p99 y errores medidos, queda en
+[docs/evidencias/carga.md](docs/evidencias/carga.md).
 
 Para bajar todo (`-v` borra además el volumen de la base):
 

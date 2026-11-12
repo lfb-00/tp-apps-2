@@ -29,7 +29,7 @@ COPY src/ src/
 COPY tests/ tests/
 RUN dotnet build tests/RepMatch.Tests/RepMatch.Tests.csproj -c Release --no-restore
 
-# Las pruebas no tocan la red ni la base: usan el proveedor InMemory y hospedan
-# Catalogo.Api en memoria con WebApplicationFactory.
+# La mayoria de las pruebas usa InMemory y WebApplicationFactory. Las de integracion
+# levantan PostgreSQL y RabbitMQ con Testcontainers via el socket de Docker montado por Compose.
 ENTRYPOINT ["dotnet", "test", "tests/RepMatch.Tests/RepMatch.Tests.csproj", \
             "-c", "Release", "--no-build", "--nologo"]

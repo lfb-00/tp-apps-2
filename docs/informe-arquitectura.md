@@ -272,6 +272,9 @@ consumidores ya atrapaban para el camino REST (sección 6.8).
 bash scripts/evidencias.sh
 ```
 
+En Windows PowerShell, usar `.\scripts\bash.ps1 scripts\evidencias.sh`. Ese lanzador localiza Git
+Bash mediante Git for Windows y evita la conversión automática de rutas de MSYS al llamar a Docker.
+
 Deja en `docs/evidencias/` los logs de los tres procesos, la respuesta REST cruda, el contrato
 OpenAPI y las dos mediciones de `GET /evidencia/catalogo`. En cada modo, el script hace 12 llamadas:
 una primera (arranque en frío), diez de calentamiento y una última, que es la única que se guarda
@@ -359,7 +362,9 @@ global de tiempo, deduplicación, vencimiento, permisos por rol y piezas recomen
 `tests/RepMatch.Tests/Mensajeria/` prueba la cola sin broker: el contrato JSON y su versión, la
 regla de reintento y DLQ, qué publica `PublicadorEventos` (y que el texto libre no viaja), que con
 el broker inalcanzable la publicación falla rápido y no vuelve a esperar, y la idempotencia del
-registro de comisiones. Contra un RabbitMQ real lo prueban las E2E (`ColaTests`).
+registro de comisiones. `FlujoDistribuidoTests` usa Testcontainers con PostgreSQL y RabbitMQ
+reales para el flujo integrado, la correlación hasta el consumidor y los caminos de falla. Las E2E
+(`ColaTests`) también ejercitan RabbitMQ real dentro de Compose.
 `tests/RepMatch.Tests/Integracion/AccesoSoapTests.cs` cubre el camino SOAP: hospeda
 `Catalogo.Soap` en memoria, lo consume con el proxy generado desde el WSDL y verifica que devuelva
 lo mismo que el catálogo en proceso, que el WSDL publique las cuatro operaciones y que una caída
@@ -368,7 +373,8 @@ del servicio llegue como `HttpRequestException`.
 El resultado de la última corrida está en
 [`docs/evidencias/08-pruebas.txt`](evidencias/08-pruebas.txt): fecha, commit, advertencias de
 compilación y el resumen de `dotnet test`. Lo genera `bash scripts/evidencia-pruebas.sh`, que
-también corre al final de `scripts/evidencias.sh`. El total no se copia en este informe: así,
+también corre al final de `scripts/evidencias.sh` (en Windows se puede invocar directamente con
+`.\scripts\bash.ps1 scripts\evidencia-pruebas.sh`). El total no se copia en este informe: así,
 sumar una prueba no obliga a editar la documentación, y el número entregado sale de una corrida
 real. Las mismas pruebas corren sin el SDK con `docker compose --profile test run --build --rm tests`.
 
@@ -381,8 +387,9 @@ colaboración entre cliente y mecánico, la vista de celular y los permisos (pá
 errores además del camino feliz, y cualquier prueba falla si la Web muestra el cartel de error
 inesperado.
 
-`bash scripts/e2e.sh` lo hace todo: arranca de una base limpia, levanta la Web principal (repuestos
-por SOAP, vehículos e IA por REST) y la Web en modo Local, y corre seis fases. La primera tiene
+`bash scripts/e2e.sh` (en Windows PowerShell, `.\scripts\bash.ps1 scripts\e2e.sh`) lo hace todo:
+arranca de una base limpia, levanta la Web principal (repuestos por SOAP, vehículos e IA por REST)
+y la Web en modo Local, y corre seis fases. La primera tiene
 todo arriba, así que cada búsqueda prueba también el camino SOAP. Las otras frenan `ia-api`,
 `catalogo-api`, `catalogo-soap`, `tienda-simulada` y `rabbitmq`, para comprobar que la búsqueda
 sigue sin IA, que la app no se cae sin catálogo REST ni SOAP, que sin tiendas se ven las piezas con
@@ -394,6 +401,27 @@ resumen de las seis fases en `docs/evidencias/09-pruebas-e2e.txt`.
 
 Las pruebas que encontraron errores reales quedan omitidas con la causa explicada, hasta que se
 corrijan. La lista está en [`tests/RepMatch.E2E/README.md`](../tests/RepMatch.E2E/README.md).
+
+### 5.6 Pruebas de carga
+
+`bash scripts/carga.sh` (en Windows PowerShell, `.\scripts\bash.ps1 scripts\carga.sh`) ejecuta k6
+en Docker contra la Web en modo Local y Remoto, `IA.Api` y la cola de actividad de RabbitMQ. El
+escenario de IA desactiva por defecto la clave del LLM para medir
+el clasificador local sin consumir cuota; `IA_CARGA_LLM=1` lo habilita explícitamente. La corrida
+usa 10 VUs durante 30 segundos por escenario y una ráfaga de 200 mensajes con 10 publicadores.
+
+En la corrida del 2026-11-12, catálogo Local obtuvo p50/p95/p99 de 3,43/5,57/8,18 ms y Remoto
+5,80/10,26/16,35 ms; no hubo errores HTTP. El endpoint medido es `/evidencia/catalogo`, así que
+las latencias incluyen la llamada HTTP del generador a la Web además del camino de catálogo que esta
+usa. El diagnóstico local obtuvo 1,09/2,04/3,25 ms, también sin errores. RabbitMQ aceptó los 200
+mensajes y el worker vació la cola en 6 ms después de la última publicación; la latencia p50/p95/p99
+de publicación vía API de administración fue 9,84/15,92/20,45 ms.
+
+La diferencia observada entre catálogo Local y Remoto es el primer costo visible de integración
+bajo esta concurrencia; no se observó saturación a 10 VUs. La publicación vía API de administración
+incluye el costo de HTTP de RabbitMQ y no equivale a medir el productor `BusRabbitMq`. El detalle
+reproducible, los percentiles, errores y resúmenes JSON están en
+[`docs/evidencias/carga.md`](evidencias/carga.md).
 
 ---
 
@@ -596,8 +624,8 @@ Las decisiones:
 | **Segunda** *(implementado)* | Servicio de Ofertas y API externa (VTEX: Easy y Frávega) | `IFuenteOfertas` en `Contracts`; `FuenteVtex` en `RepMatch.Fuentes.Vtex`, con caché distribuida y resiliencia por tienda; `ServicioOfertas` agrega resultados, clasifica EAN y valida coincidencias por nombre (sección 6.9) | `ServicioBusquedas.CrearAsync`, catálogo |
 | **Segunda** | Adaptador a eBay | Otra implementación de `IFuenteOfertas`, en USD; el ranking no mezcla monedas | `ServicioOfertas`, presentación |
 | **Segunda** *(implementado)* | Componente de IA (texto libre → repuestos) | `ObservadorCompatibilidad` usa `ServicioDiagnostico`, que le pasa `Busqueda.TextoLibre` y las piezas compatibles a `IDiagnosticador` (local o remota contra `IA.Api`, por `IA:Modo`) | `ServicioBusquedas.CrearAsync`; en la presentación solo se agregó la tarjeta del diagnóstico |
-| **Integrador** | Métricas de IA, pruebas de carga, despliegue | `DiagnosticoValidado` trae, por cada revisión, los códigos propuestos y los que recomendó el mecánico: el dataset etiquetado para medir exactitud | — |
-| **Integrador** | Pruebas funcionales | Ya existe `tests/RepMatch.E2E` (sección 5.5): cada pantalla nueva suma sus pruebas ahí y `scripts/e2e.sh` las corre contra el entorno completo | — |
+| **Integrador** | Métricas de exactitud de IA y despliegue | `DiagnosticoValidado` trae, por cada revisión, los códigos propuestos y los que recomendó el mecánico: el dataset etiquetado para medir exactitud | — |
+| **Integrador** *(pruebas implementadas)* | Pruebas funcionales, de integración y de carga | `tests/RepMatch.E2E`, `FlujoDistribuidoTests` con Testcontainers y `tests/carga` con k6; secciones 5.4–5.6 | — |
 
 El punto de extensión quedó en el evento: `ServicioBusquedas.CrearAsync` persiste la búsqueda y
 despacha `BusquedaCreada` igual que en la Primera Parte. La IA se sumó del lado del observador, que
