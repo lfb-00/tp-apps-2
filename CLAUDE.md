@@ -76,7 +76,7 @@ src/
   RepMatch.Contracts/      DTOs, ICatalogoRepuestos, ICatalogoVehiculos, IDiagnosticador, IFuenteOfertas,
                            OpcionesCatalogo, OpcionesIA, OpcionesOfertas. SIN refs internas.
   RepMatch.Persistence/    Acceso a datos: RepMatchDbContext, Configuraciones/ (todo el mapeo EF),
-                           repositorios, UnitOfWork, DatosSemilla. → Domain, Common
+                           Migraciones/, repositorios, UnitOfWork, DatosSemilla. → Domain, Common
   RepMatch.Aplicacion/     Lógica de negocio: FachadaAplicacion, ServicioClientes, ServicioBusquedas,
                            ServicioMecanicos, ServicioRevisiones, ServicioDerivaciones,
                            ServicioDiagnostico, ServicioOfertas, DespachadorEventos, ObservadorCompatibilidad,
@@ -171,7 +171,9 @@ scripts/evidencias.sh      regenera docs/evidencias/ (logs + mediciones local vs
   cache), `Mensajeria:*` (habilitada, host, credenciales, timeout). Puertos del host en `.env`.
 - **Logging/trazabilidad**: cada host llama `UsarSerilog(nombre)` y `UsarCorrelacion()`; el id de
   correlación viaja Web → Catalogo.Api y Web → IA.Api (es parte de las evidencias).
-- Base: `EnsureCreatedAsync` + `DatosSemilla`, idempotente, con reintentos. **No hay migraciones.**
+- Base: PostgreSQL aplica migraciones bajo un bloqueo advisory y luego carga `DatosSemilla`; las
+  bases anteriores sin historial de migraciones se adoptan solo si tienen completo el esquema
+  inicial conocido. InMemory usa `EnsureCreatedAsync`. PostgreSQL reintenta errores de conexión.
 
 ### Patrones ya documentados
 `docs/patrones.md` cubre Factory, Strategy, Repository, Unit of Work, Adapter, Observer y Facade,

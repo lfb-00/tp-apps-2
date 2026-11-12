@@ -23,7 +23,7 @@ public sealed class ConsumidorActividad(
     ILogger<ConsumidorActividad> log)
     : ConsumidorRabbitMq<JsonElement>(conexion, opciones, scopes, log)
 {
-    public static readonly DefinicionCola Definicion = new("repmatch.actividad", ["#"]);
+    public static readonly DefinicionCola Definicion = TopologiaRabbitMq.ColaActividad;
 
     protected override DefinicionCola Cola => Definicion;
 

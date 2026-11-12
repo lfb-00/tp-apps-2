@@ -76,7 +76,7 @@ VTEX y el de mensajería):
 | # | Componente | Tipo pedido por la consigna | Responsabilidad |
 |---|---|---|---|
 | 1 | `RepMatch.Domain` | **Dominio** | Entidades, value objects, eventos de dominio e interfaces de repositorio |
-| 2 | `RepMatch.Persistence` | **Acceso a datos** | `DbContext`, mapeos, repositorios y unidad de trabajo sobre EF Core |
+| 2 | `RepMatch.Persistence` | **Acceso a datos** | `DbContext`, mapeos, migraciones, repositorios y unidad de trabajo sobre EF Core |
 | 3 | `RepMatch.Common` | **Utilidad** | Validación, logging, configuración externalizada, `ResultadoOperacion<T>`, medición de latencia y correlación |
 | 4 | `RepMatch.Contracts` | Contratos | DTOs, `ICatalogoRepuestos`, `ICatalogoVehiculos`, `IDiagnosticador`, `IFuenteOfertas`, `IEventBus` y los eventos de integración, `OpcionesCatalogo`, `OpcionesIA`, `OpcionesOfertas` y `OpcionesMensajeria` |
 | 5 | `RepMatch.Aplicacion` | Lógica de negocio | `FachadaAplicacion`, `ServicioClientes`, `ServicioBusquedas`, `ServicioMecanicos`, `ServicioRevisiones`, `ServicioDerivaciones`, `ServicioDiagnostico`, `ServicioOfertas`, `ServicioComisiones`, `DespachadorEventos`, `ObservadorCompatibilidad`, `PublicadorEventos`, mapeadores, validadores y los catálogos locales de repuestos y vehículos |
@@ -560,9 +560,13 @@ Las decisiones:
   consumidor viejo; cambiar el significado de uno obliga a subir la versión. Los datos llevan ids y
   lo mínimo para actuar, **nunca el texto libre** ni datos personales: un mensaje puede quedar en
   la cola, en la DLQ o en un log.
-- **Topología declarada por cada proceso.** Exchange topic `repmatch.eventos`, una cola durable por
-  consumidor y un exchange de mensajes muertos con una DLQ por cola. Declarar es idempotente, así
-  que nadie depende de que otro haya arrancado antes.
+- **Topología compartida y protegida contra arranques simultáneos.** Exchange topic
+  `repmatch.eventos`, una cola durable por consumidor y un exchange de mensajes muertos con una DLQ
+  por cola. `TopologiaRabbitMq` es la fuente única de nombres y claves: los publicadores declaran
+  todas las colas conocidas al conectarse y cada consumidor vuelve a declarar la propia. Las
+  declaraciones son idempotentes, así que el primer evento no depende de que el worker haya
+  arrancado antes. La publicación usa `mandatory`; si RabbitMQ devuelve un mensaje sin ruta, queda
+  registrado como error en el log en vez de parecer entregado.
 - **El broker no es requisito para usar la app.** Si RabbitMQ no responde, la publicación falla, se
   registra y la operación de la persona sigue: el hecho ya está en la base. Después de una falla
   no se intenta conectar por 30 segundos, para que un broker caído no le sume el timeout a cada

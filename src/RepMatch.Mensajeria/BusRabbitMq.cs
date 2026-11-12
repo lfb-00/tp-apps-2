@@ -1,6 +1,7 @@
 using System.Text;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
+using RabbitMQ.Client.Events;
 using RepMatch.Common.Logging;
 using RepMatch.Contracts.Configuracion;
 using RepMatch.Contracts.Mensajeria;
@@ -10,7 +11,8 @@ namespace RepMatch.Mensajeria;
 /// <summary>
 /// <see cref="IEventBus"/> sobre RabbitMQ.Client (issue #12). Publica en el exchange topic con la
 /// clave de ruteo del mensaje, con el mensaje marcado persistente y esperando la confirmacion del
-/// broker (publisher confirms): si el broker no lo confirma, se lanza y quien publica lo registra.
+/// broker (publisher confirms). Antes de publicar declara las colas conocidas y usa mandatory para
+/// que un mensaje sin destino sea devuelto y quede registrado.
 ///
 /// Un solo canal de publicacion compartido, usado de a uno: los canales de RabbitMQ no se usan
 /// en paralelo, y una publicacion tarda milisegundos.
@@ -50,7 +52,7 @@ public sealed class BusRabbitMq(
                 }
             };
 
-            await canal.BasicPublishAsync(opciones.Exchange, mensaje.Tipo, mandatory: false,
+            await canal.BasicPublishAsync(opciones.Exchange, mensaje.Tipo, mandatory: true,
                 basicProperties: propiedades, body: SerializacionMensajes.Serializar(mensaje),
                 cancellationToken: tope.Token);
 
@@ -78,8 +80,21 @@ public sealed class BusRabbitMq(
         _canal = await conectada.CreateChannelAsync(
             new CreateChannelOptions(publisherConfirmationsEnabled: true, publisherConfirmationTrackingEnabled: true),
             ct);
-        await TopologiaRabbitMq.DeclararExchangesAsync(_canal, opciones, ct);
+        _canal.BasicReturnAsync += RegistrarMensajeDevueltoAsync;
+        await TopologiaRabbitMq.DeclararTopologiaAsync(_canal, opciones, ct);
         return _canal;
+    }
+
+    private Task RegistrarMensajeDevueltoAsync(object sender, BasicReturnEventArgs retorno)
+    {
+        log.LogError(
+            "RabbitMQ devolvio el mensaje {MensajeId} sin ruta: {Codigo} {Motivo}, exchange {Exchange}, clave {Clave}",
+            retorno.BasicProperties.MessageId,
+            retorno.ReplyCode,
+            retorno.ReplyText,
+            retorno.Exchange,
+            retorno.RoutingKey);
+        return Task.CompletedTask;
     }
 
     private async Task DescartarCanalAsync()

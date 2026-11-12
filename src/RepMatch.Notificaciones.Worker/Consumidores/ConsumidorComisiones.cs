@@ -19,7 +19,7 @@ public sealed class ConsumidorComisiones(
     ILogger<ConsumidorComisiones> log)
     : ConsumidorRabbitMq<DerivacionTiendaV1>(conexion, opciones, scopes, log)
 {
-    public static readonly DefinicionCola Definicion = new("repmatch.comisiones", [ClavesRuteo.DerivacionTienda]);
+    public static readonly DefinicionCola Definicion = TopologiaRabbitMq.ColaComisiones;
 
     protected override DefinicionCola Cola => Definicion;
 

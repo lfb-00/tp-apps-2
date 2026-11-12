@@ -1,5 +1,6 @@
 using RabbitMQ.Client;
 using RepMatch.Contracts.Configuracion;
+using RepMatch.Contracts.Mensajeria;
 
 namespace RepMatch.Mensajeria;
 
@@ -25,6 +26,14 @@ public sealed record DefinicionCola(string Nombre, IReadOnlyList<string> ClavesR
 /// </summary>
 public static class TopologiaRabbitMq
 {
+    public static DefinicionCola ColaComisiones { get; } =
+        new("repmatch.comisiones", [ClavesRuteo.DerivacionTienda]);
+
+    public static DefinicionCola ColaActividad { get; } = new("repmatch.actividad", ["#"]);
+
+    public static IReadOnlyList<DefinicionCola> ColasConsumidores { get; } =
+        Array.AsReadOnly([ColaComisiones, ColaActividad]);
+
     public static string ExchangeMuertos(OpcionesMensajeria opciones) => $"{opciones.Exchange}.dlx";
 
     public static async Task DeclararExchangesAsync(IChannel canal, OpcionesMensajeria opciones, CancellationToken ct)
@@ -56,5 +65,11 @@ public static class TopologiaRabbitMq
         foreach (var clave in cola.ClavesRuteo)
             await canal.QueueBindAsync(cola.Nombre, opciones.Exchange, clave,
                 arguments: null, noWait: false, cancellationToken: ct);
+    }
+
+    public static async Task DeclararTopologiaAsync(IChannel canal, OpcionesMensajeria opciones, CancellationToken ct)
+    {
+        foreach (var cola in ColasConsumidores)
+            await DeclararColaAsync(canal, opciones, cola, ct);
     }
 }

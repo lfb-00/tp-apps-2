@@ -665,7 +665,9 @@ marca de mensaje procesado (`MensajeProcesado`) por `IComisionesRepository` y la
 `src/RepMatch.Mensajeria/ConsumidorRabbitMq.cs` define el algoritmo de consumo y deja un solo paso
 abstracto, `ProcesarAsync`. Las subclases están en el worker:
 `src/RepMatch.Notificaciones.Worker/Consumidores/ConsumidorComisiones.cs` y
-`ConsumidorActividad.cs`. Cada una declara su cola (`DefinicionCola`) y qué hacer con el mensaje.
+`ConsumidorActividad.cs`. Cada una elige su definición de cola centralizada en
+`TopologiaRabbitMq` y qué hacer con el mensaje. El publicador declara todas las definiciones antes
+de su primer envío, así la topología no depende de que el worker arranque primero.
 
 ### Qué problema resuelve
 

@@ -193,7 +193,7 @@ services:
     networks: [repmatch]
 
   # Consumidor de la cola: registro de comisiones por tienda y log de actividad. Espera a que
-  # catalogo-api este sano porque ese servicio crea el esquema de la base.
+  # catalogo-api este sano porque ese servicio aplica las migraciones de la base.
   worker:
     build:
       context: .

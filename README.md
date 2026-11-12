@@ -259,16 +259,24 @@ Sí, usa base de datos, con **dos proveedores intercambiables por configuración
 | **PostgreSQL 17** | En `docker compose` | Persistencia real, compartida entre los dos servicios, con volumen |
 | **InMemory** | Por defecto fuera de Docker, y en las pruebas | Correr y demostrar la app sin instalar nada |
 
-El acceso va por EF Core 10 con Npgsql, detrás de los repositorios declarados en el dominio. El
-esquema y los datos semilla se crean solos al arrancar (`EnsureCreatedAsync` + `DatosSemilla`), así
-que **no hay migraciones que correr a mano**. Es idempotente: cada grupo de datos semilla se carga
-solo si todavía falta. Al incorporar una tabla o columna nueva (por ejemplo, el catálogo de
-vehículos, los roles y la tabla `derivaciones`, las columnas del diagnóstico en `busquedas` o los
-datos de la tienda en `ofertas`), una base existente debe recrearse con
-`docker compose down -v` antes de levantar Compose otra vez.
+El acceso va por EF Core 10 con Npgsql, detrás de los repositorios declarados en el dominio. En
+PostgreSQL, `InicializarBaseAsync` aplica las migraciones pendientes y después carga la semilla; las
+bases existentes creadas antes de las migraciones se adoptan solo si tienen completo el esquema
+inicial conocido. La inicialización se serializa entre procesos. InMemory sigue creando el esquema
+de prueba con `EnsureCreatedAsync`. Cada grupo de datos semilla se carga solo si todavía falta.
+Agregar tablas o columnas ya no requiere borrar el volumen de PostgreSQL.
+
+Para sumar cambios de esquema, con `dotnet-ef` 10 instalado y estas variables configuradas:
+`Persistencia__Proveedor=Postgres` y `ConnectionStrings__RepMatch` (no hace falta que la base esté
+disponible al generar la migración):
+
+```bash
+dotnet ef migrations add NombreDelCambio --project src/RepMatch.Persistence --startup-project src/RepMatch.Catalogo.Api --output-dir Migraciones
+```
 
 Las entidades persistidas son `Cliente`, `Vehiculo`, `ConfiguracionVehiculo`, `Repuesto`,
-`AplicacionVehiculo`, `Busqueda`, `Oferta` y `Derivacion`. El catálogo vehicular contiene las combinaciones
+`AplicacionVehiculo`, `Busqueda`, `Oferta`, `Derivacion`, `ComisionesTienda` y `MensajeProcesado`.
+El catálogo vehicular contiene las combinaciones
 permitidas de marca, modelo, año y motor que consumen los selectores de la Web. Ojo con el alcance:
 la base guarda el **catálogo propio y las búsquedas de los usuarios**,
 no un inventario. RepMatch no almacena stock: las ofertas de las tiendas se guardan como resultado

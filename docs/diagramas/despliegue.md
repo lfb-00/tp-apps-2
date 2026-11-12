@@ -101,10 +101,10 @@ usuario `app`, sin privilegios de root.
 
 `postgres` declara un `healthcheck` con `pg_isready` y los servicios .NET que usan la base dependen de
 `condition: service_healthy`; `redis` verifica `redis-cli ping` y la Web espera también a que esté
-saludable. La Web espera además a que `catalogo-api`, `catalogo-soap` e `ia-api` respondan `/salud`:
-sin eso, la API arranca antes de que la base acepte conexiones. Como
-segunda red de seguridad, `ExtensionesPersistencia.InicializarBaseAsync` reintenta hasta diez veces
-con espera creciente.
+esté saludable. La Web espera además a que `catalogo-api`, `catalogo-soap` e `ia-api` respondan
+`/salud`. `ExtensionesPersistencia.InicializarBaseAsync` aplica las migraciones de EF Core y carga
+la semilla. En PostgreSQL, un bloqueo advisory serializa el trabajo entre hosts y los errores de
+conexión se reintentan hasta diez veces con espera creciente.
 
 ### Los modos de ejecución
 
