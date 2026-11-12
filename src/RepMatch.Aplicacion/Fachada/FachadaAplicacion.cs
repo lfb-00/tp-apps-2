@@ -67,8 +67,8 @@ public sealed class FachadaAplicacion(
 
     /// <summary>"Desde $X en N tiendas" para la busqueda sin sesion. No guarda nada.</summary>
     public Task<ResumenPreciosBusquedaDto> ResumirPreciosAsync(
-        IReadOnlyList<RepuestoDto> piezas, CancellationToken ct = default) =>
-        ofertas.ResumirAsync(piezas, ct);
+        IReadOnlyList<RepuestoDto> piezas, VehiculoDto vehiculo, CancellationToken ct = default) =>
+        ofertas.ResumirAsync(piezas, vehiculo, ct);
 
     public Task<IReadOnlyList<ClienteDto>> ListarClientesAsync(CancellationToken ct = default) =>
         clientes.ListarAsync(ct);

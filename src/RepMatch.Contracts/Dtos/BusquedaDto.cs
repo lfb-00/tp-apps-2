@@ -48,7 +48,7 @@ public sealed record OfertaDto
     public decimal? PrecioLista { get; init; }
 
     /// <summary>Ver <see cref="CoincidenciasOferta"/>.</summary>
-    public string Coincidencia { get; init; } = CoincidenciasOferta.PorNombre;
+    public string Coincidencia { get; init; } = CoincidenciasOferta.ProbablePorNombre;
 
     public string? Marca { get; init; }
     public string? Ean { get; init; }

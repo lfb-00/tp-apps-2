@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -25,14 +25,25 @@ public static class ExtensionesFuentesVtex
         var opciones = configuracion.GetSection(OpcionesOfertas.Seccion).Get<OpcionesOfertas>() ?? new OpcionesOfertas();
         servicios.RemoveAll<OpcionesOfertas>();
         servicios.AddSingleton(opciones);
-        servicios.AddMemoryCache();
+        if (!servicios.Any(d => d.ServiceType == typeof(IDistributedCache)))
+        {
+            var redis = configuracion.GetConnectionString("Redis");
+            if (string.IsNullOrWhiteSpace(redis))
+                servicios.AddDistributedMemoryCache();
+            else
+                servicios.AddStackExchangeRedisCache(cache =>
+                {
+                    cache.Configuration = redis;
+                    cache.InstanceName = "RepMatch:Ofertas:";
+                });
+        }
 
         foreach (var tienda in opciones.Tiendas.Where(t => t.Habilitada && !string.IsNullOrWhiteSpace(t.UrlBase)))
         {
             servicios.AddHttpClient(FuenteVtex.NombreCliente(tienda), http =>
             {
                 http.BaseAddress = new Uri(tienda.UrlBase.TrimEnd('/') + "/");
-                http.Timeout = TimeSpan.FromSeconds(tienda.TimeoutSegundos);
+                http.Timeout = Timeout.InfiniteTimeSpan;
                 // Generico a proposito: identifica al cliente sin datos de quien lo opera.
                 http.DefaultRequestHeaders.Add("User-Agent", "RepMatch/1.0 (comparador de repuestos)");
                 http.DefaultRequestHeaders.Add("Accept", "application/json");
@@ -41,7 +52,7 @@ public static class ExtensionesFuentesVtex
             servicios.AddSingleton<IFuenteOfertas>(sp => new FuenteVtex(
                 tienda,
                 sp.GetRequiredService<IHttpClientFactory>(),
-                sp.GetRequiredService<IMemoryCache>(),
+                sp.GetRequiredService<IDistributedCache>(),
                 sp.GetRequiredService<ILogger<FuenteVtex>>()));
         }
 

@@ -80,10 +80,10 @@ Before slice 2: commit the roles and AI work that is still uncommitted in the tr
 - `ServicioOfertas` (#4): register, dedupe, rank by total price, never mix currencies, drop expired.
 - `IFuenteOfertas` + `AdapterVtex` first (no credentials, ARS, easy + fravega by config). Then `AdapterEbay` (USD, OAuth client credentials, self-disables without keys). Fixtures in `tests/fixtures/`, no network in tests.
 - Aggregation in parallel with partial results. Prefer endpoints on an existing host over a new `Search.Api` unless a third REST service is needed for the grade.
-- Polly per source (timeout, retry, circuit breaker). Use `IMemoryCache`; Redis only if asked.
+- Polly per source (timeout, retry, circuit breaker). Use `IDistributedCache` with Redis in Compose and an in-memory provider otherwise; cache failures must not stop offer lookup.
 - Offers render on the result only when captured; `/derivar/{ofertaId}` then works for real. Ranking by price only.
-- #29/#30 (EAN match, validating name matches): only the EAN part if cheap; the rest is Integrador.
-- Done 2026-11-10 in `feature/ofertas-vtex`: `ServicioOfertas` (#4) and the VTEX adapter (#18), prices loaded after the parts, `IMemoryCache` per store. The EAN is stored; cross-store identity by EAN (#29) goes in its own PR. Pending in this slice: eBay (#17), Polly (#20), #19 only if a third REST service is needed.
+- #29/#30 (EAN match and validating name matches) and #20 (per-source resilience) are implemented in the current offers worktree: shared EANs classify as exact matches, contradictory name matches are discarded, and Polly failures are isolated at the source boundary. eBay (#17) remains pending; #19 only if a third REST service is needed.
+- `ServicioOfertas` (#4) and the VTEX adapter (#18) are implemented in `feature/ofertas-vtex`: prices load after the parts, source responses are cached through `IDistributedCache`, and only captured offers are shown.
 
 ### Slice 5. Docs and evidence (#21).
 

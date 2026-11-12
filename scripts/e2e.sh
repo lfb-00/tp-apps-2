@@ -169,10 +169,27 @@ if [ "$MODO" = "docker" ] && command -v id >/dev/null; then
   compose_e2e run --rm --no-deps --entrypoint chown e2e -R "$(id -u):$(id -g)" /resultados >/dev/null 2>&1 || true
 fi
 
-# La linea de resumen de dotnet test de cada fase, en espaniol o en ingles segun el SDK.
+# El resumen de cada fase: VSTest (en ingles o espaniol) y Microsoft.Testing.Platform.
 linea_resumen() {
-  grep -hE '(Correctas!|Con error!|Passed!|Failed!) +- ' "$RESULTADOS/$1.log" 2>/dev/null \
-    | sed -e 's/^ *//' -e 's/ - [^ ]*\.dll.*$//' | tail -1
+  local archivo="$RESULTADOS/$1.log"
+  if grep -qE '^(Total tests:|Pruebas totales:)' "$archivo" 2>/dev/null; then
+    awk '
+      /^Total tests:/ { total = $3 }
+      /^Pruebas totales:/ { total = $3 }
+      /^[[:space:]]*Passed:/ { aprobadas = $2 }
+      /^[[:space:]]*Correcto:/ { aprobadas = $2 }
+      /^[[:space:]]*Skipped:/ { omitidas = $2 }
+      /^[[:space:]]*Omitido:/ { omitidas = $2 }
+      /^[[:space:]]*Failed:/ { fallidas = $2 }
+      /^[[:space:]]*Con error:/ { fallidas = $3 }
+      END {
+        printf "Total %d, aprobadas %d, omitidas %d, fallidas %d", total, aprobadas, omitidas, fallidas
+      }
+    ' "$archivo"
+  else
+    grep -hE '(Correctas!|Con error!|Passed!|Failed!) +- ' "$archivo" 2>/dev/null \
+      | sed -e 's/^ *//' -e 's/ - [^ ]*\.dll.*$//' | tail -1
+  fi
 }
 
 {

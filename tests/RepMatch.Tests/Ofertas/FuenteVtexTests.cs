@@ -1,7 +1,10 @@
 using System.Net;
 using System.Text;
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Polly.CircuitBreaker;
+using Polly.Timeout;
 using RepMatch.Contracts.Configuracion;
 using RepMatch.Contracts.Dtos;
 using RepMatch.Fuentes.Vtex;
@@ -42,11 +45,26 @@ public class FuenteVtexTests
             new(manejador, disposeHandler: false) { BaseAddress = new Uri(Easy.UrlBase + "/") };
     }
 
+    private sealed class TiendaLenta : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage peticion, CancellationToken ct)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        }
+    }
+
     private static HttpResponseMessage Json(string json, HttpStatusCode estado = HttpStatusCode.PartialContent) =>
         new(estado) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
 
-    private static FuenteVtex Crear(TiendaFalsa tienda, OpcionesTiendaVtex? opciones = null) =>
-        new(opciones ?? Easy, new Fabrica(tienda), new MemoryCache(new MemoryCacheOptions()), NullLogger<FuenteVtex>.Instance);
+    private static FuenteVtex Crear(HttpMessageHandler tienda, OpcionesTiendaVtex? opciones = null)
+    {
+        var cache = new ServiceCollection()
+            .AddDistributedMemoryCache()
+            .BuildServiceProvider()
+            .GetRequiredService<IDistributedCache>();
+        return new FuenteVtex(opciones ?? Easy, new Fabrica(tienda), cache, NullLogger<FuenteVtex>.Instance);
+    }
 
     [Fact]
     public async Task Acepta_206_y_pide_la_primera_pagina_del_buscador_de_catalogo()
@@ -76,10 +94,47 @@ public class FuenteVtexTests
         var tienda = new TiendaFalsa(_ => Json(LectorVtexTests.Grabada("easy-bateria.json")));
         var fuente = Crear(tienda);
 
-        await fuente.BuscarAsync(Bateria);
-        await fuente.BuscarAsync(Bateria);
+        var primera = await fuente.BuscarAsync(Bateria);
+        var segunda = await fuente.BuscarAsync(Bateria with { Nombre = "BATERIA   12V 60AH" });
 
         Assert.Single(tienda.Pedidos);
+        Assert.All(segunda, oferta => Assert.Equal(primera.Single(o => o.Url == oferta.Url).CapturadaEn, oferta.CapturadaEn));
+    }
+
+    [Fact]
+    public async Task Reintenta_y_abre_el_circuito_despues_de_tres_consultas_fallidas()
+    {
+        var tienda = new TiendaFalsa(_ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+        var fuente = Crear(tienda, new OpcionesTiendaVtex
+        {
+            Nombre = Easy.Nombre,
+            UrlBase = Easy.UrlBase,
+            CacheMinutos = 0
+        });
+
+        for (var i = 0; i < 3; i++)
+            await Assert.ThrowsAsync<HttpRequestException>(() => fuente.BuscarAsync(Bateria));
+
+        var ex = await Assert.ThrowsAsync<HttpRequestException>(() => fuente.BuscarAsync(Bateria));
+
+        Assert.IsType<BrokenCircuitException>(ex.InnerException);
+        Assert.Equal(9, tienda.Pedidos.Count);
+    }
+
+    [Fact]
+    public async Task El_timeout_de_la_tienda_se_traduce_a_HttpRequestException()
+    {
+        var fuente = Crear(new TiendaLenta(), new OpcionesTiendaVtex
+        {
+            Nombre = Easy.Nombre,
+            UrlBase = Easy.UrlBase,
+            TimeoutSegundos = 1,
+            CacheMinutos = 0
+        });
+
+        var ex = await Assert.ThrowsAsync<HttpRequestException>(() => fuente.BuscarAsync(Bateria));
+
+        Assert.IsType<TimeoutRejectedException>(ex.InnerException);
     }
 
     [Fact]
@@ -93,7 +148,7 @@ public class FuenteVtexTests
         Assert.Equal(2, tienda.Pedidos.Count);
         Assert.Contains("ft=7797535000843", tienda.Pedidos[0].Query);
         Assert.Equal(3, ofertas.Count);
-        Assert.Equal(CoincidenciasOferta.PorCodigo, Assert.Single(ofertas, o => o.Ean == "7797535000843").Coincidencia);
+        Assert.Equal(CoincidenciasOferta.ExactoPorEan, Assert.Single(ofertas, o => o.Ean == "7797535000843").Coincidencia);
     }
 
     [Fact]

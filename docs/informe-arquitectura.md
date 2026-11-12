@@ -495,21 +495,26 @@ El adaptador se diseñó a partir de respuestas reales de Easy y Frávega, graba
 - **Buscar por nombre trae basura.** "Batería" devuelve taladros y pilas; "pastillas de freno", las
   pastillas para encender el fuego. Cada tienda configura sus categorías válidas
   (`PrefijosCategoria`: `/Automotor/` en Easy) y, en la búsqueda por nombre, el título tiene que
-  empezar con la misma palabra que la pieza. Lo que se encuentra por nombre se marca y se advierte
-  ("verificá que sea la medida de tu auto"): una batería de 40 Ah no sirve si el auto lleva una de
-  60 Ah. La validación fina de atributos es el issue #30. En la búsqueda por código equivalente, el
-  código tiene que aparecer en la publicación.
+  empezar con la misma palabra que la pieza. La aplicación descarta coincidencias probables que
+  contradicen los datos disponibles del vehículo: modelo, marca, año, posición o sistema. Si la
+  publicación no trae esos datos, no se presume incompatibilidad; queda como probable y se advierte
+  ("verificá que sea la medida de tu auto"). En la búsqueda por código equivalente, el código debe
+  aparecer en la publicación.
 - **Frávega es un marketplace.** Cada producto trae varios vendedores y el de la propia tienda suele
   estar sin stock: se toma el vendedor disponible más barato y se muestra quién vende.
 - **La búsqueda no informa el costo de envío.** Obtenerlo requiere simular la compra con un código
   postal. El precio se muestra como de referencia y la pantalla aclara que el envío se calcula en la
   tienda; `Oferta.PrecioTotal` ya lo suma cuando una fuente lo informe.
-- **El EAN se guarda.** Si dos tiendas publican el mismo EAN, es el mismo producto (issue #29).
-- **Uso responsable de una API gratuita.** Pocos pedidos simultáneos por tienda
-  (`PedidosSimultaneos`), respuestas cacheadas por término durante unos minutos (`CacheMinutos`), un
-  User-Agent genérico sin datos del equipo, timeout por tienda y un tope global
-  (`TimeoutGlobalSegundos`). Una tienda caída no tumba a las demás ni hace aparecer como agotadas las
-  ofertas que ya estaban guardadas.
+- **Identidad por EAN.** Si distintas tiendas publican el mismo EAN, sus ofertas se clasifican como
+  coincidencias exactas de la misma pieza; se mantienen separadas porque son publicaciones y precios
+  distintos.
+- **Uso responsable y resiliente de las APIs.** Cada fuente limita pedidos simultáneos
+  (`PedidosSimultaneos`), cachea respuestas por término (`CacheMinutos`) y tiene timeout, reintentos
+  y circuito independiente. En Compose la caché es Redis compartida; sin `ConnectionStrings:Redis`
+  se usa caché distribuida en memoria. Además, `ServicioOfertas` aplica un tope global
+  (`TimeoutGlobalSegundos`): si una tienda falla, se muestran las demás y no se marcan como agotadas
+  las ofertas guardadas de la tienda que no respondió. Los fallos de caché se registran y la consulta
+  continúa por red.
 
 Cada rol ve los precios de una forma distinta. El **cliente** ve las ofertas de cada pieza y sale a
 la tienda por `/derivar`, que registra la comisión. El **mecánico** ve las mismas ofertas con enlace
@@ -528,7 +533,7 @@ dónde".
 | **Segunda** *(implementado)* | SOAP `ConsultaCompatibilidad` (CoreWCF + WSDL) | `Catalogo.Soap` publica el servicio; `CatalogoSoap` es la tercera implementación de `ICatalogoRepuestos`, elegida con `Catalogo:Modo=Soap` (sección 6.8) | Presentación, lógica de negocio, interfaz del catálogo |
 | **Segunda** | REST documentados con OpenAPI | `Catalogo.Api` e `IA.Api` publican `/openapi/v1.json` | — |
 | **Segunda** | RabbitMQ, productores y consumidores | Implementación de `IDespachadorEventos` sobre `IEventBus`; `BusquedaCreada`, `BusquedaCompartida` (aviso al mecánico) y `DerivacionATienda` (conteo de comisiones) ya existen como eventos de dominio. El consumidor de `BusquedaCreada` y `DiagnosticoValidado` llama a `ServicioOfertas.ObtenerAsync`, el mismo método que hoy dispara la página | Entidades, la pantalla de precios |
-| **Segunda** *(implementado)* | Servicio de Ofertas y API externa (VTEX: Easy y Frávega) | `IFuenteOfertas` en `Contracts`; `FuenteVtex` en `RepMatch.Fuentes.Vtex`, una instancia por tienda de la sección `Ofertas`; `ServicioOfertas` las consulta en paralelo (sección 6.9) | `ServicioBusquedas.CrearAsync`, catálogo |
+| **Segunda** *(implementado)* | Servicio de Ofertas y API externa (VTEX: Easy y Frávega) | `IFuenteOfertas` en `Contracts`; `FuenteVtex` en `RepMatch.Fuentes.Vtex`, una instancia resiliente por tienda; `ServicioOfertas` agrega resultados, clasifica EAN y valida coincidencias por nombre (sección 6.9) | `ServicioBusquedas.CrearAsync`, catálogo |
 | **Segunda** | Adaptador a eBay | Otra implementación de `IFuenteOfertas`, en USD; el ranking no mezcla monedas | `ServicioOfertas`, presentación |
 | **Segunda** *(implementado)* | Componente de IA (texto libre → repuestos) | `ObservadorCompatibilidad` usa `ServicioDiagnostico`, que le pasa `Busqueda.TextoLibre` y las piezas compatibles a `IDiagnosticador` (local o remota contra `IA.Api`, por `IA:Modo`) | `ServicioBusquedas.CrearAsync`; en la presentación solo se agregó la tarjeta del diagnóstico |
 | **Integrador** | Métricas de IA, pruebas de carga, despliegue | `DiagnosticoValidado` trae, por cada revisión, los códigos propuestos y los que recomendó el mecánico: el dataset etiquetado para medir exactitud | — |

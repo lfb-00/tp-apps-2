@@ -1,7 +1,7 @@
 # Diagrama de despliegue — RepMatch
 
 Dos topologías: la **implementada** (TP Inicial, Primera Parte y, de la Segunda Parte, el componente
-de IA, el servicio SOAP y los precios de las tiendas VTEX), que se levanta con `docker compose up`, y la **prevista** para las entregas siguientes, que
+de IA, el servicio SOAP, los precios VTEX y su caché Redis), que se levanta con `docker compose up`, y la **prevista** para las entregas siguientes, que
 se documenta acá para mostrar que la arquitectura actual la admite sin rediseño.
 
 ## Implementada — TP Inicial, Primera Parte, IA, SOAP y tiendas VTEX
@@ -32,6 +32,10 @@ flowchart TB
         subgraph c3["Contenedor: repmatch-postgres"]
             P[("PostgreSQL 17<br/><b>:5432</b><br/>volumen datos-postgres")]
         end
+
+        subgraph c6["Contenedor: repmatch-redis"]
+            R[("Redis 7<br/><b>:6379</b><br/>caché distribuida de ofertas")]
+        end
     end
 
     BR -- "http://localhost:8080" --> W
@@ -41,6 +45,7 @@ flowchart TB
     W -- "Npgsql" --> P
     A -- "Npgsql" --> P
     S -- "Npgsql" --> P
+    W -- "IDistributedCache" --> R
 
     LLM(["🌐 Proveedor LLM<br/>Groq o Gemini<br/><i>solo con IA_LLM_APIKEY</i>"])
     VT(["🌐 Tiendas VTEX<br/>www.easy.com.ar · www.fravega.com<br/><i>API pública de catálogo, sin credenciales</i>"])
@@ -53,6 +58,7 @@ flowchart TB
     style S fill:#fbf0e2,stroke:#9a5b13
     style IA fill:#f3ecfa,stroke:#6b3fa0
     style P fill:#e6f4ec,stroke:#1f7a4d
+    style R fill:#fce7f3,stroke:#be185d
 ```
 
 ### Nodos
@@ -64,6 +70,7 @@ flowchart TB
 | `repmatch-catalogo-soap` | build desde `src/RepMatch.Catalogo.Soap/Dockerfile` | 8082 | Host SOAP del componente de catálogo (CoreWCF). Publica el WSDL en `/ConsultaCompatibilidad.svc?wsdl` y resuelve con el mismo `CatalogoLocal` que `catalogo-api` |
 | `repmatch-ia-api` | build desde `src/RepMatch.IA.Api/Dockerfile` | 8083 | Host REST del componente de IA. Sin base: recibe los candidatos en la petición. Sin clave de LLM responde el clasificador local |
 | `repmatch-postgres` | `postgres:17-alpine` | 5432 | Persistencia, con volumen nombrado |
+| `repmatch-redis` | `redis:7-alpine` | — | Caché distribuida de las respuestas VTEX, compartida por las instancias de Web |
 | `repmatch-tienda-simulada` | build desde `tests/RepMatch.TiendaSimulada/Dockerfile`, perfil `simulacion` | — | Solo para las pruebas de punta a punta: responde como VTEX con búsquedas reales grabadas. `scripts/e2e.sh` apunta la Web acá con `OFERTAS_URL_EASY` y `OFERTAS_URL_FRAVEGA` |
 
 La Web sale a internet para consultar los precios en las tiendas. Sin salida, o con una tienda caída,
@@ -75,7 +82,9 @@ sobre `mcr.microsoft.com/dotnet/aspnet:10.0`, que no lleva compilador. Los servi
 usuario `app`, sin privilegios de root.
 
 `postgres` declara un `healthcheck` con `pg_isready` y los servicios .NET que usan la base dependen de
-`condition: service_healthy`; la Web espera además a que `catalogo-api`, `catalogo-soap` e `ia-api` respondan `/salud`: sin eso, la API arranca antes de que la base acepte conexiones. Como
+`condition: service_healthy`; `redis` verifica `redis-cli ping` y la Web espera también a que esté
+saludable. La Web espera además a que `catalogo-api`, `catalogo-soap` e `ia-api` respondan `/salud`:
+sin eso, la API arranca antes de que la base acepte conexiones. Como
 segunda red de seguridad, `ExtensionesPersistencia.InicializarBaseAsync` reintenta hasta diez veces
 con espera creciente.
 
@@ -122,13 +131,13 @@ flowchart TB
         IA["ia-api :8083<br/>diagnóstico por texto libre"]
         SOAP["catalogo-soap :8082<br/>CoreWCF · WSDL"]
         P[("postgres :5432")]
+        R[("redis :6379<br/>caché distribuida")]
     end
 
     subgraph previsto["Previsto"]
         S["search-api :8084<br/>agregador de ofertas"]
         WK["notificaciones-worker<br/>consumidores"]
         MQ{{"rabbitmq :5672<br/>UI :15672"}}
-        R[("redis :6379<br/>caché de ofertas")]
     end
 
     subgraph externo["🌐 Fuentes externas reales"]

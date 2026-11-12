@@ -22,11 +22,12 @@ public class Oferta : EntidadBase
         Dinero? costoEnvio = null,
         bool disponible = true,
         Dinero? precioLista = null,
-        CoincidenciaOferta coincidencia = CoincidenciaOferta.PorNombre,
+        CoincidenciaOferta coincidencia = CoincidenciaOferta.ProbablePorNombre,
         string? marca = null,
         string? ean = null,
         string? referenciaTienda = null,
-        string? vendedor = null)
+        string? vendedor = null,
+        DateTimeOffset? capturadaEn = null)
     {
         ExcepcionDominio.Si(busquedaId == Guid.Empty, "La oferta debe pertenecer a una busqueda.");
         ExcepcionDominio.SiNulaOVacia(codigoRepuesto, nameof(codigoRepuesto));
@@ -51,7 +52,7 @@ public class Oferta : EntidadBase
         Ean = Limpio(ean);
         ReferenciaTienda = Limpio(referenciaTienda);
         Vendedor = Limpio(vendedor);
-        CapturadaEn = DateTimeOffset.UtcNow;
+        CapturadaEn = capturadaEn ?? DateTimeOffset.UtcNow;
     }
 
     public Guid BusquedaId { get; private set; }
@@ -69,8 +70,7 @@ public class Oferta : EntidadBase
     public CoincidenciaOferta Coincidencia { get; private set; }
     public string? Marca { get; private set; }
 
-    /// <summary>Codigo de barras del producto. Se guarda aunque hoy no se compare: es la identidad
-    /// mas fuerte entre tiendas (issue #29).</summary>
+    /// <summary>Codigo de barras usado para reconocer la misma pieza entre tiendas (issue #29).</summary>
     public string? Ean { get; private set; }
 
     /// <summary>Id de la publicacion en la tienda: distingue dos publicaciones de la misma pieza.</summary>

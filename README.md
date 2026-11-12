@@ -38,18 +38,22 @@ Después de mostrar el diagnóstico y las piezas, la Web busca los precios en **
 con la API pública de catálogo de VTEX (sin credenciales, nunca scraping). Mientras tanto cada pieza
 muestra "Buscando precios…": una tienda lenta no demora el diagnóstico.
 
-- **Cliente**: ve las ofertas de cada pieza, de la más barata a la más cara, con la tienda, quién
-  vende y el precio de lista si hay descuento. "Ir a la tienda" pasa por `/derivar` (comisión).
+- **Cliente**: ve primero las coincidencias exactas y luego las probables desplegables; cada grupo
+  se ordena de la más barata a la más cara y muestra la tienda, quién vende y el precio de lista si
+  hay descuento. "Ir a la tienda" pasa por `/derivar` (comisión).
 - **Mecánico**: ve las mismas ofertas con enlace directo a la tienda, para que su clic no cuente
   como una derivación atribuida a él. Si corrige el diagnóstico, también se buscan los precios de lo
   que recomendó.
 - **Sin sesión**: "desde $X en N tiendas" e "Ingresá para ver dónde".
 
-Lo que se encuentra por nombre se advierte ("verificá que sea la medida de tu auto"). Si una tienda
-no responde, la pantalla lo avisa y muestra lo de las demás. La búsqueda no informa el envío: los
-precios son de referencia y el envío se calcula en la tienda. Del catálogo semilla, las tiendas
-publican sobre todo baterías; para las demás piezas la pantalla dice que ninguna tienda conectada
-la publica. Detalle en la sección 6.9 del [informe](docs/informe-arquitectura.md).
+Las coincidencias exactas por código o EAN se separan de las probables por nombre. Estas últimas se
+advierten ("verificá que sea la medida de tu auto") y se descartan si los datos de la publicación
+contradicen el vehículo en modelo, marca, año, posición o sistema; si faltan datos, quedan como
+probables. Si una tienda no responde, la pantalla lo avisa y muestra lo de las demás. La búsqueda no
+informa el envío: los precios son de referencia y el envío se calcula en la tienda. Del catálogo
+semilla, las tiendas publican sobre todo baterías; para las demás piezas la pantalla dice que
+ninguna tienda conectada la publica. Detalle en la sección 6.9 del
+[informe](docs/informe-arquitectura.md).
 
 ## Roles y modelo de negocio
 
@@ -268,11 +272,12 @@ Todo se puede sobreescribir por variable de entorno (`Seccion__Clave`).
 
 | Clave | Valores | Por defecto |
 |---|---|---|
-| `Catalogo:Modo` | `Local`, `Remoto` | `Local` (en compose: `Remoto`) |
+| `Catalogo:Modo` | `Local`, `Remoto`, `Soap` | `Local` (en compose: `Soap`) |
 | `Catalogo:UrlBaseRemota` | URL de `Catalogo.Api` | `http://localhost:5081` |
 | `Catalogo:TimeoutSegundos` | timeout de las llamadas HTTP al catálogo remoto (1 a 120) | `30` |
 | `Persistencia:Proveedor` | `InMemory`, `Postgres` | `InMemory` (en compose: `Postgres`) |
 | `ConnectionStrings:RepMatch` | cadena Npgsql | vacía |
+| `ConnectionStrings:Redis` | Redis para la caché distribuida de ofertas | vacía (caché en memoria; en compose: `redis:6379`) |
 | `IA:Modo` | `Local`, `Remoto` (solo Web) | `Local` (en compose: `Remoto`) |
 | `IA:UrlBaseRemota` | URL de `IA.Api` | `http://localhost:5083` |
 | `IA:TimeoutSegundos` | timeout de la Web hacia `IA.Api` (1 a 120) | `10` |

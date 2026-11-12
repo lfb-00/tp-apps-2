@@ -682,7 +682,9 @@ sequenceDiagram
     participant Repo as IBusquedaRepository
     participant Dominio as Busqueda
     participant Catalogo as ICatalogoRepuestos
+    participant Vehiculos as ICatalogoVehiculos
     participant Tienda as IFuenteOfertas (FuenteVtex, una por tienda)
+    participant Cache as IDistributedCache
     participant Vtex as API de catálogo VTEX
     participant UoW as UnitOfWork
 
@@ -704,16 +706,30 @@ sequenceDiagram
             alt falla el catálogo
                 Ofertas-->>Web: Falla "No se pudo consultar el catálogo…"
             else
+                Ofertas->>Vehiculos: ListarOpcionesAsync
+                alt catálogo vehicular disponible
+                    Vehiculos-->>Ofertas: opciones conocidas
+                else error HTTP o timeout
+                    Vehiculos-->>Ofertas: excepción capturada
+                    Note over Ofertas: registra el fallo y valida sin opciones conocidas
+                end
                 par cada tienda y cada pieza, con tope global de tiempo
                     Ofertas->>Tienda: BuscarAsync(pieza)
                     loop códigos equivalentes y después el nombre
+                        Tienda->>Cache: GetAsync(término normalizado)
                         alt respuesta en caché
-                            Note over Tienda: reutiliza el JSON del mismo término
-                        else
+                            Cache-->>Tienda: JSON y fecha original de captura
+                            Note over Tienda: reutiliza la respuesta sin rejuvenecer el precio
+                        else cache miss o caché no disponible
+                            Note over Tienda: Polly aplica timeout por tienda, hasta dos reintentos<br/>y circuito independiente; fallos de Redis se registran
                             Tienda->>Vtex: GET /api/catalog_system/pub/products/search?ft=…&_from=0&_to=9
                             alt 200 o 206
                                 Vtex-->>Tienda: productos (JSON)
-                            else error, sin red o timeout
+                                Tienda->>Cache: SetAsync(JSON, CacheMinutos)
+                                opt Redis no disponible
+                                    Note over Tienda: registra el fallo y conserva la respuesta de red
+                                end
+                            else error, timeout o circuito abierto
                                 Tienda-->>Ofertas: HttpRequestException / TaskCanceledException
                                 Note over Ofertas: la tienda queda en TiendasSinRespuesta<br/>las demás siguen
                             end
@@ -722,6 +738,7 @@ sequenceDiagram
                     Note over Tienda: LectorVtex: categoría válida, primera palabra o código,<br/>vendedor con stock más barato, EAN
                     Tienda-->>Ofertas: ofertas normalizadas
                 end
+                Note over Ofertas: EAN compartido entre tiendas se clasifica como exacto;<br/>ValidadorCandidatoOferta descarta contradicciones por nombre
                 Ofertas->>Dominio: ActualizarOfertas(códigos, tiendas que respondieron, capturas)
                 Note over Dominio: misma publicación: actualiza precio (mismo Id, la derivación sigue válida)<br/>nueva: la agrega<br/>no apareció en una tienda que respondió: no disponible<br/>tienda sin respuesta: sus ofertas quedan como estaban
                 Ofertas->>UoW: ConfirmarAsync

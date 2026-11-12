@@ -65,6 +65,7 @@ public enum NivelUrgencia
 /// </summary>
 public enum CoincidenciaOferta
 {
-    PorNombre = 0,
-    PorCodigo = 1
+    ProbablePorNombre = 0,
+    ExactoPorCodigo = 1,
+    ExactoPorEan = 2
 }

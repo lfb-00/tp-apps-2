@@ -43,7 +43,7 @@ public class LectorVtexTests
         // De diez resultados: afuera las pilas, las baterias de herramientas, el taladro y los cargadores.
         Assert.Equal(3, ofertas.Count);
         Assert.All(ofertas, o => Assert.StartsWith("Batería", o.Titulo));
-        Assert.All(ofertas, o => Assert.Equal(CoincidenciasOferta.PorNombre, o.Coincidencia));
+        Assert.All(ofertas, o => Assert.Equal(CoincidenciasOferta.ProbablePorNombre, o.Coincidencia));
         Assert.All(ofertas, o => Assert.Equal("ARS", o.Moneda));
 
         var enerbox = Assert.Single(ofertas, o => o.Titulo.Contains("Cb410"));
@@ -86,8 +86,19 @@ public class LectorVtexTests
         var inexistente = LectorVtex.Leer(Grabada("easy-bateria.json"), Easy, Bateria, "W712/52", esCodigo: true);
 
         var oferta = Assert.Single(porEan);
-        Assert.Equal(CoincidenciasOferta.PorCodigo, oferta.Coincidencia);
+        Assert.Equal(CoincidenciasOferta.ExactoPorEan, oferta.Coincidencia);
         Assert.Empty(inexistente);
+    }
+
+    [Fact]
+    public void Distingue_el_codigo_de_publicacion_del_EAN()
+    {
+        var conReferenciaDeTienda = Bateria with { CodigosEquivalentes = ["1304479"] };
+
+        var oferta = Assert.Single(LectorVtex.Leer(
+            Grabada("easy-bateria.json"), Easy, conReferenciaDeTienda, "1304479", esCodigo: true));
+
+        Assert.Equal(CoincidenciasOferta.ExactoPorCodigo, oferta.Coincidencia);
     }
 
     [Fact]

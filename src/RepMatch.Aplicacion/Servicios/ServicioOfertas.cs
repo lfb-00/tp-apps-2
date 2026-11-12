@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using RepMatch.Aplicacion.Mapeo;
+using RepMatch.Aplicacion.Ofertas;
 using RepMatch.Common.Resultados;
 using RepMatch.Contracts;
 using RepMatch.Contracts.Configuracion;
@@ -36,6 +37,7 @@ public sealed class ServicioOfertas(
     IEnumerable<IFuenteOfertas> fuentes,
     IBusquedaRepository busquedas,
     ICatalogoRepuestos catalogo,
+    ICatalogoVehiculos catalogoVehiculos,
     IUnitOfWork unidadDeTrabajo,
     OpcionesOfertas opciones,
     ILogger<ServicioOfertas> log)
@@ -77,7 +79,7 @@ public sealed class ServicioOfertas(
             return ResultadoOperacion<OfertasBusquedaDto>.Falla("No se pudo consultar el catálogo. Probá de nuevo en unos segundos.");
         }
 
-        var consulta = await ConsultarTiendasAsync(piezas, ct);
+        var consulta = await ConsultarTiendasAsync(piezas, busqueda.Vehiculo.ADto(), ct);
 
         var capturadas = new List<Oferta>();
         foreach (var externa in consulta.Ofertas)
@@ -115,13 +117,14 @@ public sealed class ServicioOfertas(
     /// sale de una busqueda guardada.
     /// </summary>
     public async Task<ResumenPreciosBusquedaDto> ResumirAsync(
-        IReadOnlyList<RepuestoDto> piezas, CancellationToken ct = default)
+        IReadOnlyList<RepuestoDto> piezas, VehiculoDto vehiculo, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(piezas);
+        ArgumentNullException.ThrowIfNull(vehiculo);
         if (piezas.Count == 0 || _fuentes.Count == 0)
             return new ResumenPreciosBusquedaDto();
 
-        var consulta = await ConsultarTiendasAsync(piezas, ct);
+        var consulta = await ConsultarTiendasAsync(piezas, vehiculo, ct);
 
         var porPieza = piezas.Select(p =>
         {
@@ -173,8 +176,10 @@ public sealed class ServicioOfertas(
     /// limita sus propios pedidos simultaneos. Una tienda "respondio" si contesto por todas las
     /// piezas: si fallo en alguna, sus ofertas viejas no se tocan.
     /// </summary>
-    private async Task<ResultadoTiendas> ConsultarTiendasAsync(IReadOnlyList<RepuestoDto> piezas, CancellationToken ct)
+    private async Task<ResultadoTiendas> ConsultarTiendasAsync(
+        IReadOnlyList<RepuestoDto> piezas, VehiculoDto vehiculo, CancellationToken ct)
     {
+        var vehiculosConocidos = await VehiculosConocidosAsync(ct);
         using var tope = CancellationTokenSource.CreateLinkedTokenSource(ct);
         tope.CancelAfter(TimeSpan.FromSeconds(opciones.TimeoutGlobalSegundos));
 
@@ -190,7 +195,66 @@ public sealed class ServicioOfertas(
         var respondieron = _fuentes.Select(f => f.Nombre)
             .Where(n => !fallidas.Contains(n, StringComparer.OrdinalIgnoreCase)).ToList();
 
-        return new ResultadoTiendas([.. resultados.SelectMany(r => r.Ofertas)], respondieron, fallidas);
+        var ofertas = ClasificarPorEan([.. resultados.SelectMany(r => r.Ofertas)]);
+        var piezasPorCodigo = piezas.ToDictionary(p => p.CodigoCanonico, StringComparer.OrdinalIgnoreCase);
+        var candidatasPorNombre = 0;
+        var descartadas = 0;
+        var motivos = new Dictionary<string, int>(StringComparer.Ordinal);
+        var aceptadas = new List<OfertaExternaDto>(ofertas.Count);
+
+        foreach (var oferta in ofertas)
+        {
+            if (oferta.Coincidencia == CoincidenciasOferta.ProbablePorNombre)
+                candidatasPorNombre++;
+
+            if (piezasPorCodigo.TryGetValue(oferta.CodigoRepuesto, out var pieza)
+                && ValidadorCandidatoOferta.MotivoRechazo(oferta, pieza, vehiculo, vehiculosConocidos) is { } motivo)
+            {
+                descartadas++;
+                motivos[motivo] = motivos.GetValueOrDefault(motivo) + 1;
+                continue;
+            }
+
+            aceptadas.Add(oferta);
+        }
+
+        if (candidatasPorNombre > 0)
+        {
+            log.LogInformation(
+                "Validacion de candidatos por nombre: vehiculo={Vehiculo}, candidatas={Candidatas}, descartadas={Descartadas}, tasaDescarte={TasaDescarte:P1}, motivos={Motivos}",
+                vehiculo, candidatasPorNombre, descartadas,
+                (double)descartadas / candidatasPorNombre,
+                motivos.Count == 0 ? "ninguno" : string.Join(", ", motivos.Select(m => $"{m.Key}:{m.Value}")));
+        }
+
+        return new ResultadoTiendas(aceptadas, respondieron, fallidas);
+    }
+
+    private async Task<IReadOnlyList<OpcionVehiculoDto>> VehiculosConocidosAsync(CancellationToken ct)
+    {
+        try
+        {
+            return await catalogoVehiculos.ListarOpcionesAsync(ct);
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested && ex is HttpRequestException or TaskCanceledException)
+        {
+            log.LogWarning(ex, "No se pudo consultar el catalogo vehicular para validar candidatos por nombre");
+            return [];
+        }
+    }
+
+    private static IReadOnlyList<OfertaExternaDto> ClasificarPorEan(IReadOnlyList<OfertaExternaDto> ofertas)
+    {
+        var eanCompartidos = ofertas
+            .Where(o => !string.IsNullOrWhiteSpace(o.Ean))
+            .GroupBy(o => o.Ean!, StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Select(o => o.Tienda).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1)
+            .Select(g => g.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return [.. ofertas.Select(o => eanCompartidos.Contains(o.Ean ?? string.Empty)
+            ? o with { Coincidencia = CoincidenciasOferta.ExactoPorEan }
+            : o)];
     }
 
     private async Task<(string Tienda, bool Respondio, IReadOnlyList<OfertaExternaDto> Ofertas)> ConsultarAsync(
@@ -229,13 +293,17 @@ public sealed class ServicioOfertas(
                 new Dinero(externa.Precio, externa.Moneda),
                 externa.Url,
                 precioLista: externa.PrecioLista is { } lista ? new Dinero(lista, externa.Moneda) : null,
-                coincidencia: externa.Coincidencia == CoincidenciasOferta.PorCodigo
-                    ? CoincidenciaOferta.PorCodigo
-                    : CoincidenciaOferta.PorNombre,
+                coincidencia: externa.Coincidencia switch
+                {
+                    CoincidenciasOferta.ExactoPorEan => CoincidenciaOferta.ExactoPorEan,
+                    CoincidenciasOferta.ExactoPorCodigo => CoincidenciaOferta.ExactoPorCodigo,
+                    _ => CoincidenciaOferta.ProbablePorNombre
+                },
                 marca: externa.Marca,
                 ean: externa.Ean,
                 referenciaTienda: externa.Referencia,
-                vendedor: externa.Vendedor);
+                vendedor: externa.Vendedor,
+                capturadaEn: externa.CapturadaEn == default ? null : externa.CapturadaEn);
         }
         catch (ExcepcionDominio ex)
         {

@@ -276,8 +276,9 @@ classDiagram
 
     class CoincidenciaOferta {
         <<enumeration>>
-        PorNombre
-        PorCodigo
+        ProbablePorNombre
+        ExactoPorCodigo
+        ExactoPorEan
     }
 
     class ExcepcionDominio {
@@ -481,6 +482,10 @@ classDiagram
             +ObtenerAsync(busquedaId, usuarioId, forzar) ResultadoOperacion~OfertasBusquedaDto~
             +ResumirAsync(piezas) ResumenPreciosBusquedaDto
         }
+
+        class ValidadorCandidatoOferta {
+            +MotivoRechazo(oferta, pieza, vehiculo, opciones) string?
+        }
     }
 
     namespace Factory {
@@ -545,6 +550,8 @@ classDiagram
             <<Adapter>>
             -OpcionesTiendaVtex tienda
             -IHttpClientFactory fabrica
+            -IDistributedCache cache
+            -ResiliencePipeline resiliencia
         }
     }
 
@@ -668,6 +675,7 @@ classDiagram
     ServicioOfertas --> IBusquedaRepository
     ServicioOfertas --> ICatalogoRepuestos : nombre y equivalencias
     ServicioOfertas --> "0..*" IFuenteOfertas : todas en paralelo
+    ServicioOfertas --> ValidadorCandidatoOferta : filtra contradicciones
     IFuenteOfertas <|.. FuenteVtex
 
     IClienteRepository <|.. ClienteRepository
@@ -1016,8 +1024,9 @@ classDiagram
 
         class CoincidenciaOferta {
             <<enumeration>>
-            PorNombre
-            PorCodigo
+            ProbablePorNombre
+            ExactoPorCodigo
+            ExactoPorEan
         }
 
         class ExcepcionDominio {
@@ -1129,6 +1138,10 @@ classDiagram
             +ObtenerAsync(busquedaId, usuarioId, forzar) ResultadoOperacion~OfertasBusquedaDto~
             +ResumirAsync(piezas) ResumenPreciosBusquedaDto
         }
+
+        class ValidadorCandidatoOferta {
+            +MotivoRechazo(oferta, pieza, vehiculo, opciones) string?
+        }
     }
 
     namespace Factory {
@@ -1193,6 +1206,8 @@ classDiagram
             <<Adapter>>
             -OpcionesTiendaVtex tienda
             -IHttpClientFactory fabrica
+            -IDistributedCache cache
+            -ResiliencePipeline resiliencia
         }
     }
 
@@ -1323,6 +1338,7 @@ classDiagram
     ServicioOfertas --> IBusquedaRepository
     ServicioOfertas --> ICatalogoRepuestos : nombre y equivalencias
     ServicioOfertas --> "0..*" IFuenteOfertas : todas en paralelo
+    ServicioOfertas --> ValidadorCandidatoOferta : filtra contradicciones
     IFuenteOfertas <|.. FuenteVtex
 
     IClienteRepository <|.. ClienteRepository

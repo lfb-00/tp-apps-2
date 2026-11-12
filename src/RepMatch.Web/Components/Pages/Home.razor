@@ -408,10 +408,10 @@ else
         erroresAnon = [];
         resultadoAnon = null;
         resumenAnon = null;
+        var vehiculo = vehiculoAnonDto;
 
         try
         {
-            var vehiculo = vehiculoAnonDto;
             if (vehiculo is null)
             {
                 erroresAnon = ["Elegí marca, modelo, año y motor del vehículo."];
@@ -448,7 +448,7 @@ else
             StateHasChanged();
             try
             {
-                resumenAnon = await Fachada.ResumirPreciosAsync(conPiezas.Piezas);
+                resumenAnon = await Fachada.ResumirPreciosAsync(conPiezas.Piezas, vehiculo);
             }
             finally
             {

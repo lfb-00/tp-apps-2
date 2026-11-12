@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using RepMatch.Aplicacion.Mapeo;
 using RepMatch.Aplicacion.Servicios;
 using RepMatch.Contracts;
 using RepMatch.Contracts.Configuracion;
@@ -33,6 +34,19 @@ public class ServicioOfertasTests
         CodigoCanonico = codigo,
         Nombre = nombre,
         Sistema = "Electrico"
+    };
+
+    private static OfertaExternaDto OfertaConEan(string tienda, string referencia, string ean) => new()
+    {
+        CodigoRepuesto = Bateria.CodigoCanonico,
+        Tienda = tienda,
+        Titulo = $"Bateria 12V {tienda}",
+        Precio = 100000m,
+        Moneda = "ARS",
+        Url = $"https://{tienda.ToLowerInvariant()}.example/{referencia}",
+        Referencia = referencia,
+        Ean = ean,
+        Coincidencia = CoincidenciasOferta.ProbablePorNombre
     };
 
     /// <summary>Tienda que responde lo que se le configure por pieza, o que falla.</summary>
@@ -71,10 +85,35 @@ public class ServicioOfertasTests
                 Moneda = "ARS",
                 Url = $"https://{nombre.ToLowerInvariant()}.example/{referencia}",
                 Referencia = referencia,
-                Coincidencia = CoincidenciasOferta.PorNombre
+                Coincidencia = CoincidenciasOferta.ProbablePorNombre
             });
             return this;
         }
+    }
+
+    [Fact]
+    public async Task Dos_tiendas_con_el_mismo_EAN_quedan_identificadas_como_el_mismo_producto()
+    {
+        var e = await SembrarAsync();
+        var codigo = Bateria.CodigoCanonico;
+        var easy = new TiendaFalsa("Easy");
+        var fravega = new TiendaFalsa("Frávega");
+        easy.PorCodigo[codigo] =
+        [
+            OfertaConEan("Easy", "1", "7797535000843")
+        ];
+        fravega.PorCodigo[codigo] =
+        [
+            OfertaConEan("Frávega", "2", "7797535000843")
+        ];
+
+        await using var contexto = CrearContexto();
+        var resultado = await Crear(contexto, null, easy, fravega).ObtenerAsync(e.BusquedaId, e.ClienteId);
+
+        Assert.True(resultado.EsExitoso);
+        Assert.Equal(2, resultado.Valor.Busqueda.Ofertas.Count);
+        Assert.All(resultado.Valor.Busqueda.Ofertas,
+            o => Assert.Equal(CoincidenciasOferta.ExactoPorEan, o.Coincidencia));
     }
 
     private sealed class CatalogoFalso : ICatalogoRepuestos
@@ -92,10 +131,24 @@ public class ServicioOfertasTests
             Task.FromResult<IReadOnlyList<RepuestoDto>>([Bateria, Pastillas]);
     }
 
+    private sealed class CatalogoVehiculosFalso : ICatalogoVehiculos
+    {
+        public Task<IReadOnlyList<OpcionVehiculoDto>> ListarOpcionesAsync(CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyList<OpcionVehiculoDto>>(
+            [
+                new OpcionVehiculoDto { Marca = "Volkswagen", Modelo = "Gol", AnioDesde = 2009, AnioHasta = 2019, Motor = "1.6" },
+                new OpcionVehiculoDto { Marca = "Toyota", Modelo = "Corolla", AnioDesde = 2014, AnioHasta = 2026, Motor = "1.8" }
+            ]);
+
+        public Task<bool> EsConfiguracionValidaAsync(VehiculoDto vehiculo, CancellationToken ct = default) =>
+            Task.FromResult(true);
+    }
+
     private static ServicioOfertas Crear(RepMatchDbContext contexto, OpcionesOfertas? opciones = null, params IFuenteOfertas[] tiendas) =>
         new(tiendas,
             new BusquedaRepository(contexto),
             new CatalogoFalso(),
+            new CatalogoVehiculosFalso(),
             new UnitOfWork(contexto),
             opciones ?? new OpcionesOfertas(),
             NullLogger<ServicioOfertas>.Instance);
@@ -304,7 +357,7 @@ public class ServicioOfertasTests
         var fravega = new TiendaFalsa("Frávega").Con("BATE-12V-60AH", "2", 113000m);
 
         await using var contexto = CrearContexto();
-        var resumen = await Crear(contexto, null, easy, fravega).ResumirAsync([Bateria, Pastillas]);
+        var resumen = await Crear(contexto, null, easy, fravega).ResumirAsync([Bateria, Pastillas], Gol.ADto());
 
         var bateria = Assert.Single(resumen.Piezas, p => p.CodigoRepuesto == "BATE-12V-60AH");
         Assert.Equal(100810m, bateria.Desde);

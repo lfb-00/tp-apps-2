@@ -13,6 +13,7 @@ descartó y cómo se ve en el código real.
 | [Adapter](#adapter-catalogoremoto) | `src/RepMatch.Clientes.Rest/CatalogoRemoto.cs`, `src/RepMatch.Clientes.Soap/CatalogoSoap.cs` y, para la API externa, `src/RepMatch.Fuentes.Vtex/FuenteVtex.cs` |
 | [Observer](#observer-despachador-de-eventos-de-dominio) | `src/RepMatch.Aplicacion/Eventos/` — `IDespachadorEventos`, `DespachadorEventos`, `IObservadorEventoDominio`, `ObservadorCompatibilidad`; los eventos (`BusquedaCreada` y los de la colaboración con el mecánico) en `src/RepMatch.Domain/Eventos/` |
 | [Facade](#facade-fachadaaplicacion) | `src/RepMatch.Aplicacion/Fachada/FachadaAplicacion.cs` |
+| [Circuit Breaker](#circuit-breaker-por-tienda) | `src/RepMatch.Fuentes.Vtex/FuenteVtex.cs` |
 
 El catálogo vehicular y el componente de IA de la Segunda Parte repiten Factory, Strategy y Adapter
 con contratos propios, el servicio SOAP suma una tercera estrategia al catálogo de repuestos y las
@@ -599,6 +600,32 @@ duplicar publicaciones y de marcar lo que desapareció vive en el dominio
 **Facade.** `FachadaAplicacion.ObtenerOfertasAsync` (búsqueda guardada, para el dueño o el mecánico
 asignado) y `ResumirPreciosAsync` (búsqueda sin sesión, sin guardar nada) son la única entrada de
 la presentación a los precios.
+
+## Circuit Breaker por tienda
+
+**Dónde vive.** Cada instancia singleton de `FuenteVtex` construye su propio pipeline de Polly:
+timeout por tienda, hasta dos reintentos con espera exponencial y un circuito que abre después de
+tres fallos dentro de 30 segundos durante otros 30 segundos. `IDistributedCache` comparte las
+respuestas entre instancias cuando se configura Redis; sin esa conexión, se registra la caché en
+memoria.
+
+**Qué problema resuelve.** Una API lenta o caída no debe acumular esperas ni bloquear las consultas
+posteriores a esa misma tienda. Cuando el timeout se agota o el circuito ya está abierto,
+`FuenteVtex` lo traduce a `HttpRequestException`, que `ServicioOfertas` convierte en un fallo de esa
+fuente: conserva resultados de las demás y no marca como agotadas sus ofertas anteriores. Los
+fallos de Redis al leer o guardar se registran y la fuente sigue consultando la red.
+
+**Qué pasaría sin él.** Cada solicitud volvería a esperar el timeout completo y podría repetir
+consultas inútiles contra una tienda caída; además, un fallo del circuito o del timeout de Polly
+podría escapar del contrato esperado por `ServicioOfertas` y abortar la agregación completa.
+
+**Código.** `FuenteVtex` configura `AddCircuitBreaker`, `AddRetry` y `AddTimeout`; el límite de
+concurrencia por tienda se mantiene aparte. Compose configura `ConnectionStrings:Redis` y espera a
+que Redis esté saludable antes de iniciar la Web.
+
+Ver [FuenteVtex.cs](../src/RepMatch.Fuentes.Vtex/FuenteVtex.cs),
+[ExtensionesFuentesVtex.cs](../src/RepMatch.Fuentes.Vtex/ExtensionesFuentesVtex.cs) y
+[docker-compose.yml](../docker-compose.yml).
 
 ## Documentación relacionada
 

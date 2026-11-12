@@ -96,9 +96,12 @@ public static class Mapeadores
         Disponible = oferta.Disponible,
         CapturadaEn = oferta.CapturadaEn,
         PrecioLista = oferta.PrecioLista?.Monto,
-        Coincidencia = oferta.Coincidencia == CoincidenciaOferta.PorCodigo
-            ? CoincidenciasOferta.PorCodigo
-            : CoincidenciasOferta.PorNombre,
+        Coincidencia = oferta.Coincidencia switch
+        {
+            CoincidenciaOferta.ExactoPorEan => CoincidenciasOferta.ExactoPorEan,
+            CoincidenciaOferta.ExactoPorCodigo => CoincidenciasOferta.ExactoPorCodigo,
+            _ => CoincidenciasOferta.ProbablePorNombre
+        },
         Marca = oferta.Marca,
         Ean = oferta.Ean,
         Vendedor = oferta.Vendedor

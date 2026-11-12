@@ -89,7 +89,12 @@ public sealed class OfertaConfiguration : IEntityTypeConfiguration<Oferta>
         b.Property(o => o.UrlOriginal).HasMaxLength(1000).IsRequired();
         b.Property(o => o.Disponible).IsRequired();
         b.Property(o => o.CapturadaEn).IsRequired();
-        b.Property(o => o.Coincidencia).HasConversion<string>().HasMaxLength(20).IsRequired();
+        b.Property(o => o.Coincidencia)
+            .HasConversion(
+                valor => ATexto(valor),
+                texto => DesdeTexto(texto))
+            .HasMaxLength(20)
+            .IsRequired();
         b.Property(o => o.Marca).HasMaxLength(80);
         b.Property(o => o.Ean).HasMaxLength(20);
         b.Property(o => o.ReferenciaTienda).HasMaxLength(80);
@@ -117,4 +122,19 @@ public sealed class OfertaConfiguration : IEntityTypeConfiguration<Oferta>
 
         b.HasIndex(o => o.Ean);
     }
+
+    private static string ATexto(CoincidenciaOferta valor) => valor switch
+    {
+        CoincidenciaOferta.ExactoPorCodigo => nameof(CoincidenciaOferta.ExactoPorCodigo),
+        CoincidenciaOferta.ExactoPorEan => nameof(CoincidenciaOferta.ExactoPorEan),
+        _ => nameof(CoincidenciaOferta.ProbablePorNombre)
+    };
+
+    private static CoincidenciaOferta DesdeTexto(string texto) => texto switch
+    {
+        "PorCodigo" or nameof(CoincidenciaOferta.ExactoPorCodigo) => CoincidenciaOferta.ExactoPorCodigo,
+        nameof(CoincidenciaOferta.ExactoPorEan) => CoincidenciaOferta.ExactoPorEan,
+        "PorNombre" or nameof(CoincidenciaOferta.ProbablePorNombre) => CoincidenciaOferta.ProbablePorNombre,
+        _ => throw new InvalidOperationException($"Nivel de coincidencia desconocido: '{texto}'.")
+    };
 }

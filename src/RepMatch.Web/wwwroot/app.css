@@ -904,6 +904,10 @@ button.btn-peligro:hover:not(:disabled) { background: var(--color-error); border
 .precios-cargando { display: flex; align-items: center; gap: 0.4rem; }
 .precios-resumen strong { color: var(--color-text); }
 .ofertas { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.55rem; }
+.ofertas-titulo { margin: 0.25rem 0 0.5rem; font-size: 0.84rem; }
+.ofertas-probables { margin-top: 0.65rem; }
+.ofertas-probables summary { color: var(--color-text-muted); font-size: 0.84rem; cursor: pointer; }
+.ofertas-probables .ofertas { margin-top: 0.5rem; }
 .oferta {
     display: grid;
     grid-template-columns: 1fr auto;

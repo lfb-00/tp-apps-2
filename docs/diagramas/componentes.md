@@ -14,11 +14,11 @@ referencias declaradas.
 | `RepMatch.Persistence` | **Acceso a datos** | `DbContext`, mapeos, repositorios, unidad de trabajo | Domain (y una referencia declarada a Common que hoy ningún archivo usa) |
 | `RepMatch.Common` | **Utilidad** | Validación, logging, configuración, `ResultadoOperacion<T>`, medición de latencia, correlación | *nada del proyecto* |
 | `RepMatch.Contracts` | Contratos | DTOs, `ICatalogoRepuestos`, `ICatalogoVehiculos`, `IDiagnosticador`, `IFuenteOfertas`, `OpcionesCatalogo`, `OpcionesIA`, `OpcionesOfertas` | *nada del proyecto* |
-| `RepMatch.Aplicacion` | Lógica de negocio | Servicios (incluidos `ServicioDiagnostico` y `ServicioOfertas`), `FachadaAplicacion`, despacho y observadores de eventos, mapeadores, validadores, `CatalogoLocal`, `CatalogoVehiculosLocal` | Domain, Common, Contracts |
+| `RepMatch.Aplicacion` | Lógica de negocio | Servicios (incluidos `ServicioDiagnostico` y `ServicioOfertas`), `FachadaAplicacion`, despacho y observadores de eventos, mapeadores, validadores (incluido `ValidadorCandidatoOferta`), `CatalogoLocal`, `CatalogoVehiculosLocal` | Domain, Common, Contracts |
 | `RepMatch.Clientes.Rest` | Adaptador remoto | `CatalogoRemoto`, `CatalogoVehiculosRemoto`, `DiagnosticadorRemoto`, propagación de correlación | Common, Contracts |
 | `RepMatch.IA` | Componente de IA | `DiagnosticadorLlm`, `DiagnosticadorLocal` (TF-IDF + k-NN), `DiagnosticadorConRespaldo`, filtro de datos personales, corpus de síntomas embebido | Common, Contracts |
 | `RepMatch.Clientes.Soap` | Adaptador SOAP | `CatalogoSoap` y el proxy generado desde el WSDL de `Catalogo.Soap` | Common, Contracts |
-| `RepMatch.Fuentes.Vtex` | Adaptador de API externa | `FuenteVtex` (una instancia por tienda configurada), `LectorVtex`, `AgregarFuentesOfertas` | Common, Contracts |
+| `RepMatch.Fuentes.Vtex` | Adaptador resiliente de API externa | `FuenteVtex` (una instancia por tienda, con timeout, reintentos y circuito), `LectorVtex`, caché distribuida, `AgregarFuentesOfertas` | Common, Contracts |
 
 ## Diagrama
 
@@ -45,12 +45,12 @@ flowchart TB
     subgraph comp["📦 Componentes reutilizables"]
         subgraph app_sub["RepMatch.Aplicacion"]
             FACH["FachadaAplicacion<br/><i>patrón Facade</i>"]
-            APP["ServicioClientes · ServicioBusquedas<br/>ServicioMecanicos · ServicioRevisiones · ServicioDerivaciones<br/>ServicioDiagnostico · ServicioOfertas · ObservadorCompatibilidad<br/><b>CatalogoLocal · CatalogoVehiculosLocal</b>"]
+            APP["ServicioClientes · ServicioBusquedas<br/>ServicioMecanicos · ServicioRevisiones · ServicioDerivaciones<br/>ServicioDiagnostico · ServicioOfertas · ObservadorCompatibilidad<br/>ValidadorCandidatoOferta<br/><b>CatalogoLocal · CatalogoVehiculosLocal</b>"]
         end
         REST["RepMatch.Clientes.Rest<br/><b>CatalogoRemoto · CatalogoVehiculosRemoto<br/>DiagnosticadorRemoto</b>"]
         SOAPC["RepMatch.Clientes.Soap<br/><b>CatalogoSoap</b><br/>proxy generado desde el WSDL"]
         IA["RepMatch.IA<br/><b>DiagnosticadorConRespaldo</b><br/>DiagnosticadorLlm · DiagnosticadorLocal"]
-        VTEX["RepMatch.Fuentes.Vtex<br/><b>FuenteVtex</b> · LectorVtex<br/>una instancia por tienda"]
+        VTEX["RepMatch.Fuentes.Vtex<br/><b>FuenteVtex</b> · LectorVtex<br/>Polly: retry · timeout · circuit breaker"]
         CON["RepMatch.Contracts<br/><b>«interface» ICatalogoRepuestos · ICatalogoVehiculos<br/>«interface» IDiagnosticador · IFuenteOfertas</b><br/>DTOs · OpcionesCatalogo · OpcionesIA · OpcionesOfertas"]
         PER["RepMatch.Persistence<br/>RepMatchDbContext · Repositorios · UnitOfWork"]
         DOM["RepMatch.Domain<br/>Entidades · Value objects<br/><b>«interface» IRepuestoRepository · IConfiguracionVehiculoRepository</b>"]
@@ -147,7 +147,10 @@ la petición las piezas compatibles que ya resolvió el catálogo y elige entre 
 Las tiendas son el caso opuesto: no se elige una, se usan todas. `AgregarFuentesOfertas` registra un
 `FuenteVtex` por cada tienda de la sección `Ofertas` (hoy Easy y Frávega), y `ServicioOfertas`
 recibe la lista completa de `IFuenteOfertas` y las consulta en paralelo. Cada una sale por HTTPS a
-la API pública de catálogo de su tienda.
+la API pública de catálogo de su tienda. `FuenteVtex` aísla los fallos por tienda con Polly y cachea
+las respuestas mediante `IDistributedCache`; `ServicioOfertas` clasifica los EAN compartidos entre
+tiendas y descarta las coincidencias probables por nombre que contradicen los datos conocidos del
+vehículo.
 
 También hay dos implementaciones de `ICatalogoVehiculos`: `CatalogoVehiculosLocal` consulta
 `IConfiguracionVehiculoRepository` y `CatalogoVehiculosRemoto` consume `GET /api/vehiculos/opciones`.

@@ -26,7 +26,8 @@ namespace RepMatch.Fuentes.Vtex;
 public static class LectorVtex
 {
     public static IReadOnlyList<OfertaExternaDto> Leer(
-        string json, OpcionesTiendaVtex tienda, ConsultaOfertasDto consulta, string termino, bool esCodigo)
+        string json, OpcionesTiendaVtex tienda, ConsultaOfertasDto consulta, string termino, bool esCodigo,
+        DateTimeOffset? capturadaEn = null)
     {
         ArgumentNullException.ThrowIfNull(tienda);
         ArgumentNullException.ThrowIfNull(consulta);
@@ -50,7 +51,8 @@ public static class LectorVtex
             if (mejor is null)
                 continue;
 
-            if (esCodigo ? !MencionaCodigo(producto, mejor.Value.Item, termino) : !EmpiezaComo(titulo, consulta.Nombre))
+            var coincidencia = Coincidencia(producto, mejor.Value.Item, consulta, termino, esCodigo);
+            if (esCodigo ? coincidencia is null : !EmpiezaComo(titulo, consulta.Nombre))
                 continue;
 
             var (item, precio, precioLista, vendedor) = mejor.Value;
@@ -63,11 +65,13 @@ public static class LectorVtex
                 PrecioLista = precioLista > precio ? precioLista : null,
                 Moneda = tienda.Moneda,
                 Url = url,
-                Coincidencia = esCodigo ? CoincidenciasOferta.PorCodigo : CoincidenciasOferta.PorNombre,
+                Coincidencia = coincidencia ?? CoincidenciasOferta.ProbablePorNombre,
                 Marca = Vacio(Texto(producto, "brand")),
                 Ean = Vacio(Texto(item, "ean")),
                 Referencia = Vacio(Texto(producto, "productId")) ?? Vacio(Texto(item, "itemId")),
-                Vendedor = Vacio(vendedor)
+                Vendedor = Vacio(vendedor),
+                Atributos = Atributos(producto),
+                CapturadaEn = capturadaEn ?? DateTimeOffset.UtcNow
             });
         }
 
@@ -128,14 +132,65 @@ public static class LectorVtex
         {
             Texto(producto, "productName"),
             Texto(producto, "productReference"),
-            Texto(item, "nameComplete"),
-            Texto(item, "ean")
+            Texto(item, "nameComplete")
         };
         if (item.TryGetProperty("referenceId", out var referencias) && referencias.ValueKind == JsonValueKind.Array)
             lugares.AddRange(referencias.EnumerateArray().Select(r => Texto(r, "Value")));
 
         return lugares.OfType<string>().Any(l => SoloAlfanumerico(l).Contains(buscado, StringComparison.Ordinal));
     }
+
+    private static string? Coincidencia(
+        JsonElement producto, JsonElement item, ConsultaOfertasDto consulta, string termino, bool esCodigo)
+    {
+        if (!esCodigo)
+            return null;
+
+        var ean = Texto(item, "ean");
+        if (!string.IsNullOrWhiteSpace(ean)
+            && SoloAlfanumerico(ean).Equals(SoloAlfanumerico(termino), StringComparison.OrdinalIgnoreCase))
+            return CoincidenciasOferta.ExactoPorEan;
+
+        return consulta.CodigosEquivalentes
+            .Append(consulta.CodigoRepuesto)
+            .Any(c => MencionaCodigo(producto, item, c))
+                ? CoincidenciasOferta.ExactoPorCodigo
+                : null;
+    }
+
+    private static IReadOnlyList<string> Atributos(JsonElement producto)
+    {
+        if (producto.ValueKind != JsonValueKind.Object)
+            return [];
+
+        return [.. producto.EnumerateObject()
+            .Where(p => EsAtributoVehiculo(p.Name))
+            .SelectMany(p => ValoresAtributo(p.Value).Select(v => $"{p.Name}: {v}"))];
+    }
+
+    private static bool EsAtributoVehiculo(string nombre)
+    {
+        var clave = SoloAlfanumerico(nombre);
+        return clave.Contains("modelo", StringComparison.Ordinal)
+            || clave.Contains("vehiculo", StringComparison.Ordinal)
+            || clave.Contains("compatib", StringComparison.Ordinal)
+            || clave.Contains("anio", StringComparison.Ordinal)
+            || clave.Contains("ano", StringComparison.Ordinal)
+            || clave.Contains("posicion", StringComparison.Ordinal)
+            || clave.Contains("lado", StringComparison.Ordinal)
+            || clave.Contains("sistema", StringComparison.Ordinal)
+            || clave.Contains("aplicacion", StringComparison.Ordinal);
+    }
+
+    private static IEnumerable<string> ValoresAtributo(JsonElement valor) =>
+        valor.ValueKind switch
+        {
+            JsonValueKind.String when !string.IsNullOrWhiteSpace(valor.GetString()) => [valor.GetString()!],
+            JsonValueKind.Array => valor.EnumerateArray()
+                .Where(e => e.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(e.GetString()))
+                .Select(e => e.GetString()!),
+            _ => []
+        };
 
     private static bool EmpiezaComo(string titulo, string nombrePieza)
     {

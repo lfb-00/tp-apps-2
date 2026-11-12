@@ -40,6 +40,16 @@ x-tiendas: &tiendas
   Ofertas__Tiendas__1__CacheMinutos: "${OFERTAS_CACHE_MINUTOS:-10}"
 
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: repmatch-redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [repmatch]
+
   postgres:
     image: postgres:17-alpine
     container_name: repmatch-postgres
@@ -117,6 +127,7 @@ services:
     container_name: repmatch-web
     environment:
       <<: [*conexion-postgres, *tiendas]
+      ConnectionStrings__Redis: redis:6379
       ASPNETCORE_ENVIRONMENT: Development
       # Repuestos por SOAP contra catalogo-soap; opciones de vehiculo por REST contra
       # catalogo-api. Catalogo__Modo=Remoto o Local cambian el camino sin recompilar.
@@ -142,6 +153,8 @@ services:
         condition: service_healthy
       ia-api:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     networks: [repmatch]
 
   # --- Perfiles opcionales -------------------------------------------------------------
@@ -157,6 +170,7 @@ services:
     container_name: repmatch-web-local
     environment:
       <<: [*conexion-postgres, *llm, *tiendas]
+      ConnectionStrings__Redis: redis:6379
       ASPNETCORE_ENVIRONMENT: Development
       Catalogo__Modo: Local
       IA__Modo: Local
@@ -167,6 +181,8 @@ services:
       - "${PUERTO_WEB_LOCAL:-8090}:8080"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks: [repmatch]
 

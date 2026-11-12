@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using RepMatch.Domain.Entidades;
 using RepMatch.Domain.ValueObjects;
 using RepMatch.Persistence;
 
@@ -32,6 +33,18 @@ public class ModeloEfTests
         Assert.NotNull(modelo.FindEntityType(typeof(RepMatch.Domain.Entidades.Repuesto)));
         Assert.NotNull(modelo.FindEntityType(typeof(RepMatch.Domain.Entidades.Busqueda)));
         Assert.NotNull(modelo.FindEntityType(typeof(RepMatch.Domain.Entidades.Oferta)));
+    }
+
+    [Fact]
+    public void Lee_los_niveles_de_coincidencia_anteriores_a_la_migracion_de_nombres()
+    {
+        using var contexto = CrearContexto(Guid.NewGuid().ToString());
+        var propiedad = contexto.Model.FindEntityType(typeof(Oferta))!
+            .FindProperty(nameof(Oferta.Coincidencia))!;
+        var conversion = propiedad.GetValueConverter()!;
+
+        Assert.Equal(CoincidenciaOferta.ExactoPorCodigo, conversion.ConvertFromProvider("PorCodigo"));
+        Assert.Equal(CoincidenciaOferta.ProbablePorNombre, conversion.ConvertFromProvider("PorNombre"));
     }
 
     [Fact]
@@ -222,7 +235,7 @@ public class ModeloEfTests
                     busqueda.Id, "BATE-12V-60AH", "Easy", "Batería 12X65 Cm Cb410 Enerbox",
                     Dinero.Pesos(100810m), "https://www.easy.com.ar/bateria-enerbox-tipo-12x65-cb410-1304479/p",
                     precioLista: Dinero.Pesos(118600m),
-                    coincidencia: RepMatch.Domain.Entidades.CoincidenciaOferta.PorNombre,
+                    coincidencia: RepMatch.Domain.Entidades.CoincidenciaOferta.ProbablePorNombre,
                     marca: "Enerbox", ean: "7797535000843", referenciaTienda: "1304479", vendedor: "EASY")
             ]);
             await contexto.Busquedas.AddAsync(busqueda);

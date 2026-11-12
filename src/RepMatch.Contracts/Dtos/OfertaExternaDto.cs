@@ -4,12 +4,14 @@ namespace RepMatch.Contracts.Dtos;
 /// REST, SOAP o la cola.</summary>
 public static class CoincidenciasOferta
 {
-    /// <summary>La publicacion menciona un codigo OEM o equivalente de la pieza: es la misma pieza.</summary>
-    public const string PorCodigo = "PorCodigo";
+    /// <summary>La publicacion trae el EAN consultado o comparte EAN con otra tienda.</summary>
+    public const string ExactoPorEan = "ExactoPorEan";
 
-    /// <summary>Se encontro por el nombre de la pieza: puede no ser la medida exacta del vehiculo, y
-    /// la pantalla lo advierte. La validacion fina de atributos es el issue #30.</summary>
-    public const string PorNombre = "PorNombre";
+    /// <summary>La publicacion menciona un codigo OEM o equivalente de la pieza.</summary>
+    public const string ExactoPorCodigo = "ExactoPorCodigo";
+
+    /// <summary>La publicacion coincide por nombre y no se pudo confirmar con una identidad exacta.</summary>
+    public const string ProbablePorNombre = "ProbablePorNombre";
 }
 
 /// <summary>Lo que se le pregunta a cada tienda: una pieza del catalogo y como reconocerla.</summary>
@@ -23,8 +25,8 @@ public sealed record ConsultaOfertasDto
 }
 
 /// <summary>
-/// Una publicacion de una tienda, normalizada por el adapter. El EAN se conserva aunque hoy no se
-/// use para comparar: si dos tiendas publican el mismo EAN es el mismo producto (issue #29).
+/// Una publicacion de una tienda, normalizada por el adapter. Si dos tiendas publican el mismo
+/// EAN, ambas ofertas se clasifican como coincidencias exactas de la misma pieza (issue #29).
 /// </summary>
 public sealed record OfertaExternaDto
 {
@@ -43,6 +45,8 @@ public sealed record OfertaExternaDto
     public required string Coincidencia { get; init; }
     public string? Marca { get; init; }
     public string? Ean { get; init; }
+    public IReadOnlyList<string> Atributos { get; init; } = [];
+    public DateTimeOffset CapturadaEn { get; init; }
 
     /// <summary>Identificador de la publicacion dentro de la tienda. Junto con la tienda, distingue
     /// dos publicaciones distintas de la misma pieza.</summary>

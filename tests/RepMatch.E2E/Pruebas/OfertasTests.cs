@@ -25,6 +25,18 @@ public sealed class OfertasTests(NavegadorFixture fixture, ITestOutputHelper sal
     private static ILocator Ofertas(IPage pagina, string codigo) =>
         Precios(pagina, codigo).Locator("li.oferta");
 
+    private static async Task MostrarProbablesAsync(IPage pagina, string codigo)
+    {
+        var detalles = Precios(pagina, codigo).Locator("details.ofertas-probables");
+        if (await detalles.CountAsync() == 0)
+            return;
+
+        if (await detalles.GetAttributeAsync("open") is null)
+            await detalles.Locator("summary").ClickAsync();
+
+        await Expect(detalles).ToHaveAttributeAsync("open", "");
+    }
+
     [Fact]
     public async Task El_cliente_ve_las_ofertas_de_la_mas_barata_a_la_mas_cara_despues_de_las_piezas()
     {
@@ -54,6 +66,9 @@ public sealed class OfertasTests(NavegadorFixture fixture, ITestOutputHelper sal
         await ClienteConGolAsync(Pagina);
         await BuscarConSesionAsync(Pagina, TextoBateria);
 
+        await Expect(Precios(Pagina, Bateria).Locator("details.ofertas-probables > summary"))
+            .ToHaveTextAsync("Coincidencias probables por nombre (4)");
+        await MostrarProbablesAsync(Pagina, Bateria);
         var enlace = Ofertas(Pagina, Bateria).First.GetByRole(AriaRole.Link, new() { Name = "Ir a la tienda" });
         var href = await enlace.GetAttributeAsync("href");
         Assert.Matches("^/derivar/[0-9a-f-]{36}$", href!);
@@ -106,6 +121,7 @@ public sealed class OfertasTests(NavegadorFixture fixture, ITestOutputHelper sal
         await IrAsync(mecanicoPagina, $"/consultas/{id}");
         var ofertas = Ofertas(mecanicoPagina, Bateria);
         await Expect(ofertas).ToHaveCountAsync(4);
+        await MostrarProbablesAsync(mecanicoPagina, Bateria);
         await Expect(ofertas.First.GetByRole(AriaRole.Link, new() { Name = "Ver en la tienda" }))
             .ToHaveAttributeAsync("href", "https://www.easy.com.ar/bateria-enerbox-tipo-12x65-cb410-1304479/p");
         await Expect(mecanicoPagina.Locator("a[href^='/derivar/']")).ToHaveCountAsync(0);
@@ -132,6 +148,7 @@ public sealed class OfertasTests(NavegadorFixture fixture, ITestOutputHelper sal
         await IrAsync(Pagina, $"/consultas/{id}");
         var ofertas = Ofertas(Pagina, Bateria);
         await Expect(ofertas).ToHaveCountAsync(4);
+        await MostrarProbablesAsync(Pagina, Bateria);
         await Expect(ofertas.First).ToContainTextAsync("Recomendada por tu mecánico");
         await Expect(ofertas.First.GetByRole(AriaRole.Link, new() { Name = "Ir a la tienda" }))
             .ToHaveAttributeAsync("href", new Regex("^/derivar/"));
