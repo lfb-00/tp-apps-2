@@ -72,6 +72,9 @@ Las pruebas, también sin instalar nada:
 docker compose --profile test run --rm tests
 ```
 
+La suite levanta PostgreSQL para probar en paralelo dos inicializadores sobre una base temporal
+aislada; las demás pruebas siguen usando InMemory.
+
 Para bajar todo (`-v` borra además el volumen de la base):
 
 ```bash
@@ -191,7 +194,7 @@ Sí, usa base de datos, con **dos proveedores intercambiables por configuración
 
 | Proveedor | Cuándo se usa | Para qué sirve |
 |---|---|---|
-| **PostgreSQL 17** | En `docker compose` | Persistencia real, compartida entre los dos servicios, con volumen |
+| **PostgreSQL 17** | En `docker compose` | Persistencia real, compartida entre los hosts .NET, con volumen |
 | **InMemory** | Por defecto fuera de Docker, y en las pruebas | Correr y demostrar la app sin instalar nada |
 
 El acceso va por EF Core 10 con Npgsql, detrás de los repositorios declarados en el dominio. El
@@ -211,8 +214,10 @@ captura, porque los precios envejecen rápido. Hoy la entidad `Oferta` existe, p
 ninguna.
 
 Si la base todavía no acepta conexiones cuando arranca un servicio, `InicializarBaseAsync` reintenta
-hasta diez veces con espera creciente. En compose eso además está cubierto por el `healthcheck` de
-`postgres` con `pg_isready`.
+hasta diez veces con espera creciente. En PostgreSQL, un bloqueo advisory serializa entre procesos
+la creación del esquema y la carga de la semilla, porque varios hosts pueden arrancar contra la
+misma base al mismo tiempo. En compose, la disponibilidad de `postgres` además está cubierta por
+su `healthcheck` con `pg_isready`.
 
 ## Configuración
 

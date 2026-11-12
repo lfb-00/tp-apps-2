@@ -136,13 +136,18 @@ services:
     networks: [repmatch]
 
   # Corre las pruebas sin necesidad de tener el SDK de .NET instalado.
-  # No depende de postgres: usan el proveedor InMemory.
+  # La prueba de inicializacion concurrente usa una base temporal aislada en PostgreSQL.
   tests:
     profiles: [test]
     build:
       context: .
       dockerfile: tests/RepMatch.Tests/Dockerfile
     image: repmatch/tests:tp-inicial
+    environment:
+      REPMATCH_TEST_POSTGRES: "Host=postgres;Port=5432;Database=repmatch;Username=repmatch;Password=repmatch"
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks: [repmatch]
 
 volumes:

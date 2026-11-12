@@ -23,6 +23,9 @@ public enum ProveedorPersistencia
 /// </summary>
 public static class ExtensionesPersistencia
 {
+    // Todos los hosts usan la misma clave para serializar la inicializacion de la base compartida.
+    private const long ClaveBloqueoInicializacion = 0x524D5041544348;
+
     public static IServiceCollection AgregarPersistencia(
         this IServiceCollection servicios, IConfiguration configuracion)
     {
@@ -55,8 +58,8 @@ public static class ExtensionesPersistencia
     }
 
     /// <summary>
-    /// Crea el esquema si hace falta y siembra el catalogo. Con Postgres reintenta: en
-    /// docker compose la API suele arrancar antes de que la base acepte conexiones.
+    /// Crea el esquema si hace falta y siembra el catalogo. Con Postgres reintenta si la base
+    /// todavia no acepta conexiones y serializa la inicializacion entre los hosts concurrentes.
     /// </summary>
     public static async Task InicializarBaseAsync(
         this IServiceProvider servicios, CancellationToken ct = default)
@@ -65,6 +68,8 @@ public static class ExtensionesPersistencia
         var contexto = alcance.ServiceProvider.GetRequiredService<RepMatchDbContext>();
         var log = alcance.ServiceProvider.GetRequiredService<ILoggerFactory>()
             .CreateLogger(typeof(ExtensionesPersistencia));
+        var usarBloqueoPostgres =
+            contexto.Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL";
 
         const int intentosMaximos = 10;
 
@@ -72,8 +77,15 @@ public static class ExtensionesPersistencia
         {
             try
             {
-                await contexto.Database.EnsureCreatedAsync(ct);
-                await DatosSemilla.SembrarAsync(contexto, ct);
+                if (usarBloqueoPostgres)
+                {
+                    await InicializarPostgresConBloqueoAsync(contexto, ct);
+                }
+                else
+                {
+                    await contexto.Database.EnsureCreatedAsync(ct);
+                    await DatosSemilla.SembrarAsync(contexto, ct);
+                }
 
                 log.LogInformation("Base de datos lista (proveedor {Proveedor}).",
                     contexto.Database.ProviderName);
@@ -90,5 +102,51 @@ public static class ExtensionesPersistencia
 
         throw new InvalidOperationException(
             $"No se pudo inicializar la base de datos tras {intentosMaximos} intentos.");
+    }
+
+    private static async Task InicializarPostgresConBloqueoAsync(
+        RepMatchDbContext contexto, CancellationToken ct)
+    {
+        var baseDatos = contexto.Database;
+        await baseDatos.OpenConnectionAsync(ct);
+        var bloqueoAdquirido = false;
+
+        try
+        {
+            await EjecutarBloqueoAdvisoryAsync(contexto, adquirir: true, ct);
+            bloqueoAdquirido = true;
+
+            await baseDatos.EnsureCreatedAsync(ct);
+            await DatosSemilla.SembrarAsync(contexto, ct);
+        }
+        finally
+        {
+            try
+            {
+                if (bloqueoAdquirido)
+                    await EjecutarBloqueoAdvisoryAsync(contexto, adquirir: false, CancellationToken.None);
+            }
+            finally
+            {
+                await baseDatos.CloseConnectionAsync();
+            }
+        }
+    }
+
+    private static async Task EjecutarBloqueoAdvisoryAsync(
+        RepMatchDbContext contexto, bool adquirir, CancellationToken ct)
+    {
+        await using var comando = contexto.Database.GetDbConnection().CreateCommand();
+        var parametro = comando.CreateParameter();
+        parametro.ParameterName = "clave";
+        parametro.Value = ClaveBloqueoInicializacion;
+        comando.Parameters.Add(parametro);
+        comando.CommandText = adquirir
+            ? "SELECT pg_advisory_lock(@clave)"
+            : "SELECT pg_advisory_unlock(@clave)";
+
+        var resultado = await comando.ExecuteScalarAsync(ct);
+        if (!adquirir && resultado is not true)
+            throw new InvalidOperationException("No se pudo liberar el bloqueo de inicializacion de PostgreSQL.");
     }
 }

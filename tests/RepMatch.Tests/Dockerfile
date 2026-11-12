@@ -24,7 +24,7 @@ COPY src/ src/
 COPY tests/ tests/
 RUN dotnet build tests/RepMatch.Tests/RepMatch.Tests.csproj -c Release --no-restore
 
-# Las pruebas no tocan la red ni la base: usan el proveedor InMemory y hospedan
-# Catalogo.Api en memoria con WebApplicationFactory.
+# La mayoria de las pruebas usan InMemory; la prueba de inicializacion concurrente usa
+# una base PostgreSQL temporal cuando REPMATCH_TEST_POSTGRES esta configurada.
 ENTRYPOINT ["dotnet", "test", "tests/RepMatch.Tests/RepMatch.Tests.csproj", \
             "-c", "Release", "--no-build", "--nologo"]

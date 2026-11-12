@@ -62,7 +62,8 @@ usuario `app`, sin privilegios de root.
 `postgres` declara un `healthcheck` con `pg_isready` y los servicios .NET que usan la base dependen de
 `condition: service_healthy`; la Web espera además a que `catalogo-api` e `ia-api` respondan `/salud`: sin eso, la API arranca antes de que la base acepte conexiones. Como
 segunda red de seguridad, `ExtensionesPersistencia.InicializarBaseAsync` reintenta hasta diez veces
-con espera creciente.
+con espera creciente. Como varios hosts inicializan la base compartida, un bloqueo advisory de
+PostgreSQL serializa la creación del esquema y la carga de los datos semilla.
 
 ### Los dos modos de ejecución
 
