@@ -156,6 +156,7 @@ public sealed class FlujoDistribuidoTests(InfraestructuraDistribuidaFixture infr
                 [new FuenteOfertasFija()],
                 new BusquedaRepository(contexto),
                 catalogo,
+                new CatalogoVehiculosFalso(),
                 new UnitOfWork(contexto),
                 new OpcionesOfertas(),
                 NullLogger<ServicioOfertas>.Instance);
@@ -233,6 +234,7 @@ public sealed class FlujoDistribuidoTests(InfraestructuraDistribuidaFixture infr
             [new FuenteColgada()],
             new BusquedaRepository(contexto),
             catalogo,
+            new CatalogoVehiculosFalso(),
             new UnitOfWork(contexto),
             new OpcionesOfertas { TimeoutGlobalSegundos = 1 },
             NullLogger<ServicioOfertas>.Instance);
@@ -343,9 +345,18 @@ public sealed class FlujoDistribuidoTests(InfraestructuraDistribuidaFixture infr
                     Precio = 12345m,
                     Moneda = "ARS",
                     Url = $"https://tienda.example/{Uri.EscapeDataString(consulta.CodigoRepuesto)}",
-                    Coincidencia = CoincidenciasOferta.PorCodigo
+                    Coincidencia = CoincidenciasOferta.ExactoPorCodigo
                 }
             ]);
+    }
+
+    private sealed class CatalogoVehiculosFalso : ICatalogoVehiculos
+    {
+        public Task<IReadOnlyList<OpcionVehiculoDto>> ListarOpcionesAsync(CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyList<OpcionVehiculoDto>>([]);
+
+        public Task<bool> EsConfiguracionValidaAsync(VehiculoDto vehiculo, CancellationToken ct = default) =>
+            Task.FromResult(true);
     }
 
     private sealed class FuenteColgada : IFuenteOfertas

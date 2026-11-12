@@ -1,8 +1,8 @@
 # Pruebas de punta a punta (Playwright) de RepMatch
 # Generado por scripts/e2e.sh. No editar a mano.
 
-Fecha:   2026-11-12 06:02 -0300
-Commit:  e90bd48
+Fecha:   2026-11-12 07:37 -0300
+Commit:  b9c792f
 Modo:    pruebas en local, app en docker compose (web con SOAP y REST, y web-local), sin clave de LLM, precios del simulador de tiendas
 
 | Fase | Estado | Resumen de dotnet test |

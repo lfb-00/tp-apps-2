@@ -95,7 +95,7 @@ compose_e2e() { docker compose --project-name "$COMPOSE_PROJECT_NAME" --profile 
 apagar() {
   if [ "$DEJAR" -eq 0 ]; then
     paso "Apagando el entorno"
-    compose down >/dev/null 2>&1 || true
+    compose down -v --remove-orphans
   else
     aviso "El entorno queda levantado: Web http://localhost:$PUERTO_WEB · Local http://localhost:$PUERTO_WEB_LOCAL"
   fi

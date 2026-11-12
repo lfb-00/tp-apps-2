@@ -17,6 +17,7 @@ namespace RepMatch.E2E.Pruebas;
 public sealed class ColaTests(NavegadorFixture fixture, ITestOutputHelper salida) : PruebaE2E(fixture, salida)
 {
     private const string TextoBateria = "no arranca hace clic clic al girar la llave";
+    private const string CodigoBateria = "BATE-12V-60AH";
 
     private static HttpClient Rabbit()
     {
@@ -28,6 +29,21 @@ public sealed class ColaTests(NavegadorFixture fixture, ITestOutputHelper salida
 
     private static HttpClient Worker() =>
         new() { BaseAddress = new Uri(Entorno.UrlWorker.TrimEnd('/') + "/"), Timeout = TimeSpan.FromSeconds(5) };
+
+    private static ILocator Ofertas(IPage pagina) =>
+        pagina.Locator($".precios[data-codigo='{CodigoBateria}'] li.oferta");
+
+    private static async Task MostrarProbablesAsync(IPage pagina)
+    {
+        var detalles = pagina.Locator($".precios[data-codigo='{CodigoBateria}'] details.ofertas-probables");
+        if (await detalles.CountAsync() == 0)
+            return;
+
+        if (await detalles.GetAttributeAsync("open") is null)
+            await detalles.Locator("summary").ClickAsync();
+
+        await Expect(detalles).ToHaveAttributeAsync("open", "");
+    }
 
     private static async Task<bool> RespondeAsync(HttpClient http, string ruta)
     {
@@ -83,7 +99,8 @@ public sealed class ColaTests(NavegadorFixture fixture, ITestOutputHelper salida
 
         await ClienteConGolAsync(Pagina);
         await BuscarConSesionAsync(Pagina, TextoBateria);
-        var primera = Pagina.Locator(".precios li.oferta").First;
+        await MostrarProbablesAsync(Pagina);
+        var primera = Ofertas(Pagina).First;
         await Expect(primera).ToBeVisibleAsync();
         var tienda = (await primera.Locator(".oferta-tienda").InnerTextAsync()).Split('·')[0].Trim();
         var href = await primera.GetByRole(AriaRole.Link, new() { Name = "Ir a la tienda" }).GetAttributeAsync("href");
@@ -116,7 +133,8 @@ public sealed class ColaTests(NavegadorFixture fixture, ITestOutputHelper salida
         await ClienteConGolAsync(Pagina);
         var id = await BuscarConSesionAsync(Pagina, TextoBateria);
 
-        var href = await Pagina.Locator(".precios li.oferta").First
+        await MostrarProbablesAsync(Pagina);
+        var href = await Ofertas(Pagina).First
             .GetByRole(AriaRole.Link, new() { Name = "Ir a la tienda" }).GetAttributeAsync("href");
         var respuesta = await Pagina.APIRequest.GetAsync(href!, new() { MaxRedirects = 0 });
         Assert.Equal(302, respuesta.Status);
