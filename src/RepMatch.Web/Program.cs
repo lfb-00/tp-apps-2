@@ -100,7 +100,12 @@ try
 {
     Log.Information("Web iniciada. Modo de acceso al catalogo: {Modo} ({Url})",
         opciones.Modo,
-        opciones.Modo == ModoAccesoCatalogo.Remoto ? opciones.UrlBaseRemota : "en proceso");
+        opciones.Modo switch
+        {
+            ModoAccesoCatalogo.Remoto => opciones.UrlBaseRemota,
+            ModoAccesoCatalogo.Soap => $"repuestos por SOAP en {opciones.UrlSoap}, vehiculos por REST en {opciones.UrlBaseRemota}",
+            _ => "en proceso"
+        });
     Log.Information("Modo de acceso a la IA: {Modo} ({Url})",
         opcionesIA.Modo,
         opcionesIA.Modo == ModoAccesoIA.Remoto ? opcionesIA.UrlBaseRemota : "en proceso");

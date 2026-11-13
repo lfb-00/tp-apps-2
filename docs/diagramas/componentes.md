@@ -30,6 +30,10 @@ flowchart TB
         CTRL["RepuestosController<br/>ClientesController<br/>BusquedasController<br/>VehiculosController"]
     end
 
+    subgraph host_soap["🖥️ Host: RepMatch.Catalogo.Soap (SOAP · CoreWCF)"]
+        SVCSOAP["ServicioConsultaCompatibilidad<br/><i>«contrato» IConsultaCompatibilidad · WSDL</i>"]
+    end
+
     subgraph host_ia["🖥️ Host: RepMatch.IA.Api (REST)"]
         CTRLIA["DiagnosticoController"]
     end
@@ -40,6 +44,7 @@ flowchart TB
             APP["ServicioClientes · ServicioBusquedas<br/>ServicioMecanicos · ServicioRevisiones · ServicioDerivaciones<br/>ServicioDiagnostico · ObservadorCompatibilidad<br/><b>CatalogoLocal · CatalogoVehiculosLocal</b>"]
         end
         REST["RepMatch.Clientes.Rest<br/><b>CatalogoRemoto · CatalogoVehiculosRemoto<br/>DiagnosticadorRemoto</b>"]
+        SOAPC["RepMatch.Clientes.Soap<br/><b>CatalogoSoap</b><br/>proxy generado desde el WSDL"]
         IA["RepMatch.IA<br/><b>DiagnosticadorConRespaldo</b><br/>DiagnosticadorLlm · DiagnosticadorLocal"]
         CON["RepMatch.Contracts<br/><b>«interface» ICatalogoRepuestos · ICatalogoVehiculos<br/>«interface» IDiagnosticador</b><br/>DTOs · OpcionesCatalogo · OpcionesIA"]
         PER["RepMatch.Persistence<br/>RepMatchDbContext · Repositorios · UnitOfWork"]
@@ -57,16 +62,20 @@ flowchart TB
     FACH --> CON
     FCAT -. "Catalogo:Modo = Local" .-> APP
     FCAT -. "Catalogo:Modo = Remoto" .-> REST
+    FCAT -. "Catalogo:Modo = Soap (repuestos)" .-> SOAPC
     FDIAG -. "IA:Modo = Local" .-> IA
     FDIAG -. "IA:Modo = Remoto" .-> REST
 
     APP -- implementa --> CON
     REST -- implementa --> CON
+    SOAPC -- implementa --> CON
     IA -- implementa --> CON
     APP -- "IDiagnosticador" --> CON
 
     REST == "HTTP · JSON" ==> CTRL
     REST == "HTTP · JSON" ==> CTRLIA
+    SOAPC == "SOAP · XML" ==> SVCSOAP
+    SVCSOAP --> APP
     CTRL --> APP
     CTRL --> CON
     CTRL -- "diagnóstico en proceso" --> IA
@@ -78,6 +87,7 @@ flowchart TB
     APP --> DOM
     APP --> COM
     REST --> COM
+    SOAPC --> COM
     PER -- implementa --> DOM
     PER -. "referencia declarada, sin uso" .-> COM
     PER --> BD
@@ -87,34 +97,35 @@ flowchart TB
     style CON fill:#eaf2fa,stroke:#1f5f9e,stroke-width:2px
     style APP fill:#e6f4ec,stroke:#1f7a4d
     style REST fill:#fbf0e2,stroke:#9a5b13
+    style SOAPC fill:#fbf0e2,stroke:#9a5b13
     style IA fill:#f3ecfa,stroke:#6b3fa0
     style DOM fill:#f6f7f9,stroke:#5b6472
 ```
 
 ## Acceso local vs. remoto
 
-Éste es el ejercicio central del TP Inicial, y el diagrama lo muestra en el par de flechas punteadas
-que salen de `FabricaCatalogo`.
+Éste es el ejercicio central del TP Inicial, y el diagrama lo muestra en las flechas punteadas que
+salen de `FabricaCatalogo`.
 
-**Para repuestos: una interfaz, dos implementaciones:**
+**Para repuestos: una interfaz, tres implementaciones** (la SOAP, desde la Segunda Parte)**:**
 
 Ver [ICatalogoRepuestos.cs](../../src/RepMatch.Contracts/ICatalogoRepuestos.cs).
 
-| | Local | Remoto |
-|---|---|---|
-| Implementación | `Aplicacion.Catalogo.CatalogoLocal` | `Clientes.Rest.CatalogoRemoto` |
-| Mecanismo | Invocación directa en proceso, por referencia de proyecto | HTTP + JSON contra `Catalogo.Api` |
-| Recorrido | `CatalogoLocal → IRepuestoRepository → EF Core → BD` | `HttpClient → GET /api/repuestos/compatibles → CatalogoLocal (en el otro proceso) → BD` |
-| Serialización | ninguna | query string de entrada y JSON de respuesta |
-| Latencia en régimen (mediana) | **~2 ms** | **~7 ms** |
+| | Local | Remoto | SOAP |
+|---|---|---|---|
+| Implementación | `Aplicacion.Catalogo.CatalogoLocal` | `Clientes.Rest.CatalogoRemoto` | `Clientes.Soap.CatalogoSoap` |
+| Mecanismo | Invocación directa en proceso, por referencia de proyecto | HTTP + JSON contra `Catalogo.Api` | SOAP 1.1 por HTTP contra `Catalogo.Soap`, con proxy generado desde el WSDL |
+| Recorrido | `CatalogoLocal → IRepuestoRepository → EF Core → BD` | `HttpClient → GET /api/repuestos/compatibles → CatalogoLocal (en el otro proceso) → BD` | `canal WCF → POST /ConsultaCompatibilidad.svc → CatalogoLocal (en el otro proceso) → BD` |
+| Serialización | ninguna | query string de entrada y JSON de respuesta | XML descripto por el WSDL |
+| Latencia en régimen (mediana) | **~3 ms** | **~12 ms** | **~25 ms** |
 
 La selección se hace en `RepMatch.Web/Servicios/FabricaCatalogo.cs`, leyendo la clave
 `Catalogo:Modo` (o la variable de entorno `Catalogo__Modo`). **No hay recompilación de por medio**, y
 ningún consumidor —ni `FachadaAplicacion`, ni `ObservadorCompatibilidad`— se entera de cuál está enchufada.
 
-Para la Segunda Parte está previsto agregar una tercera implementación sobre SOAP (CoreWCF), sin
-tocar ni la interfaz ni sus consumidores. Todavía no existe en el código: hoy solo están
-`CatalogoLocal` y `CatalogoRemoto`.
+La tercera, `CatalogoSoap`, entró en la Segunda Parte sin tocar ni la interfaz ni sus consumidores:
+`FabricaCatalogo` suma el caso `Catalogo:Modo=Soap`, que deja los repuestos por SOAP y las opciones
+de vehículo por REST. Es el modo de la Web en docker compose.
 
 El componente de IA repite el ejercicio con `IDiagnosticador`: `FabricaDiagnostico` lo enlaza a
 `DiagnosticadorConRespaldo` (en proceso, la biblioteca `RepMatch.IA`) o a `DiagnosticadorRemoto`

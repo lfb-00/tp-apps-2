@@ -1,0 +1,15 @@
+{
+  "providerId": "Microsoft.Tools.ServiceModel.Svcutil",
+  "version": "8.0.0",
+  "options": {
+    "inputs": [
+      "http://localhost:5082/ConsultaCompatibilidad.svc?wsdl"
+    ],
+    "namespaceMappings": [
+      "*, RepMatch.Clientes.Soap.ServicioSoap"
+    ],
+    "outputFile": "ConsultaCompatibilidad.cs",
+    "targetFramework": "net10.0",
+    "typeReuseMode": "All"
+  }
+}

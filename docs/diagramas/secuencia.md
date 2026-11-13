@@ -328,7 +328,8 @@ Código de referencia: [Home.razor](../../src/RepMatch.Web/Components/Pages/Home
 El ejemplo es una consulta de compatibilidad desde la fachada. Factory selecciona las estrategias
 al arrancar, los consumidores usan los contratos. En modo Remoto, Adapter construye la petición
 HTTP y devuelve DTOs. En ambos caminos, Repository consulta los candidatos con EF Core y el
-dominio decide la compatibilidad de motor. La API siempre usa los catálogos locales.
+dominio decide la compatibilidad de motor. La API siempre usa los catálogos locales. El tercer camino,
+por SOAP, está en la [secuencia 8](#8-consulta-de-repuestos-por-soap).
 
 ```mermaid
 sequenceDiagram
@@ -595,3 +596,65 @@ Código de referencia: [DiagnosticadorConRespaldo.cs](../../src/RepMatch.IA/Diag
 [DiagnosticadorLlm.cs](../../src/RepMatch.IA/Llm/DiagnosticadorLlm.cs),
 [DiagnosticadorLocal.cs](../../src/RepMatch.IA/Local/DiagnosticadorLocal.cs) y
 [DiagnosticadorRemoto.cs](../../src/RepMatch.Clientes.Rest/DiagnosticadorRemoto.cs).
+
+## 8. Consulta de repuestos por SOAP
+
+Es el modo con que arranca la Web en docker compose (`Catalogo:Modo=Soap`). La fachada usa los
+mismos contratos que en la secuencia 5: las opciones de vehículo siguen por REST y los repuestos
+salen por SOAP. `CatalogoSoap` arma la llamada con el proxy generado desde el WSDL y traduce los
+errores de WCF a `HttpRequestException`, así la fachada los trata igual que los del camino REST.
+
+```mermaid
+sequenceDiagram
+    actor Usuario
+    participant Web as Home o Catalogo.razor
+    participant Fachada as FachadaAplicacion
+    participant Vehiculos as CatalogoVehiculosRemoto
+    participant Api as Catalogo.Api
+    participant Soap as CatalogoSoap
+    participant Canal as Canal WCF (proxy del WSDL)
+    participant Servicio as ServicioConsultaCompatibilidad
+    participant Local as CatalogoLocal de Catalogo.Soap
+    participant BD as EF Core y base de datos
+
+    Usuario->>Web: consultar vehículo y sistema opcional
+    Web->>Fachada: BuscarRepuestosAsync
+    Fachada->>Vehiculos: EsConfiguracionValidaAsync
+    Vehiculos->>Api: GET /api/vehiculos/opciones (REST, JSON)
+    Api-->>Vehiculos: opciones
+    Vehiculos-->>Fachada: true
+    Fachada->>Soap: BuscarCompatiblesAsync, vía ConsultarAsync
+    Soap->>Canal: CrearCanal sobre la fábrica compartida
+    Canal->>Servicio: POST /ConsultaCompatibilidad.svc<br/>sobre SOAP ConsultarPorVehiculo + X-Correlation-Id
+    alt vehículo incompleto
+        Servicio-->>Canal: fault SOAP "Indicá marca, modelo y año"
+    else vehículo válido
+        Servicio->>Local: BuscarCompatiblesAsync en un ámbito de DI nuevo
+        Local->>BD: consultar candidatos y filtrar por compatibilidad
+        BD-->>Local: repuestos
+        Local-->>Servicio: DTOs
+        Servicio-->>Canal: Repuesto[] en XML
+    end
+    alt respuesta correcta
+        Canal-->>Soap: Repuesto[] del proxy
+        Soap->>Soap: traducir a RepuestoDto y cerrar el canal
+        Soap-->>Fachada: lista de DTOs
+        Fachada-->>Web: Exito con piezas
+    else fault, servicio caído o timeout
+        Canal-->>Soap: FaultException, EndpointNotFoundException o TimeoutException
+        Soap->>Soap: abortar el canal
+        Soap-->>Fachada: HttpRequestException
+        Note over Fachada: ConsultarAsync devuelve Falla con mensaje legible,<br/>igual que en el camino REST
+        Fachada-->>Web: Falla
+    end
+    Web-->>Usuario: resultados o mensaje de error
+```
+
+En la búsqueda con cuenta el recorrido es el mismo, pero lo dispara `ObservadorCompatibilidad` a
+través de `ServicioDiagnostico` (secuencias 1 y 7): si el servicio SOAP no responde, la búsqueda
+queda `Fallida` con el motivo "No se pudo consultar el catálogo para completar la búsqueda".
+
+Código de referencia: [CatalogoSoap.cs](../../src/RepMatch.Clientes.Soap/CatalogoSoap.cs),
+[FabricaCanalSoap.cs](../../src/RepMatch.Clientes.Soap/FabricaCanalSoap.cs),
+[ServicioConsultaCompatibilidad.cs](../../src/RepMatch.Catalogo.Soap/ServicioConsultaCompatibilidad.cs) y
+[IConsultaCompatibilidad.cs](../../src/RepMatch.Catalogo.Soap/Contrato/IConsultaCompatibilidad.cs).

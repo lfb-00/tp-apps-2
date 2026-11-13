@@ -15,13 +15,14 @@ bash scripts/e2e.sh
 El script hace todo solo:
 
 1. Borra la base local (`docker compose down -v`) para arrancar siempre de la semilla.
-2. Levanta el entorno completo: `web` (modo Remoto, 8080), `web-local` (modo Local, 8090),
-   `catalogo-api`, `ia-api` y `postgres`.
-3. Corre las pruebas en tres fases:
-   - **Normal**: todo arriba.
+2. Levanta el entorno completo: `web` (8080, repuestos por SOAP y vehículos e IA por REST),
+   `web-local` (modo Local, 8090), `catalogo-api`, `catalogo-soap`, `ia-api` y `postgres`.
+3. Corre las pruebas en cuatro fases:
+   - **Normal**: todo arriba. Como la Web busca los repuestos por SOAP, cada búsqueda prueba SOAP.
    - **SinIA**: frena `ia-api` y comprueba que la búsqueda sigue funcionando.
-   - **SinCatalogo**: frena `catalogo-api` y comprueba que la app no se cae.
-4. Apaga el entorno y muestra un resumen. Termina con código 0 si las tres fases pasan.
+   - **SinCatalogo**: frena `catalogo-api` (REST) y comprueba que la app no se cae.
+   - **SinSoap**: frena `catalogo-soap` y comprueba que la búsqueda avisa y la app no se cae.
+4. Apaga el entorno y muestra un resumen. Termina con código 0 si las cuatro fases pasan.
 
 Si la máquina tiene el SDK de .NET 10, las pruebas corren directamente en ella (más rápido). Si
 no, corren dentro de un contenedor (`docker compose --profile e2e`), con Chromium ya instalado en
@@ -57,7 +58,8 @@ Local), que son los puertos de `dotnet run`. Variables para cambiarlo:
 |---|---|---|
 | `E2E_URL_WEB` | `http://localhost:5080` | Web principal |
 | `E2E_URL_WEB_LOCAL` | `http://localhost:5090` | Web en modo Local; si no responde, esa prueba se omite |
-| `E2E_ESCENARIO` | `Normal` | `SinIA` o `SinCatalogo` para las pruebas de resiliencia |
+| `E2E_URL_CATALOGO_SOAP` | `http://localhost:5082` | Servicio SOAP, para pedirle el WSDL |
+| `E2E_ESCENARIO` | `Normal` | `SinIA`, `SinCatalogo` o `SinSoap` para las pruebas de resiliencia |
 | `E2E_VENTANA` | `0` | `1` abre el navegador visible y en cámara lenta |
 | `E2E_RESULTADOS` | `bin/.../resultados` | Carpeta de capturas y trazas |
 
@@ -76,9 +78,9 @@ Todo queda en `tests/RepMatch.E2E/resultados/` (está en `.gitignore`):
 - `trazas/`: la grabación paso a paso de cada prueba, con capturas, DOM y red de cada acción. Se
   abre arrastrando el `.zip` a <https://trace.playwright.dev> (lo procesa en el navegador, no lo
   sube a ningún servidor).
-- `Normal.trx`, `SinIA.trx`, `SinCatalogo.trx`: los reportes de cada fase, y `Normal.log`,
-  `SinIA.log`, `SinCatalogo.log` con la salida de consola.
-- `resumen.txt`: el resultado de las tres fases. Con `bash scripts/e2e.sh --evidencia` se copia a
+- `Normal.trx`, `SinIA.trx`, `SinCatalogo.trx`, `SinSoap.trx`: los reportes de cada fase, y los
+  `.log` con el mismo nombre, con la salida de consola.
+- `resumen.txt`: el resultado de las cuatro fases. Con `bash scripts/e2e.sh --evidencia` se copia a
   `docs/evidencias/09-pruebas-e2e.txt` para la entrega (el informe lo enlaza en la sección 5.5).
 
 Además de lo que afirma cada prueba, **todas fallan si la web muestra el cartel "Ocurrió un error
@@ -91,13 +93,14 @@ al final.
 |---|---|
 | `AutenticacionTests` | Ingreso, registro como cliente y mecánico, errores de cada campo, email repetido, cerrar sesión, recargar |
 | `BusquedaTests` | Búsqueda con y sin sesión, validaciones, chips, consulta guardada, HTML en el texto, doble clic |
-| `IATests` | Tarjeta de diagnóstico, piezas elegidas, urgencia, diagnóstico guardado, texto no reconocido, problema sin piezas, Local vs. Remoto |
+| `IATests` | Tarjeta de diagnóstico, piezas elegidas, urgencia, diagnóstico guardado, texto no reconocido, problema sin piezas, Web Local vs. Web principal (SOAP) |
 | `CatalogoYGarageTests` | Catálogo completo y filtrado, vehículo sin piezas, alta en el garage, vehículo repetido |
 | `PerfilTests` | Datos, foto (válida, no imagen, más de 5 MB), vehículo predeterminado, tema, contraseña, baja de la cuenta |
 | `PermisosTests` | Páginas sin sesión, cliente en `/taller`, consulta ajena, mecánico no asignado, datos privados, botón atrás tras salir, `/derivar` inexistente |
 | `MecanicoTests` | Compartir, confirmar, corregir, dejar de compartir, límite del plan gratuito, directorio Pro primero, baja del mecánico, datos del taller |
 | `InterfazTests` | Tema, menú y búsqueda en celular, rutas viejas, `/salud`, correlation id |
-| `ResilienciaTests` | IA caída y catálogo caído (solo en sus fases) |
+| `ServicioSoapTests` | El WSDL se descarga con sus cuatro operaciones; una llamada SOAP cruda (un sobre XML por POST) responde |
+| `ResilienciaTests` | IA caída, catálogo REST caído y servicio SOAP caído (solo en sus fases) |
 
 No miden la **exactitud** de la IA: eso es una prueba aparte sobre frases etiquetadas.
 

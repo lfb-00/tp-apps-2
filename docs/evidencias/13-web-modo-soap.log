@@ -1,0 +1,45 @@
+Usando la configuración de inicio de src\RepMatch.Web\Properties\launchSettings.json...
+[21:50:57 INF] [Web] [] Base de datos lista (proveedor Microsoft.EntityFrameworkCore.InMemory).
+[21:50:57 INF] [Web] [] Web iniciada. Modo de acceso al catalogo: Soap (repuestos por SOAP en http://localhost:5082/ConsultaCompatibilidad.svc, vehiculos por REST en http://localhost:5081)
+[21:50:57 INF] [Web] [] Modo de acceso a la IA: Local (en proceso)
+[21:50:58 INF] [Web] [] Now listening on: http://localhost:5080
+[21:50:58 INF] [Web] [] Application started. Press Ctrl+C to shut down.
+[21:50:58 INF] [Web] [] Hosting environment: Development
+[21:50:58 INF] [Web] [] Content root path: C:\Repos\tp-apps-2-soap\src\RepMatch.Web
+[21:51:00 INF] [Web] [0ff3a16b7749] HTTP GET /salud responded 200 in 75.7989 ms
+[21:51:05 INF] [Web] [ff8409e7c793] Catalogo[Soap] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:51:05 INF] [Web] [ff8409e7c793] Evidencia acceso origen=Soap duracion=2.252,9ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
+[21:51:05 INF] [Web] [ff8409e7c793] HTTP GET /evidencia/catalogo responded 200 in 2969.2545 ms
+[21:51:20 INF] [Web] [203b5cc41b9e] Catalogo[Soap] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:51:20 INF] [Web] [203b5cc41b9e] Evidencia acceso origen=Soap duracion=178,7ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
+[21:51:20 INF] [Web] [203b5cc41b9e] HTTP GET /evidencia/catalogo responded 200 in 180.7743 ms
+[21:51:23 INF] [Web] [e41e77a14eb1] Catalogo[Soap] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:51:23 INF] [Web] [e41e77a14eb1] Evidencia acceso origen=Soap duracion=27,5ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
+[21:51:23 INF] [Web] [e41e77a14eb1] HTTP GET /evidencia/catalogo responded 200 in 32.4751 ms
+[21:51:25 INF] [Web] [b67235328781] Catalogo[Soap] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:51:25 INF] [Web] [b67235328781] Evidencia acceso origen=Soap duracion=21,7ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
+[21:51:25 INF] [Web] [b67235328781] HTTP GET /evidencia/catalogo responded 200 in 22.1217 ms
+[21:51:26 INF] [Web] [3408d130de8a] Catalogo[Soap] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:51:26 INF] [Web] [3408d130de8a] Evidencia acceso origen=Soap duracion=18,3ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
+[21:51:26 INF] [Web] [3408d130de8a] HTTP GET /evidencia/catalogo responded 200 in 18.7764 ms
+[21:51:27 INF] [Web] [977fce6fe9e4] Catalogo[Soap] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:51:27 INF] [Web] [977fce6fe9e4] Evidencia acceso origen=Soap duracion=13,8ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
+[21:51:27 INF] [Web] [977fce6fe9e4] HTTP GET /evidencia/catalogo responded 200 in 14.5789 ms
+[21:51:29 INF] [Web] [4cd7c209e8c3] Catalogo[Soap] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:51:29 INF] [Web] [4cd7c209e8c3] Evidencia acceso origen=Soap duracion=9,8ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
+[21:51:29 INF] [Web] [4cd7c209e8c3] HTTP GET /evidencia/catalogo responded 200 in 10.2225 ms
+[21:51:30 INF] [Web] [f8782e7a313b] Catalogo[Soap] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:51:30 INF] [Web] [f8782e7a313b] Evidencia acceso origen=Soap duracion=11,4ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
+[21:51:30 INF] [Web] [f8782e7a313b] HTTP GET /evidencia/catalogo responded 200 in 11.8546 ms
+[21:51:55 INF] [Web] [9320e8b13452] Catalogo[Soap] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:51:55 INF] [Web] [9320e8b13452] Evidencia acceso origen=Soap duracion=90,4ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
+[21:51:55 INF] [Web] [9320e8b13452] HTTP GET /evidencia/catalogo responded 200 in 91.6627 ms
+[21:52:00 INF] [Web] [a8766d62fd35] Catalogo[Soap] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:52:00 INF] [Web] [a8766d62fd35] Evidencia acceso origen=Soap duracion=65,1ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
+[21:52:00 INF] [Web] [a8766d62fd35] HTTP GET /evidencia/catalogo responded 200 in 80.2052 ms
+[21:52:03 INF] [Web] [35c958faf47b] Catalogo[Soap] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:52:03 INF] [Web] [35c958faf47b] Evidencia acceso origen=Soap duracion=50,0ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
+[21:52:03 INF] [Web] [35c958faf47b] HTTP GET /evidencia/catalogo responded 200 in 50.4684 ms
+[21:52:06 INF] [Web] [7c26179d8900] Catalogo[Soap] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:52:06 INF] [Web] [7c26179d8900] Evidencia acceso origen=Soap duracion=293,9ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
+[21:52:06 INF] [Web] [7c26179d8900] HTTP GET /evidencia/catalogo responded 200 in 304.4139 ms

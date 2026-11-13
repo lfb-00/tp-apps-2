@@ -15,6 +15,13 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
   </ItemGroup>
 
+  <!-- CoreWCF.Http (via Catalogo.Soap) arrastra paquetes Microsoft.AspNetCore.* 2.x, uno con una
+       vulnerabilidad conocida (NU1902). Con el framework compartido declarado, NuGet los descarta y
+       se usa el de .NET 10, como ya pasa en Catalogo.Soap, que usa el SDK Web. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
@@ -27,6 +34,9 @@
     <ProjectReference Include="..\..\src\RepMatch.Catalogo.Api\RepMatch.Catalogo.Api.csproj" />
     <ProjectReference Include="..\..\src\RepMatch.Aplicacion\RepMatch.Aplicacion.csproj" />
     <ProjectReference Include="..\..\src\RepMatch.Clientes.Rest\RepMatch.Clientes.Rest.csproj" />
+    <ProjectReference Include="..\..\src\RepMatch.Clientes.Soap\RepMatch.Clientes.Soap.csproj" />
+    <!-- Mismo motivo que Web: Catalogo.Soap tambien expone su propia clase Program. -->
+    <ProjectReference Include="..\..\src\RepMatch.Catalogo.Soap\RepMatch.Catalogo.Soap.csproj" Aliases="Soap" />
     <!-- Con alias: Web y Catalogo.Api generan cada uno su clase Program publica, y sin esto
          WebApplicationFactory<Program> de las pruebas de integracion seria ambiguo. -->
     <ProjectReference Include="..\..\src\RepMatch.Web\RepMatch.Web.csproj" Aliases="Web" />

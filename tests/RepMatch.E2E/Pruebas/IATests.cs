@@ -80,8 +80,9 @@ public sealed class IATests(NavegadorFixture fixture, ITestOutputHelper salida) 
         await Expect(Piezas(Pagina)).ToHaveCountAsync(PiezasCompatiblesGol);
     }
 
+    /// <summary>La Web principal busca los repuestos por SOAP; web-local, en proceso. Mismo resultado.</summary>
     [SkippableFact]
-    public async Task La_Web_en_modo_Local_diagnostica_igual_que_en_modo_Remoto()
+    public async Task La_Web_en_modo_Local_diagnostica_igual_que_la_principal_por_SOAP()
     {
         Skip.IfNot(await RespondeAsync(Entorno.UrlWebLocal),
             $"La Web en modo Local no responde en {Entorno.UrlWebLocal} (perfil 'local' de compose).");

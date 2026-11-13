@@ -3,14 +3,15 @@
 #
 #   bash scripts/evidencias.sh
 #
-# Levanta Catalogo.Api, corre la Web primero en modo Local y despues en modo Remoto ejecutando
-# la misma consulta, y deja los logs de los tres procesos en docs/evidencias/. Al final corre las
+# Levanta Catalogo.Api y Catalogo.Soap, corre la Web en modo Local, Remoto y Soap ejecutando la
+# misma consulta, y deja los logs de los procesos, el WSDL y las mediciones en docs/evidencias/. Al final corre las
 # pruebas automatizadas y deja su resultado en 08-pruebas.txt (scripts/evidencia-pruebas.sh).
 set -euo pipefail
 
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SALIDA="$RAIZ/docs/evidencias"
 API_URL="http://localhost:5081"
+SOAP_URL="http://localhost:5082"
 WEB_URL="http://localhost:5080"
 
 mkdir -p "$SALIDA"
@@ -19,8 +20,10 @@ cd "$RAIZ"
 limpiar() {
   taskkill //F //IM RepMatch.Web.exe          >/dev/null 2>&1 || true
   taskkill //F //IM RepMatch.Catalogo.Api.exe >/dev/null 2>&1 || true
-  pkill -f RepMatch.Web          >/dev/null 2>&1 || true
-  pkill -f RepMatch.Catalogo.Api >/dev/null 2>&1 || true
+  taskkill //F //IM RepMatch.Catalogo.Soap.exe >/dev/null 2>&1 || true
+  pkill -f RepMatch.Web           >/dev/null 2>&1 || true
+  pkill -f RepMatch.Catalogo.Api  >/dev/null 2>&1 || true
+  pkill -f RepMatch.Catalogo.Soap >/dev/null 2>&1 || true
 }
 trap limpiar EXIT
 
@@ -83,6 +86,24 @@ medir "$SALIDA/07-medicion-remota.json"
 echo
 sleep 1
 
+taskkill //F //IM RepMatch.Web.exe >/dev/null 2>&1 || pkill -f RepMatch.Web || true
+sleep 3
+
+echo "==> Levantando Catalogo.Soap en $SOAP_URL"
+ASPNETCORE_ENVIRONMENT=Development   dotnet run --project src/RepMatch.Catalogo.Soap --no-build --urls "$SOAP_URL"   > "$SALIDA/12-catalogo-soap.log" 2>&1 &
+esperar "$SOAP_URL"
+
+echo "==> Evidencia 2b: Web en modo SOAP (repuestos por SOAP, vehiculos por REST)"
+ASPNETCORE_ENVIRONMENT=Development Catalogo__Modo=Soap   Catalogo__UrlSoap="$SOAP_URL/ConsultaCompatibilidad.svc" Catalogo__UrlBaseRemota="$API_URL"   dotnet run --project src/RepMatch.Web --no-build --urls "$WEB_URL"   > "$SALIDA/13-web-modo-soap.log" 2>&1 &
+esperar "$WEB_URL"
+medir "$SALIDA/14-medicion-soap.json"
+echo
+sleep 1
+
+echo "==> Evidencia 2c: contrato SOAP (WSDL y esquema de tipos)"
+curl -sf -m 10 "$SOAP_URL/ConsultaCompatibilidad.svc?wsdl" > "$SALIDA/10-wsdl.xml"
+curl -sf -m 10 "$SOAP_URL/ConsultaCompatibilidad.svc?xsd=xsd0" > "$SALIDA/11-wsdl-tipos.xsd"
+
 echo "==> Evidencia 3: llamada directa al contrato REST del componente remoto"
 curl -sf -m 10 "$API_URL/$consulta" \
   | python -m json.tool > "$SALIDA/04-respuesta-rest.json" 2>/dev/null \
@@ -101,4 +122,5 @@ echo
 echo "Evidencias escritas en docs/evidencias/:"
 ls -1 "$SALIDA"
 echo
-echo "La comparacion local/remoto quedo en 06-medicion-local.json y 07-medicion-remota.json."
+echo "La comparacion de los tres caminos quedo en 06-medicion-local.json, 07-medicion-remota.json"
+echo "y 14-medicion-soap.json. El contrato SOAP, en 10-wsdl.xml y 11-wsdl-tipos.xsd."

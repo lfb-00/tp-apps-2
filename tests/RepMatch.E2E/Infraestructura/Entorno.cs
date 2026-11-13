@@ -6,15 +6,19 @@ namespace RepMatch.E2E.Infraestructura;
 /// </summary>
 public static class Entorno
 {
-    /// <summary>La Web en modo Remoto (catalogo e IA por HTTP), como la levanta docker compose.</summary>
+    /// <summary>La Web principal, como la levanta docker compose: repuestos por SOAP, vehiculos e IA
+    /// por REST. Cada busqueda de las pruebas pasa por los dos protocolos.</summary>
     public static string UrlWeb => Leer("E2E_URL_WEB", "http://localhost:5080");
 
     /// <summary>La Web en modo Local (perfil "local" de compose). Si no responde, las pruebas que
     /// comparan los dos modos se omiten.</summary>
     public static string UrlWebLocal => Leer("E2E_URL_WEB_LOCAL", "http://localhost:5090");
 
+    /// <summary>El servicio SOAP del catalogo, para pedirle el WSDL directamente.</summary>
+    public static string UrlCatalogoSoap => Leer("E2E_URL_CATALOGO_SOAP", "http://localhost:5082");
+
     /// <summary>
-    /// Que servicio esta caido a proposito: Normal, SinIA o SinCatalogo. Lo fija scripts/e2e.sh
+    /// Que servicio esta caido a proposito: Normal, SinIA, SinCatalogo o SinSoap. Lo fija scripts/e2e.sh
     /// en cada fase. Las pruebas de resiliencia se omiten salvo en su escenario, y las comunes se
     /// omiten fuera de Normal, asi una corrida nunca mezcla expectativas.
     /// </summary>
@@ -39,6 +43,7 @@ public static class Escenarios
     public const string Normal = "Normal";
     public const string SinIA = "SinIA";
     public const string SinCatalogo = "SinCatalogo";
+    public const string SinSoap = "SinSoap";
 }
 
 /// <summary>Cuentas de DatosSemilla. Todas con la misma contrasenia.</summary>

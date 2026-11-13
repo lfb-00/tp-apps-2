@@ -7,17 +7,19 @@ descartó y cómo se ve en el código real.
 | Patrón | Dónde vive |
 |---|---|
 | [Factory](#factory-fabricacatalogo) | `src/RepMatch.Web/Servicios/FabricaCatalogo.cs` |
-| [Strategy](#strategy-icatalogorepuestos-con-dos-implementaciones) | `src/RepMatch.Contracts/ICatalogoRepuestos.cs`, con `CatalogoLocal` y `CatalogoRemoto` |
+| [Strategy](#strategy-icatalogorepuestos-con-dos-implementaciones) | `src/RepMatch.Contracts/ICatalogoRepuestos.cs`, con `CatalogoLocal`, `CatalogoRemoto` y, desde la Segunda Parte, `CatalogoSoap` |
 | [Repository](#repository-irepository-con-implementaciones-en-persistence) | `src/RepMatch.Domain/Repositorios/` y `src/RepMatch.Persistence/Repositorios/` |
 | [Unit of Work](#unit-of-work-iunitofwork-y-unitofwork) | `src/RepMatch.Domain/Repositorios/IUnitOfWork.cs` y `src/RepMatch.Persistence/UnitOfWork.cs` |
-| [Adapter](#adapter-catalogoremoto) | `src/RepMatch.Clientes.Rest/CatalogoRemoto.cs` |
+| [Adapter](#adapter-catalogoremoto) | `src/RepMatch.Clientes.Rest/CatalogoRemoto.cs` y `src/RepMatch.Clientes.Soap/CatalogoSoap.cs` |
 | [Observer](#observer-despachador-de-eventos-de-dominio) | `src/RepMatch.Aplicacion/Eventos/` — `IDespachadorEventos`, `DespachadorEventos`, `IObservadorEventoDominio`, `ObservadorCompatibilidad`; los eventos (`BusquedaCreada` y los de la colaboración con el mecánico) en `src/RepMatch.Domain/Eventos/` |
 | [Facade](#facade-fachadaaplicacion) | `src/RepMatch.Aplicacion/Fachada/FachadaAplicacion.cs` |
 
 El catálogo vehicular y el componente de IA de la Segunda Parte repiten Factory, Strategy y Adapter
-con contratos propios; se describen al final, en [El catálogo vehicular y los mismos
-patrones](#el-catálogo-vehicular-y-los-mismos-patrones) y [El componente de IA y los mismos
-patrones](#el-componente-de-ia-y-los-mismos-patrones).
+con contratos propios, y el servicio SOAP suma una tercera estrategia al catálogo de repuestos. Se
+describen al final, en [El catálogo vehicular y los mismos
+patrones](#el-catálogo-vehicular-y-los-mismos-patrones), [El componente de IA y los mismos
+patrones](#el-componente-de-ia-y-los-mismos-patrones) y [El servicio SOAP y los mismos
+patrones](#el-servicio-soap-y-los-mismos-patrones).
 
 ---
 
@@ -119,12 +121,12 @@ inyectó el contenedor, y la usa igual en los dos modos:
 
 Ver [ServicioDiagnostico.cs](../src/RepMatch.Aplicacion/Servicios/ServicioDiagnostico.cs).
 
-| | Local | Remoto |
-|---|---|---|
-| Implementación | `Aplicacion.Catalogo.CatalogoLocal` | `Clientes.Rest.CatalogoRemoto` |
-| Mecanismo | invocación directa en proceso | HTTP + JSON contra `Catalogo.Api` |
-| Serialización | ninguna | query string de entrada y JSON de respuesta |
-| Latencia en régimen (mediana) | ~2 ms | ~7 ms |
+| | Local | Remoto | SOAP *(Segunda Parte)* |
+|---|---|---|---|
+| Implementación | `Aplicacion.Catalogo.CatalogoLocal` | `Clientes.Rest.CatalogoRemoto` | `Clientes.Soap.CatalogoSoap` |
+| Mecanismo | invocación directa en proceso | HTTP + JSON contra `Catalogo.Api` | sobre SOAP por HTTP contra `Catalogo.Soap` |
+| Serialización | ninguna | query string de entrada y JSON de respuesta | XML descripto por el WSDL |
+| Latencia en régimen (mediana, informe 5.2) | ~3 ms | ~12 ms | ~25 ms |
 
 ---
 
@@ -529,6 +531,34 @@ entre los candidatos.
 
 **Facade.** `FachadaAplicacion.DiagnosticarAsync` resuelve la búsqueda sin sesión: valida el
 vehículo, diagnostica y devuelve las piezas elegidas sin crear una `Busqueda`.
+
+## El servicio SOAP y los mismos patrones
+
+`RepMatch.Catalogo.Soap` publica la consulta de compatibilidad por SOAP, con WSDL, como pide la
+consigna de la Segunda Parte. Del lado de la Web no hizo falta ningún patrón nuevo: los del TP
+Inicial ya dejaban el lugar.
+
+**Strategy.** `CatalogoSoap` (`src/RepMatch.Clientes.Soap/CatalogoSoap.cs`) es la tercera
+implementación de `ICatalogoRepuestos`, junto a `CatalogoLocal` y `CatalogoRemoto`. `ServicioDiagnostico`,
+la fachada y `GET /evidencia/catalogo` no cambiaron: siguen recibiendo la interfaz.
+
+Ver [CatalogoSoap.cs](../src/RepMatch.Clientes.Soap/CatalogoSoap.cs).
+
+**Factory.** `FabricaCatalogo` suma un caso: con `Catalogo:Modo=Soap` enlaza `ICatalogoRepuestos` a
+`CatalogoSoap` y deja `ICatalogoVehiculos` en `CatalogoVehiculosRemoto`, porque el servicio SOAP solo
+publica repuestos. Es el modo con que arranca la Web en docker compose.
+
+**Adapter.** `CatalogoSoap` traduce en dos sentidos. Convierte los tipos del proxy que generó
+`dotnet-svcutil` desde el WSDL (`ServicioSoap/ConsultaCompatibilidad.cs`) en los DTO de `Contracts`.
+Y convierte los errores de WCF (`EndpointNotFoundException`, `TimeoutException`, faults SOAP) en
+`HttpRequestException`, que es lo que la fachada y el observador ya atrapaban para el camino REST.
+Sin esa segunda traducción, una caída del servicio SOAP tiraría la página.
+
+**Facade, del lado del servidor.** `ServicioConsultaCompatibilidad` no tiene lógica propia: es una
+fachada de protocolo sobre `CatalogoLocal`, el mismo que usa `Catalogo.Api`. Por eso los dos caminos
+remotos devuelven exactamente lo mismo, y `AccesoSoapTests` lo verifica.
+
+Ver [ServicioConsultaCompatibilidad.cs](../src/RepMatch.Catalogo.Soap/ServicioConsultaCompatibilidad.cs).
 
 ## Documentación relacionada
 

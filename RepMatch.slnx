@@ -2,7 +2,9 @@
   <Folder Name="/src/">
     <Project Path="src/RepMatch.Aplicacion/RepMatch.Aplicacion.csproj" />
     <Project Path="src/RepMatch.Catalogo.Api/RepMatch.Catalogo.Api.csproj" />
+    <Project Path="src/RepMatch.Catalogo.Soap/RepMatch.Catalogo.Soap.csproj" />
     <Project Path="src/RepMatch.Clientes.Rest/RepMatch.Clientes.Rest.csproj" />
+    <Project Path="src/RepMatch.Clientes.Soap/RepMatch.Clientes.Soap.csproj" />
     <Project Path="src/RepMatch.Common/RepMatch.Common.csproj" />
     <Project Path="src/RepMatch.Contracts/RepMatch.Contracts.csproj" />
     <Project Path="src/RepMatch.Domain/RepMatch.Domain.csproj" />

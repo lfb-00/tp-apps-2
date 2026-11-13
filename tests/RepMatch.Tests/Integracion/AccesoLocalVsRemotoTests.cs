@@ -18,6 +18,7 @@ namespace RepMatch.Tests.Integracion;
 /// Catalogo.Api se hospeda en memoria con WebApplicationFactory, asi que el test no necesita
 /// puertos libres ni contenedores.
 /// </summary>
+[Collection(ColeccionBaseCompartida.Nombre)]
 public class AccesoLocalVsRemotoTests : IClassFixture<WebApplicationFactory<Program>>, IAsyncLifetime
 {
     private readonly WebApplicationFactory<Program> _fabrica;

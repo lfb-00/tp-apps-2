@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Pruebas de punta a punta (Playwright) contra el entorno completo de docker compose.
 #
-#   bash scripts/e2e.sh              # todo: base limpia, entorno, 3 fases de pruebas, apagado
+#   bash scripts/e2e.sh              # todo: base limpia, entorno, 4 fases de pruebas, apagado
 #   bash scripts/e2e.sh --dejar      # igual, pero deja el entorno levantado al terminar
 #   bash scripts/e2e.sh --docker     # fuerza correr las pruebas dentro de un contenedor
 #   bash scripts/e2e.sh --local      # fuerza correr las pruebas con el SDK de .NET de esta maquina
@@ -14,14 +14,15 @@
 # Fases:
 #   1. Normal       todo arriba: navegacion, formularios, permisos, roles, IA.
 #   2. SinIA        con ia-api frenado: la busqueda tiene que seguir funcionando.
-#   3. SinCatalogo  con catalogo-api frenado: la app no se tiene que caer.
+#   3. SinCatalogo  con catalogo-api frenado (REST: vehiculos): la app no se tiene que caer.
+#   4. SinSoap      con catalogo-soap frenado (SOAP: repuestos): la busqueda avisa y no se cae.
 #
 # Corre SIN clave de LLM aunque el .env tenga una: responde el clasificador local, que es
 # determinista, y las pruebas pueden afirmar sistema y piezas.
 #
 # ATENCION: borra la base de datos local de compose (docker compose down -v), salvo --sin-reset.
 #
-# Termina con codigo 0 si las tres fases pasan. Capturas, trazas, reportes .trx, la salida de
+# Termina con codigo 0 si las cuatro fases pasan. Capturas, trazas, reportes .trx, la salida de
 # cada fase y resumen.txt quedan en tests/RepMatch.E2E/resultados (fuera de git). Con
 # --evidencia, el resumen se copia a docs/evidencias para la entrega: el total de pruebas sale de
 # esa corrida y nadie lo escribe a mano en la documentacion.
@@ -59,6 +60,7 @@ if [ -f .env ]; then set -a; . ./.env; set +a; fi
 export IA_LLM_APIKEY=""
 PUERTO_WEB="${PUERTO_WEB:-8080}"
 PUERTO_WEB_LOCAL="${PUERTO_WEB_LOCAL:-8090}"
+PUERTO_CATALOGO_SOAP="${PUERTO_CATALOGO_SOAP:-8082}"
 
 if [ "$MODO" = "auto" ]; then
   if command -v dotnet >/dev/null && dotnet --list-sdks 2>/dev/null | grep -q '^10\.'; then
@@ -87,7 +89,7 @@ if [ "$RESET" -eq 1 ]; then
   compose down -v --remove-orphans
 fi
 
-paso "2/4 Levantando el entorno (web, web-local, catalogo-api, ia-api, postgres)"
+paso "2/4 Levantando el entorno (web, web-local, catalogo-api, catalogo-soap, ia-api, postgres)"
 compose up --build --wait
 
 paso "3/4 Preparando las pruebas"
@@ -107,7 +109,7 @@ correr() {
   if [ "$MODO" = "local" ]; then
     E2E_ESCENARIO="$escenario" \
     E2E_URL_WEB="http://localhost:$PUERTO_WEB" \
-    E2E_URL_WEB_LOCAL="http://localhost:$PUERTO_WEB_LOCAL" \
+    E2E_URL_WEB_LOCAL="http://localhost:$PUERTO_WEB_LOCAL"     E2E_URL_CATALOGO_SOAP="http://localhost:$PUERTO_CATALOGO_SOAP" \
     E2E_RESULTADOS="$RESULTADOS" \
       dotnet test "$PROYECTO" -c Release --no-build --nologo \
         --results-directory "$RESULTADOS" \
@@ -120,7 +122,7 @@ correr() {
   fi
 }
 
-ESTADO_Normal="-"; ESTADO_SinIA="-"; ESTADO_SinCatalogo="-"
+ESTADO_Normal="-"; ESTADO_SinIA="-"; ESTADO_SinCatalogo="-"; ESTADO_SinSoap="-"
 fallos=0
 fase() {
   local escenario="$1"; shift
@@ -145,6 +147,10 @@ compose up -d --wait ia-api
 compose stop catalogo-api
 fase SinCatalogo --filter "Escenario=SinCatalogo"
 compose up -d --wait catalogo-api
+
+compose stop catalogo-soap
+fase SinSoap --filter "Escenario=SinSoap"
+compose up -d --wait catalogo-soap
 
 # En modo docker los archivos los escribio root dentro del contenedor: se devuelven al usuario.
 if [ "$MODO" = "docker" ] && command -v id >/dev/null; then
@@ -171,13 +177,14 @@ linea_resumen() {
   echo
   echo "Fecha:   $(date '+%Y-%m-%d %H:%M %z')"
   echo "Commit:  $(git rev-parse --short HEAD 2>/dev/null || echo 'sin git')"
-  echo "Modo:    pruebas en $MODO, app en docker compose (web Remoto y web-local), sin clave de LLM"
+  echo "Modo:    pruebas en $MODO, app en docker compose (web con SOAP y REST, y web-local), sin clave de LLM"
   echo
   echo "| Fase | Estado | Resumen de dotnet test |"
   echo "|---|---|---|"
   echo "| Normal | $ESTADO_Normal | $(linea_resumen Normal) |"
   echo "| SinIA (ia-api frenado) | $ESTADO_SinIA | $(linea_resumen SinIA) |"
   echo "| SinCatalogo (catalogo-api frenado) | $ESTADO_SinCatalogo | $(linea_resumen SinCatalogo) |"
+  echo "| SinSoap (catalogo-soap frenado) | $ESTADO_SinSoap | $(linea_resumen SinSoap) |"
   echo
   echo "Las omitidas de la fase Normal son las de resiliencia (corren en su fase) y las que"
   echo "documentan errores conocidos (ver tests/RepMatch.E2E/README.md)."

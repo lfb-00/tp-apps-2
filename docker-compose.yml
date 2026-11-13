@@ -1,12 +1,14 @@
 # Entorno de laboratorio de RepMatch — TP Inicial.
 #
-# Levanta los tres nodos del diagrama de despliegue: la base de datos, el host remoto del
-# componente de catalogo y la aplicacion web. La Web arranca en modo Remoto para que el
-# ejercicio de acceso remoto entre componentes quede demostrado apenas se levanta el entorno.
+# Levanta los nodos del diagrama de despliegue: la base de datos, los hosts del componente de
+# catalogo (REST y SOAP), el de IA y la aplicacion web. La Web arranca en modo Soap: busca los
+# repuestos por SOAP y las opciones de vehiculo y el diagnostico por REST, asi cada busqueda usa
+# los dos protocolos de integracion que pide la consigna.
 #
 #   docker compose up --build --wait     -> espera a que todos esten sanos
 #     Web       http://localhost:8080
 #     Catalogo  http://localhost:8081/salud
+#     SOAP      http://localhost:8082/ConsultaCompatibilidad.svc?wsdl   (Segunda Parte: WSDL)
 #     IA        http://localhost:8083/salud   (Segunda Parte: diagnostico por texto libre)
 #
 #   docker compose --profile test run --rm tests        -> corre las pruebas
@@ -64,6 +66,28 @@ services:
         condition: service_healthy
     networks: [repmatch]
 
+  # Componente de catalogo expuesto por SOAP (Segunda Parte). Misma base y misma logica que
+  # catalogo-api; publica el WSDL en /ConsultaCompatibilidad.svc?wsdl.
+  catalogo-soap:
+    build:
+      context: .
+      dockerfile: src/RepMatch.Catalogo.Soap/Dockerfile
+    image: repmatch/catalogo-soap:segunda
+    container_name: repmatch-catalogo-soap
+    environment:
+      <<: *conexion-postgres
+      ASPNETCORE_ENVIRONMENT: Development
+    ports:
+      - "${PUERTO_CATALOGO_SOAP:-8082}:8080"
+    # Espera a catalogo-api, que siembra la base primero: con la base vacia, dos hosts sembrando
+    # a la vez chocan con los indices unicos.
+    depends_on:
+      postgres:
+        condition: service_healthy
+      catalogo-api:
+        condition: service_healthy
+    networks: [repmatch]
+
   # Componente de IA expuesto por REST. No tiene base: recibe los candidatos en la peticion.
   ia-api:
     build:
@@ -87,8 +111,10 @@ services:
     environment:
       <<: *conexion-postgres
       ASPNETCORE_ENVIRONMENT: Development
-      # Acceso REMOTO al componente de catalogo: resuelve por HTTP contra el otro contenedor.
-      Catalogo__Modo: Remoto
+      # Repuestos por SOAP contra catalogo-soap; opciones de vehiculo por REST contra
+      # catalogo-api. Catalogo__Modo=Remoto o Local cambian el camino sin recompilar.
+      Catalogo__Modo: Soap
+      Catalogo__UrlSoap: "http://catalogo-soap:8080/ConsultaCompatibilidad.svc"
       Catalogo__UrlBaseRemota: "http://catalogo-api:8080"
       # La IA tambien por HTTP, contra IA.Api.
       IA__Modo: Remoto
@@ -104,6 +130,8 @@ services:
       postgres:
         condition: service_healthy
       catalogo-api:
+        condition: service_healthy
+      catalogo-soap:
         condition: service_healthy
       ia-api:
         condition: service_healthy
@@ -130,8 +158,11 @@ services:
       - claves-web-local:/claves
     ports:
       - "${PUERTO_WEB_LOCAL:-8090}:8080"
+    # Tambien siembra la base: espera a catalogo-api por el mismo motivo que catalogo-soap.
     depends_on:
       postgres:
+        condition: service_healthy
+      catalogo-api:
         condition: service_healthy
     networks: [repmatch]
 
@@ -157,6 +188,7 @@ services:
     environment:
       E2E_URL_WEB: "http://web:8080"
       E2E_URL_WEB_LOCAL: "http://web-local:8080"
+      E2E_URL_CATALOGO_SOAP: "http://catalogo-soap:8080"
       E2E_ESCENARIO: "${E2E_ESCENARIO:-Normal}"
     volumes:
       - ./tests/RepMatch.E2E/resultados:/resultados
