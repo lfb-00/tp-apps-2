@@ -160,7 +160,7 @@ linea_resumen() {
   if [ -n "$resumen" ]; then
     printf '%s' "$resumen"
   else
-    grep -E '^(Pruebas totales:|[[:space:]]+Correcto:|[[:space:]]+Omitido:|[[:space:]]+Error:)' "$log" \
+    grep -E '^(Pruebas totales:|Total tests:|[[:space:]]+(Correcto|Incorrecto|Omitido|Error|Passed|Failed|Skipped):)' "$log" \
       | sed 's/^[[:space:]]*//' | paste -sd ';' -
   fi
 }
