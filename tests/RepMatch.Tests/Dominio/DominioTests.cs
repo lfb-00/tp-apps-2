@@ -307,6 +307,19 @@ public class BusquedaTests
         Assert.Null(oferta.PrecioLista);
     }
 
+    [Theory]
+    [InlineData("javascript:alert(1)")]
+    [InlineData("data:text/html,hola")]
+    [InlineData("ftp://www.easy.com.ar/p/1")]
+    public void Una_oferta_con_una_URL_que_no_es_http_se_rechaza(string url)
+    {
+        // La URL termina como enlace en la pagina: con "javascript:" se ejecutaria al hacer clic.
+        var busqueda = NuevaBusqueda();
+
+        Assert.Throws<ExcepcionDominio>(() => new Oferta(busqueda.Id, "BATE-12V-60AH", "Easy",
+            "Batería", Dinero.Pesos(100m), url));
+    }
+
     [Fact]
     public void No_se_buscan_precios_de_una_busqueda_sin_piezas()
     {
