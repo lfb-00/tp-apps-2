@@ -247,7 +247,8 @@ Deja en `docs/evidencias/` los logs de los tres procesos, la respuesta REST crud
 OpenAPI y las dos mediciones de `GET /evidencia/catalogo`. En cada modo, el script hace 12 llamadas:
 una primera (arranque en frío), diez de calentamiento y una última, que es la única que se guarda
 en `06-medicion-local.json` o `07-medicion-remota.json`. La duración de las 12 queda en el log de la
-Web (líneas `Evidencia acceso ... duracion=`).
+Web (líneas `Evidencia acceso ... duracion=`). Al final corre las pruebas automatizadas y deja su
+resultado en `08-pruebas.txt` (sección 5.4).
 
 ### 5.2 Latencia medida
 
@@ -303,13 +304,30 @@ completas y comprueba que los modelos de la semilla tengan piezas compatibles.
 clave de LLM, y compara su respuesta con la del cliente remoto; prueba el clasificador local sobre
 un conjunto fijo de síntomas y el adapter del LLM con respuestas grabadas, sin red.
 
-```
-Correctas! - Con error:     0, Superado:   137, Omitido:     0, Total:   137
-```
+El resultado de la última corrida está en
+[`docs/evidencias/08-pruebas.txt`](evidencias/08-pruebas.txt): fecha, commit, advertencias de
+compilación y el resumen de `dotnet test`. Lo genera `bash scripts/evidencia-pruebas.sh`, que
+también corre al final de `scripts/evidencias.sh`. El total no se copia en este informe: así,
+sumar una prueba no obliga a editar la documentación, y el número entregado sale de una corrida
+real. Las mismas pruebas corren sin el SDK con `docker compose --profile test run --build --rm tests`.
 
-Verificación del 2026-11-04 con `dotnet test` y el SDK local: 137 pruebas correctas y compilación
-sin advertencias. El 2026-11-05, `docker compose --profile test run --build --rm tests` (Docker
-dentro de WSL) dio el mismo resultado: 137 correctas y compilación sin advertencias.
+### 5.5 Pruebas funcionales de punta a punta
+
+`tests/RepMatch.E2E` recorre la aplicación con un navegador real (Playwright) contra el entorno
+completo de docker compose, como lo haría una persona: registro e ingreso, búsquedas con y sin
+sesión, el componente de IA, garage, perfil, la colaboración entre cliente y mecánico, la vista
+de celular y los permisos (páginas sin sesión, rol equivocado, consultas ajenas). Prueba los
+errores además del camino feliz, y cualquier prueba falla si la Web muestra el cartel de error
+inesperado.
+
+`bash scripts/e2e.sh` lo hace todo: arranca de una base limpia, levanta la Web en modo Remoto y
+en modo Local, y corre tres fases. La segunda frena `ia-api` y la tercera `catalogo-api`, para
+comprobar que la búsqueda sigue funcionando sin IA y que la app no se cae sin catálogo. Corre sin
+clave de LLM para que el diagnóstico sea determinista. Con `--evidencia` deja el resumen de las
+tres fases en `docs/evidencias/09-pruebas-e2e.txt`.
+
+Las pruebas que encontraron errores reales quedan omitidas con la causa explicada, hasta que se
+corrijan. La lista está en [`tests/RepMatch.E2E/README.md`](../tests/RepMatch.E2E/README.md).
 
 ---
 
@@ -402,6 +420,7 @@ la cola. Se tomaron cuatro decisiones:
 | **Segunda** | Adaptadores a eBay y VTEX | Nueva interfaz `IFuenteOfertas`, consumida por `search-api` | Catálogo, dominio |
 | **Segunda** *(implementado)* | Componente de IA (texto libre → repuestos) | `ObservadorCompatibilidad` usa `ServicioDiagnostico`, que le pasa `Busqueda.TextoLibre` y las piezas compatibles a `IDiagnosticador` (local o remota contra `IA.Api`, por `IA:Modo`) | `ServicioBusquedas.CrearAsync`; en la presentación solo se agregó la tarjeta del diagnóstico |
 | **Integrador** | Métricas de IA, pruebas de carga, despliegue | `DiagnosticoValidado` trae, por cada revisión, los códigos propuestos y los que recomendó el mecánico: el dataset etiquetado para medir exactitud | — |
+| **Integrador** | Pruebas funcionales | Ya existe `tests/RepMatch.E2E` (sección 5.5): cada pantalla nueva suma sus pruebas ahí y `scripts/e2e.sh` las corre contra el entorno completo | — |
 
 El punto de extensión quedó en el evento: `ServicioBusquedas.CrearAsync` persiste la búsqueda y
 despacha `BusquedaCreada` igual que en la Primera Parte. La IA se sumó del lado del observador, que

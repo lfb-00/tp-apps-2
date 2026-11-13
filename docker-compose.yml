@@ -145,6 +145,23 @@ services:
     image: repmatch/tests:tp-inicial
     networks: [repmatch]
 
+  # Pruebas de punta a punta con Playwright, contra web (Remoto) y web-local (Local) por la red
+  # de compose. Las orquesta scripts/e2e.sh, que ademas frena ia-api o catalogo-api para las
+  # pruebas de resiliencia. Las capturas y trazas quedan en tests/RepMatch.E2E/resultados.
+  e2e:
+    profiles: [e2e]
+    build:
+      context: .
+      dockerfile: tests/RepMatch.E2E/Dockerfile
+    image: repmatch/e2e:segunda
+    environment:
+      E2E_URL_WEB: "http://web:8080"
+      E2E_URL_WEB_LOCAL: "http://web-local:8080"
+      E2E_ESCENARIO: "${E2E_ESCENARIO:-Normal}"
+    volumes:
+      - ./tests/RepMatch.E2E/resultados:/resultados
+    networks: [repmatch]
+
 volumes:
   datos-postgres:
   claves-web:

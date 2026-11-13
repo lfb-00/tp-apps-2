@@ -55,3 +55,6 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# Pruebas de punta a punta: capturas, trazas y reportes de cada corrida
+tests/RepMatch.E2E/resultados/
