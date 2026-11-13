@@ -177,7 +177,10 @@ scripts/evidencias.sh      regenera docs/evidencias/ (logs + mediciones local vs
   correlación viaja Web → Catalogo.Api y Web → IA.Api (es parte de las evidencias).
 - Base: PostgreSQL aplica migraciones bajo un bloqueo advisory y luego carga `DatosSemilla`; las
   bases anteriores sin historial de migraciones se adoptan solo si tienen completo el esquema
-  inicial conocido. InMemory usa `EnsureCreatedAsync`. PostgreSQL reintenta errores de conexión.
+  inicial conocido: todas sus tablas y columnas, que se leen del modelo de la migración
+  `EsquemaInicial`. Una base más vieja (por ejemplo, anterior a las ofertas) falla con un mensaje
+  que pide `docker compose down -v`. InMemory usa `EnsureCreatedAsync`. PostgreSQL reintenta
+  errores de conexión.
 
 ### Patrones ya documentados
 `docs/patrones.md` cubre Factory, Strategy, Repository, Unit of Work, Adapter, Observer y Facade,

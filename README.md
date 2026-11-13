@@ -306,9 +306,11 @@ Sí, usa base de datos, con **dos proveedores intercambiables por configuración
 El acceso va por EF Core 10 con Npgsql, detrás de los repositorios declarados en el dominio. En
 PostgreSQL, `InicializarBaseAsync` aplica las migraciones pendientes y después carga la semilla; las
 bases existentes creadas antes de las migraciones se adoptan solo si tienen completo el esquema
-inicial conocido. La inicialización se serializa entre procesos. InMemory sigue creando el esquema
-de prueba con `EnsureCreatedAsync`. Cada grupo de datos semilla se carga solo si todavía falta.
-Agregar tablas o columnas ya no requiere borrar el volumen de PostgreSQL.
+inicial conocido (todas sus tablas y columnas). La inicialización se serializa entre procesos.
+InMemory sigue creando el esquema de prueba con `EnsureCreatedAsync`. Cada grupo de datos semilla
+se carga solo si todavía falta. De acá en adelante, agregar tablas o columnas no requiere borrar el
+volumen de PostgreSQL. Un volumen creado antes de la entrega de ofertas no se puede adoptar: la app
+lo informa al arrancar y hay que recrearlo con `docker compose down -v`.
 
 Para sumar cambios de esquema, con `dotnet-ef` 10 instalado y estas variables configuradas:
 `Persistencia__Proveedor=Postgres` y `ConnectionStrings__RepMatch` (no hace falta que la base esté
