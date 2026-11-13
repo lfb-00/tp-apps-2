@@ -7,8 +7,9 @@ El usuario identifica su vehículo, describe el problema en lenguaje natural, y 
 las ofertas de varios sitios reales. **No vende ni almacena stock**: normaliza, compara y deriva a la
 tienda de origen.
 
-> **Alcance de este repo: TP Inicial, Primera Parte y, de la Segunda Parte, el componente de IA.**
-> La aplicación es el comparador. SOAP, mensajería y tiendas externas todavía no están.
+> **Alcance de este repo: TP Inicial, Primera Parte y, de la Segunda Parte, el componente de IA, el
+> servicio SOAP, los precios de tiendas reales (Easy y Frávega, por la API pública de VTEX) y la cola
+> de mensajes (RabbitMQ).** La aplicación es el comparador. eBay y las notificaciones todavía no están.
 > Diagramas, informe, evidencias y patrones están en `docs/`. El seguimiento del trabajo está
 > en `plan.md` y `status.md`.
 
@@ -30,6 +31,40 @@ Hay dos fuentes, y la respuesta dice cuál contestó:
 Se expone por REST en `RepMatch.IA.Api` (`POST /api/diagnostico`) y la Web lo usa en proceso o
 remoto según `IA:Modo`, como el catálogo. Funciona también sin sesión: el texto se diagnostica y
 no se guarda.
+
+## Precios de las tiendas
+
+Después de mostrar el diagnóstico y las piezas, la Web busca los precios en **Easy** y **Frávega**
+con la API pública de catálogo de VTEX (sin credenciales, nunca scraping). Mientras tanto cada pieza
+muestra "Buscando precios…": una tienda lenta no demora el diagnóstico.
+
+- **Cliente**: ve primero las coincidencias exactas y luego las probables desplegables; cada grupo
+  se ordena de la más barata a la más cara y muestra la tienda, quién vende y el precio de lista si
+  hay descuento. "Ir a la tienda" pasa por `/derivar` (comisión).
+- **Mecánico**: ve las mismas ofertas con enlace directo a la tienda, para que su clic no cuente
+  como una derivación atribuida a él. Si corrige el diagnóstico, también se buscan los precios de lo
+  que recomendó.
+- **Sin sesión**: "desde $X en N tiendas" e "Ingresá para ver dónde".
+
+Las coincidencias exactas por código o EAN se separan de las probables por nombre. Estas últimas se
+advierten ("verificá que sea la medida de tu auto") y se descartan si los datos de la publicación
+contradicen el vehículo en modelo, marca, año, posición o sistema; si faltan datos, quedan como
+probables. Si una tienda no responde, la pantalla lo avisa y muestra lo de las demás. La búsqueda no
+informa el envío: los precios son de referencia y el envío se calcula en la tienda. Del catálogo
+semilla, las tiendas publican sobre todo baterías; para las demás piezas la pantalla dice que
+ninguna tienda conectada la publica. Detalle en la sección 6.9 del
+[informe](docs/informe-arquitectura.md).
+
+## Cola de mensajes
+
+Los hechos importantes (`busqueda.creada`, `busqueda.compartida`, `diagnostico.validado`,
+`derivacion.tienda`) se publican en **RabbitMQ** después de guardarse, y un **worker** los consume.
+Hoy el worker suma cada salida a una tienda al registro de comisiones por tienda y mes
+(`GET http://localhost:8085/api/comisiones`) y deja todo en un log de actividad con el mismo
+correlation id que la Web. Si RabbitMQ está caído, la app funciona igual y lo registra; si el worker
+está caído, los mensajes esperan en la cola. Un mensaje que no se puede procesar termina en su DLQ.
+UI de RabbitMQ: `http://localhost:15672` (`repmatch` / `repmatch`). Detalle en el
+[flujo de mensajes](docs/diagramas/mensajes.md).
 
 ## Roles y modelo de negocio
 
@@ -60,6 +95,7 @@ docker compose up --build --wait
 
 - Web → **http://localhost:8080**
 - API REST → **http://localhost:8081/salud**; contrato OpenAPI → **http://localhost:8081/openapi/v1.json** (Development)
+- Catálogo SOAP → **http://localhost:8082/ConsultaCompatibilidad.svc?wsdl** (contrato WSDL)
 - IA REST → **http://localhost:8083/salud**; contrato OpenAPI → **http://localhost:8083/openapi/v1.json** (Development)
 - PostgreSQL → `localhost:5432`
 
@@ -72,8 +108,60 @@ Las pruebas, también sin instalar nada:
 docker compose --profile test run --rm tests
 ```
 
-La suite levanta PostgreSQL para probar en paralelo dos inicializadores sobre una base temporal
-aislada; las demás pruebas siguen usando InMemory.
+Las pruebas de punta a punta recorren la web con un navegador real (Playwright): formularios,
+permisos, roles, el componente de IA y qué pasa cuando se cae la IA o el catálogo. Un solo
+comando levanta un entorno aislado, corre todo y lo apaga; elimina solo los volúmenes de prueba,
+sin tocar la base local:
+
+```bash
+bash scripts/e2e.sh
+```
+
+En Windows, desde PowerShell, usá el lanzador que selecciona Git Bash automáticamente:
+
+```powershell
+.\scripts\bash.ps1 scripts\e2e.sh
+```
+
+El lanzador también acepta las opciones del script. Por ejemplo, para reutilizar los volúmenes de
+prueba:
+
+```
+
+E2E usa el proyecto Compose `repmatch-e2e`, nombres de contenedor con ese prefijo y puertos
+alternativos (Web `18080`, Web Local `18090`, API `18081`, SOAP `18082`, IA `18083`, PostgreSQL
+`15432`, RabbitMQ `25672`/UI `25673` y Worker `18085`). Se pueden cambiar con variables
+`E2E_PUERTO_*`; el proyecto puede cambiarse con `E2E_COMPOSE_PROJECT_NAME`.powershell
+.\scripts\bash.ps1 scripts\e2e.sh --sin-reset
+```
+
+Requiere Git for Windows; evita que `bash` resuelva por error al puente de WSL y
+configura `MSYS_NO_PATHCONV` para que Docker reciba las rutas sin conversiones de Git Bash.
+
+Detalle, opciones y cómo leer los resultados en
+[tests/RepMatch.E2E/README.md](tests/RepMatch.E2E/README.md).
+
+### Pruebas de carga
+
+Las mediciones básicas de catálogo local/remoto, diagnóstico IA y drenado de RabbitMQ se ejecutan
+con k6 contra Docker Compose:
+
+```bash
+bash scripts/carga.sh
+```
+
+En Windows PowerShell, ejecutalo con el mismo lanzador:
+
+```powershell
+.\scripts\bash.ps1 scripts\carga.sh
+```
+
+Por defecto usa 10 usuarios virtuales durante 30 segundos, envía 200 mensajes y mantiene el
+diagnóstico en el clasificador local para no consumir cuota externa. Se puede ajustar con
+`VUS`, `DURACION`, `MENSAJES` y `VUS_COLA`. `IA_CARGA_LLM=1` habilita el LLM configurado y puede
+consumir su cuota. Los resúmenes de k6 se guardan en `docs/evidencias/carga-*.json`; el informe,
+incluidas p50/p95/p99 y errores medidos, queda en
+[docs/evidencias/carga.md](docs/evidencias/carga.md).
 
 Para bajar todo (`-v` borra además el volumen de la base):
 
@@ -146,6 +234,10 @@ dotnet run --project src/RepMatch.Catalogo.Api --urls http://localhost:5081
 ```
 
 ```bash
+dotnet run --project src/RepMatch.Catalogo.Soap --urls http://localhost:5082
+```
+
+```bash
 dotnet run --project src/RepMatch.IA.Api --urls http://localhost:5083
 ```
 
@@ -161,11 +253,19 @@ src/
   RepMatch.Persistence/     componente de acceso a datos · EF Core
   RepMatch.Aplicacion/      lógica de negocio          · incluye CatalogoLocal y CatalogoVehiculosLocal
   RepMatch.Clientes.Rest/   adaptador remoto           · CatalogoRemoto, CatalogoVehiculosRemoto y DiagnosticadorRemoto
+  RepMatch.Clientes.Soap/   adaptador SOAP             · CatalogoSoap y el proxy generado desde el WSDL
   RepMatch.IA/              componente de IA           · LLM, clasificador local y respaldo entre ambos
+  RepMatch.Fuentes.Vtex/    adaptador de API externa   · FuenteVtex: precios de Easy y Frávega (VTEX)
+  RepMatch.Mensajeria/      mensajería                 · IEventBus sobre RabbitMQ, topología, base de consumidores
+  RepMatch.Notificaciones.Worker/ consumidor de la cola · registro de comisiones y log de actividad
   RepMatch.Catalogo.Api/    host REST del catálogo
+  RepMatch.Catalogo.Soap/   host SOAP del catálogo (CoreWCF) · WSDL en /ConsultaCompatibilidad.svc?wsdl
   RepMatch.IA.Api/          host REST del componente de IA · sin base de datos
   RepMatch.Web/             presentación (Blazor Server)
 tests/RepMatch.Tests/       pruebas
+tests/RepMatch.E2E/         pruebas de punta a punta con Playwright (ver su README)
+tests/RepMatch.TiendaSimulada/ simulador de tiendas VTEX para las pruebas de punta a punta
+tests/fixtures/vtex/        respuestas reales grabadas de Easy y Frávega
 docs/                        diagramas, informe y evidencias
 scripts/evidencias.sh        genera las evidencias del entregable
 ```
@@ -173,7 +273,7 @@ scripts/evidencias.sh        genera las evidencias del entregable
 ## Acceso local vs. remoto
 
 Dos interfaces, `ICatalogoRepuestos` e `ICatalogoVehiculos`, cada una con implementaciones local y remota intercambiables **por configuración,
-sin recompilar**. `IDiagnosticador` sigue el mismo esquema con `IA__Modo`:
+sin recompilar**. Los repuestos tienen además una tercera, por SOAP. `IDiagnosticador` sigue el mismo esquema con `IA__Modo`:
 
 ```bash
 Catalogo__Modo=Local   dotnet run --project src/RepMatch.Web
@@ -183,10 +283,16 @@ Catalogo__Modo=Local   dotnet run --project src/RepMatch.Web
 Catalogo__Modo=Remoto  dotnet run --project src/RepMatch.Web
 ```
 
-| | Local | Remoto |
-|---|---|---|
-| Mecanismo | referencia de proyecto, en proceso | HTTP + JSON contra `Catalogo.Api` |
-| Latencia (en régimen, mediana) | ~2 ms | ~7 ms |
+```bash
+Catalogo__Modo=Soap    dotnet run --project src/RepMatch.Web
+```
+
+| | Local | Remoto | Soap |
+|---|---|---|---|
+| Mecanismo | referencia de proyecto, en proceso | HTTP + JSON contra `Catalogo.Api` | repuestos por SOAP contra `Catalogo.Soap`, vehículos por REST |
+| Latencia (en régimen, mediana) | ~3 ms | ~12 ms | ~25 ms |
+
+En docker compose la Web arranca en modo **Soap**: cada búsqueda usa SOAP y REST.
 
 ## Base de datos
 
@@ -194,30 +300,38 @@ Sí, usa base de datos, con **dos proveedores intercambiables por configuración
 
 | Proveedor | Cuándo se usa | Para qué sirve |
 |---|---|---|
-| **PostgreSQL 17** | En `docker compose` | Persistencia real, compartida entre los hosts .NET, con volumen |
+| **PostgreSQL 17** | En `docker compose` | Persistencia real, compartida entre los dos servicios, con volumen |
 | **InMemory** | Por defecto fuera de Docker, y en las pruebas | Correr y demostrar la app sin instalar nada |
 
-El acceso va por EF Core 10 con Npgsql, detrás de los repositorios declarados en el dominio. El
-esquema y los datos semilla se crean solos al arrancar (`EnsureCreatedAsync` + `DatosSemilla`), así
-que **no hay migraciones que correr a mano**. Es idempotente: cada grupo de datos semilla se carga
-solo si todavía falta. Al incorporar una tabla o columna nueva (por ejemplo, el catálogo de
-vehículos, los roles y la tabla `derivaciones`, o las columnas del diagnóstico en `busquedas`), una base existente debe recrearse con
-`docker compose down -v` antes de levantar Compose otra vez.
+El acceso va por EF Core 10 con Npgsql, detrás de los repositorios declarados en el dominio. En
+PostgreSQL, `InicializarBaseAsync` aplica las migraciones pendientes y después carga la semilla; las
+bases existentes creadas antes de las migraciones se adoptan solo si tienen completo el esquema
+inicial conocido (todas sus tablas y columnas). La inicialización se serializa entre procesos.
+InMemory sigue creando el esquema de prueba con `EnsureCreatedAsync`. Cada grupo de datos semilla
+se carga solo si todavía falta. De acá en adelante, agregar tablas o columnas no requiere borrar el
+volumen de PostgreSQL. Un volumen creado antes de la entrega de ofertas no se puede adoptar: la app
+lo informa al arrancar y hay que recrearlo con `docker compose down -v`.
+
+Para sumar cambios de esquema, con `dotnet-ef` 10 instalado y estas variables configuradas:
+`Persistencia__Proveedor=Postgres` y `ConnectionStrings__RepMatch` (no hace falta que la base esté
+disponible al generar la migración):
+
+```bash
+dotnet ef migrations add NombreDelCambio --project src/RepMatch.Persistence --startup-project src/RepMatch.Catalogo.Api --output-dir Migraciones
+```
 
 Las entidades persistidas son `Cliente`, `Vehiculo`, `ConfiguracionVehiculo`, `Repuesto`,
-`AplicacionVehiculo`, `Busqueda`, `Oferta` y `Derivacion`. El catálogo vehicular contiene las combinaciones
+`AplicacionVehiculo`, `Busqueda`, `Oferta`, `Derivacion`, `ComisionesTienda` y `MensajeProcesado`.
+El catálogo vehicular contiene las combinaciones
 permitidas de marca, modelo, año y motor que consumen los selectores de la Web. Ojo con el alcance:
 la base guarda el **catálogo propio y las búsquedas de los usuarios**,
-no un inventario. RepMatch no almacena stock — cuando estén los adaptadores a tiendas (Segunda
-Parte), las ofertas externas se van a capturar como resultado de una búsqueda, con su fecha de
-captura, porque los precios envejecen rápido. Hoy la entidad `Oferta` existe, pero no se captura
-ninguna.
+no un inventario. RepMatch no almacena stock: las ofertas de las tiendas se guardan como resultado
+de una búsqueda, con su fecha de captura, porque los precios envejecen rápido. Se vuelven a
+consultar cuando vencen (`Ofertas:VigenciaMinutos`).
 
 Si la base todavía no acepta conexiones cuando arranca un servicio, `InicializarBaseAsync` reintenta
-hasta diez veces con espera creciente. En PostgreSQL, un bloqueo advisory serializa entre procesos
-la creación del esquema y la carga de la semilla, porque varios hosts pueden arrancar contra la
-misma base al mismo tiempo. En compose, la disponibilidad de `postgres` además está cubierta por
-su `healthcheck` con `pg_isready`.
+hasta diez veces con espera creciente. En compose eso además está cubierto por el `healthcheck` de
+`postgres` con `pg_isready`.
 
 ## Configuración
 
@@ -225,11 +339,12 @@ Todo se puede sobreescribir por variable de entorno (`Seccion__Clave`).
 
 | Clave | Valores | Por defecto |
 |---|---|---|
-| `Catalogo:Modo` | `Local`, `Remoto` | `Local` (en compose: `Remoto`) |
+| `Catalogo:Modo` | `Local`, `Remoto`, `Soap` | `Local` (en compose: `Soap`) |
 | `Catalogo:UrlBaseRemota` | URL de `Catalogo.Api` | `http://localhost:5081` |
 | `Catalogo:TimeoutSegundos` | timeout de las llamadas HTTP al catálogo remoto (1 a 120) | `30` |
 | `Persistencia:Proveedor` | `InMemory`, `Postgres` | `InMemory` (en compose: `Postgres`) |
 | `ConnectionStrings:RepMatch` | cadena Npgsql | vacía |
+| `ConnectionStrings:Redis` | Redis para la caché distribuida de ofertas | vacía (caché en memoria; en compose: `redis:6379`) |
 | `IA:Modo` | `Local`, `Remoto` (solo Web) | `Local` (en compose: `Remoto`) |
 | `IA:UrlBaseRemota` | URL de `IA.Api` | `http://localhost:5083` |
 | `IA:TimeoutSegundos` | timeout de la Web hacia `IA.Api` (1 a 120) | `10` |
@@ -237,10 +352,20 @@ Todo se puede sobreescribir por variable de entorno (`Seccion__Clave`).
 | `IA:Llm:UrlBase` | API compatible con OpenAI | `https://api.groq.com/openai/v1/` |
 | `IA:Llm:Modelo` | modelo del proveedor | `llama-3.3-70b-versatile` |
 | `IA:Llm:TimeoutSegundos` | espera máxima al LLM antes de responder con el local (1 a 60) | `4` |
+| `Ofertas:TimeoutGlobalSegundos` | tope para todas las tiendas juntas (1 a 60) | `8` |
+| `Ofertas:VigenciaMinutos` | después de esto los precios se vuelven a consultar | `60` |
+| `Ofertas:Tiendas:N:Nombre`, `:UrlBase`, `:Moneda`, `:PrefijosCategoria` | una entrada por tienda VTEX; sumar una tienda es sumar una entrada | Easy (`https://www.easy.com.ar`, `/Automotor/`) y Frávega (`https://www.fravega.com`, `/Autos, Motos y Otros/`) |
+| `Ofertas:Tiendas:N:TimeoutSegundos`, `:PedidosSimultaneos`, `:ResultadosPorTermino`, `:CacheMinutos` | límites por tienda | `5`, `2`, `10`, `10` |
+| `Mensajeria:Habilitada` | publicar y consumir en RabbitMQ | `false` (en compose: `true`) |
+| `Mensajeria:Host`, `:Puerto`, `:Usuario`, `:Contrasena` | conexión al broker | `localhost`, `5672`, `guest`, `guest` (en compose: `rabbitmq` y `RABBITMQ_USUARIO` / `RABBITMQ_CONTRASENA` del `.env`) |
+| `Mensajeria:TimeoutSegundos`, `:PausaTrasFallaSegundos` | espera máxima para conectar o confirmar, y cuánto no reintentar después de una falla | `3`, `30` |
 | `ProteccionDatos:DirectorioClaves` | directorio de las claves que cifran la sesión (solo Web) | vacío: las maneja ASP.NET Core (en compose: `/claves`, en un volumen) |
 
 Y los puertos del host, vía `.env` (ver `.env.example`): `PUERTO_WEB`, `PUERTO_CATALOGO`,
-`PUERTO_IA`, `PUERTO_POSTGRES`, `PUERTO_WEB_LOCAL`.
+`PUERTO_IA`, `PUERTO_POSTGRES`, `PUERTO_WEB_LOCAL`, `PUERTO_RABBITMQ`, `PUERTO_RABBITMQ_UI`,
+`PUERTO_WORKER`. En compose, `OFERTAS_URL_EASY`,
+`OFERTAS_URL_FRAVEGA` y `OFERTAS_CACHE_MINUTOS` cambian las tiendas: `scripts/e2e.sh` las apunta a
+`tienda-simulada`.
 
 ## Documentación
 
@@ -250,7 +375,8 @@ Y los puertos del host, vía `.env` (ver `.env.example`): `PUERTO_WEB`, `PUERTO_
 - [Diagrama de componentes](docs/diagramas/componentes.md)
 - [Diagrama de despliegue](docs/diagramas/despliegue.md)
 - [Arquitectura en capas](docs/diagramas/capas.md)
-- [Diagramas de secuencia (búsquedas, login, alta de vehículo, catálogo, eliminación de cuenta y diagnóstico por IA)](docs/diagramas/secuencia.md)
+- [Diagramas de secuencia (búsquedas, login, alta de vehículo, catálogo, eliminación de cuenta, diagnóstico por IA, SOAP, precios de las tiendas y la cola)](docs/diagramas/secuencia.md)
+- [Flujo de mensajes (RabbitMQ)](docs/diagramas/mensajes.md)
 
 ## Stack
 

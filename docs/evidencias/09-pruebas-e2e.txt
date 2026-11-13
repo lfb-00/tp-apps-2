@@ -1,0 +1,18 @@
+# Pruebas de punta a punta (Playwright) de RepMatch
+# Generado por scripts/e2e.sh. No editar a mano.
+
+Fecha:   2026-11-12 07:37 -0300
+Commit:  b9c792f
+Modo:    pruebas en local, app en docker compose (web con SOAP y REST, y web-local), sin clave de LLM, precios del simulador de tiendas
+
+| Fase | Estado | Resumen de dotnet test |
+|---|---|---|
+| Normal | OK | Total 92, aprobadas 77, omitidas 15, fallidas 0 |
+| SinIA (ia-api frenado) | OK | Total 2, aprobadas 2, omitidas 0, fallidas 0 |
+| SinCatalogo (catalogo-api frenado) | OK | Total 4, aprobadas 2, omitidas 2, fallidas 0 |
+| SinSoap (catalogo-soap frenado) | OK | Total 3, aprobadas 3, omitidas 0, fallidas 0 |
+| SinTiendas (tienda-simulada frenada) | OK | Total 2, aprobadas 2, omitidas 0, fallidas 0 |
+| SinCola (rabbitmq frenado) | OK | Total 1, aprobadas 1, omitidas 0, fallidas 0 |
+
+Las omitidas de la fase Normal son las de resiliencia (corren en su fase) y las que
+documentan errores conocidos (ver tests/RepMatch.E2E/README.md).

@@ -8,7 +8,8 @@ Caso de la Primera Parte, con el componente de IA de la Segunda: el cliente elig
 garage, describe el problema, y la búsqueda queda guardada con el diagnóstico y los códigos de las
 piezas elegidas. El texto libre se persiste. La elección la hace el observador de `BusquedaCreada`
 a través de `ServicioDiagnostico`: el catálogo da las piezas compatibles y la IA elige entre ellas
-(sección 7). La fachada después arma las piezas completas para mostrarlas.
+(sección 7). La fachada después arma las piezas completas para mostrarlas. Los precios de las
+tiendas se piden en un paso aparte, después de mostrar las piezas (secuencia 9).
 
 ```mermaid
 sequenceDiagram
@@ -245,7 +246,8 @@ El visitante selecciona un vehículo y describe el problema en Home. El texto se
 va a la fachada solo para el diagnóstico: esta consulta devuelve el diagnóstico y las piezas, sin
 crear una `Busqueda`, guardar historial ni despachar `BusquedaCreada`. La carga de los selectores y
 la validación del vehículo usan `ICatalogoVehiculos`, el acceso concreto se elige con la misma
-fábrica que los repuestos. `ServicioDiagnostico` es el mismo de la sección 1.
+fábrica que los repuestos. `ServicioDiagnostico` es el mismo de la sección 1. Después de mostrar las
+piezas, Home pide un resumen de precios sin guardar nada (final de la secuencia 9).
 
 ```mermaid
 sequenceDiagram
@@ -328,7 +330,8 @@ Código de referencia: [Home.razor](../../src/RepMatch.Web/Components/Pages/Home
 El ejemplo es una consulta de compatibilidad desde la fachada. Factory selecciona las estrategias
 al arrancar, los consumidores usan los contratos. En modo Remoto, Adapter construye la petición
 HTTP y devuelve DTOs. En ambos caminos, Repository consulta los candidatos con EF Core y el
-dominio decide la compatibilidad de motor. La API siempre usa los catálogos locales.
+dominio decide la compatibilidad de motor. La API siempre usa los catálogos locales. El tercer camino,
+por SOAP, está en la [secuencia 8](#8-consulta-de-repuestos-por-soap).
 
 ```mermaid
 sequenceDiagram
@@ -595,3 +598,239 @@ Código de referencia: [DiagnosticadorConRespaldo.cs](../../src/RepMatch.IA/Diag
 [DiagnosticadorLlm.cs](../../src/RepMatch.IA/Llm/DiagnosticadorLlm.cs),
 [DiagnosticadorLocal.cs](../../src/RepMatch.IA/Local/DiagnosticadorLocal.cs) y
 [DiagnosticadorRemoto.cs](../../src/RepMatch.Clientes.Rest/DiagnosticadorRemoto.cs).
+
+## 8. Consulta de repuestos por SOAP
+
+Es el modo con que arranca la Web en docker compose (`Catalogo:Modo=Soap`). La fachada usa los
+mismos contratos que en la secuencia 5: las opciones de vehículo siguen por REST y los repuestos
+salen por SOAP. `CatalogoSoap` arma la llamada con el proxy generado desde el WSDL y traduce los
+errores de WCF a `HttpRequestException`, así la fachada los trata igual que los del camino REST.
+
+```mermaid
+sequenceDiagram
+    actor Usuario
+    participant Web as Home o Catalogo.razor
+    participant Fachada as FachadaAplicacion
+    participant Vehiculos as CatalogoVehiculosRemoto
+    participant Api as Catalogo.Api
+    participant Soap as CatalogoSoap
+    participant Canal as Canal WCF (proxy del WSDL)
+    participant Servicio as ServicioConsultaCompatibilidad
+    participant Local as CatalogoLocal de Catalogo.Soap
+    participant BD as EF Core y base de datos
+
+    Usuario->>Web: consultar vehículo y sistema opcional
+    Web->>Fachada: BuscarRepuestosAsync
+    Fachada->>Vehiculos: EsConfiguracionValidaAsync
+    Vehiculos->>Api: GET /api/vehiculos/opciones (REST, JSON)
+    Api-->>Vehiculos: opciones
+    Vehiculos-->>Fachada: true
+    Fachada->>Soap: BuscarCompatiblesAsync, vía ConsultarAsync
+    Soap->>Canal: CrearCanal sobre la fábrica compartida
+    Canal->>Servicio: POST /ConsultaCompatibilidad.svc<br/>sobre SOAP ConsultarPorVehiculo + X-Correlation-Id
+    alt vehículo incompleto
+        Servicio-->>Canal: fault SOAP "Indicá marca, modelo y año"
+    else vehículo válido
+        Servicio->>Local: BuscarCompatiblesAsync en un ámbito de DI nuevo
+        Local->>BD: consultar candidatos y filtrar por compatibilidad
+        BD-->>Local: repuestos
+        Local-->>Servicio: DTOs
+        Servicio-->>Canal: Repuesto[] en XML
+    end
+    alt respuesta correcta
+        Canal-->>Soap: Repuesto[] del proxy
+        Soap->>Soap: traducir a RepuestoDto y cerrar el canal
+        Soap-->>Fachada: lista de DTOs
+        Fachada-->>Web: Exito con piezas
+    else fault, servicio caído o timeout
+        Canal-->>Soap: FaultException, EndpointNotFoundException o TimeoutException
+        Soap->>Soap: abortar el canal
+        Soap-->>Fachada: HttpRequestException
+        Note over Fachada: ConsultarAsync devuelve Falla con mensaje legible,<br/>igual que en el camino REST
+        Fachada-->>Web: Falla
+    end
+    Web-->>Usuario: resultados o mensaje de error
+```
+
+En la búsqueda con cuenta el recorrido es el mismo, pero lo dispara `ObservadorCompatibilidad` a
+través de `ServicioDiagnostico` (secuencias 1 y 7): si el servicio SOAP no responde, la búsqueda
+queda `Fallida` con el motivo "No se pudo consultar el catálogo para completar la búsqueda".
+
+Código de referencia: [CatalogoSoap.cs](../../src/RepMatch.Clientes.Soap/CatalogoSoap.cs),
+[FabricaCanalSoap.cs](../../src/RepMatch.Clientes.Soap/FabricaCanalSoap.cs),
+[ServicioConsultaCompatibilidad.cs](../../src/RepMatch.Catalogo.Soap/ServicioConsultaCompatibilidad.cs) y
+[IConsultaCompatibilidad.cs](../../src/RepMatch.Catalogo.Soap/Contrato/IConsultaCompatibilidad.cs).
+
+---
+
+## 9. Precios de las tiendas (Servicio de Ofertas)
+
+Los precios llegan en un segundo paso. La página ya mostró el diagnóstico y las piezas (secuencia 1)
+y recién entonces pide las ofertas, con "Buscando precios…" en cada pieza: una tienda lenta no
+demora el diagnóstico. Lo pueden pedir el dueño de la búsqueda y el mecánico con quien la
+compartió. En la página de la consulta se pide lo mismo al abrirla, y también después de que el
+mecánico envía una revisión, para que las piezas que recomendó tengan precio. Con la cola de
+mensajes, el consumidor de `BusquedaCreada` llamará al mismo `ServicioOfertas.ObtenerAsync` y la
+página solo leerá el resultado.
+
+```mermaid
+sequenceDiagram
+    actor Usuario as Cliente o mecánico
+    participant Web as Home o Consulta.razor
+    participant Fachada as FachadaAplicacion
+    participant Ofertas as ServicioOfertas
+    participant Repo as IBusquedaRepository
+    participant Dominio as Busqueda
+    participant Catalogo as ICatalogoRepuestos
+    participant Vehiculos as ICatalogoVehiculos
+    participant Tienda as IFuenteOfertas (FuenteVtex, una por tienda)
+    participant Cache as IDistributedCache
+    participant Vtex as API de catálogo VTEX
+    participant UoW as UnitOfWork
+
+    Web-->>Usuario: piezas con "Buscando precios…"
+    Web->>Fachada: ObtenerOfertasAsync(busquedaId, usuarioId, forzar)
+    Fachada->>Ofertas: ObtenerAsync
+    Ofertas->>Repo: ObtenerPorIdAsync
+    alt no existe o el usuario no es el dueño ni el mecánico asignado
+        Ofertas-->>Web: Falla "La consulta no existe o no es tuya."
+    else búsqueda Fallida o sin piezas
+        Ofertas-->>Web: Exito sin precios
+    else
+        Ofertas->>Dominio: CodigosQueNecesitanPrecios(vigencia)
+        Note over Dominio: propuestas + recomendadas por el mecánico,<br/>nunca consultadas o con precios vencidos<br/>(todas, con "Actualizar precios")
+        alt nada que consultar
+            Ofertas-->>Web: Exito con las ofertas guardadas
+        else hay piezas que consultar
+            Ofertas->>Catalogo: BuscarCompatiblesAsync (nombre y códigos equivalentes)
+            alt falla el catálogo
+                Ofertas-->>Web: Falla "No se pudo consultar el catálogo…"
+            else
+                Ofertas->>Vehiculos: ListarOpcionesAsync
+                alt catálogo vehicular disponible
+                    Vehiculos-->>Ofertas: opciones conocidas
+                else error HTTP o timeout
+                    Vehiculos-->>Ofertas: excepción capturada
+                    Note over Ofertas: registra el fallo y valida sin opciones conocidas
+                end
+                par cada tienda y cada pieza, con tope global de tiempo
+                    Ofertas->>Tienda: BuscarAsync(pieza)
+                    loop códigos equivalentes y después el nombre
+                        Tienda->>Cache: GetAsync(término normalizado)
+                        alt respuesta en caché
+                            Cache-->>Tienda: JSON y fecha original de captura
+                            Note over Tienda: reutiliza la respuesta sin rejuvenecer el precio
+                        else cache miss o caché no disponible
+                            Note over Tienda: Polly aplica timeout por tienda, hasta dos reintentos<br/>y circuito independiente; fallos de Redis se registran
+                            Tienda->>Vtex: GET /api/catalog_system/pub/products/search?ft=…&_from=0&_to=9
+                            alt 200 o 206
+                                Vtex-->>Tienda: productos (JSON)
+                                Tienda->>Cache: SetAsync(JSON, CacheMinutos)
+                                opt Redis no disponible
+                                    Note over Tienda: registra el fallo y conserva la respuesta de red
+                                end
+                            else error, timeout o circuito abierto
+                                Tienda-->>Ofertas: HttpRequestException / TaskCanceledException
+                                Note over Ofertas: la tienda queda en TiendasSinRespuesta<br/>las demás siguen
+                            end
+                        end
+                    end
+                    Note over Tienda: LectorVtex: categoría válida, primera palabra o código,<br/>vendedor con stock más barato, EAN
+                    Tienda-->>Ofertas: ofertas normalizadas
+                end
+                Note over Ofertas: EAN compartido entre tiendas se clasifica como exacto;<br/>ValidadorCandidatoOferta descarta contradicciones por nombre
+                Ofertas->>Dominio: ActualizarOfertas(códigos, tiendas que respondieron, capturas)
+                Note over Dominio: misma publicación: actualiza precio (mismo Id, la derivación sigue válida)<br/>nueva: la agrega<br/>no apareció en una tienda que respondió: no disponible<br/>tienda sin respuesta: sus ofertas quedan como estaban
+                Ofertas->>UoW: ConfirmarAsync
+                Ofertas-->>Fachada: Exito(búsqueda con ofertas, TiendasSinRespuesta)
+                Fachada-->>Web: OfertasBusquedaDto
+            end
+        end
+    end
+    alt rol cliente
+        Web-->>Usuario: ofertas por pieza, de la más barata a la más cara, "Ir a la tienda" → /derivar/{ofertaId}
+    else rol mecánico
+        Web-->>Usuario: las mismas ofertas con enlace directo a la tienda (sin derivación a su nombre)
+    end
+    opt alguna tienda no respondió
+        Web-->>Usuario: aviso "No pudimos consultar …"
+    end
+```
+
+Sin sesión, `Home` llama a `FachadaAplicacion.ResumirPreciosAsync(piezas)`: consulta las tiendas
+igual, pero no guarda nada y solo devuelve el precio más bajo y en cuántas tiendas está cada pieza,
+con un "Ingresá para ver dónde". Sin búsqueda guardada no hay oferta guardada, y sin oferta no hay
+derivación que registrar.
+
+Código de referencia: [ServicioOfertas.cs](../../src/RepMatch.Aplicacion/Servicios/ServicioOfertas.cs),
+[Busqueda.cs](../../src/RepMatch.Domain/Entidades/Busqueda.cs),
+[FuenteVtex.cs](../../src/RepMatch.Fuentes.Vtex/FuenteVtex.cs),
+[LectorVtex.cs](../../src/RepMatch.Fuentes.Vtex/LectorVtex.cs) y
+[PreciosPieza.razor](../../src/RepMatch.Web/Components/PreciosPieza.razor).
+
+---
+
+## 10. Publicación y consumo por la cola
+
+Con el ejemplo de "Ir a la tienda": la redirección no espera a la cola y el registro de la comisión
+lo hace el worker después. Los otros eventos (`busqueda.creada`, `busqueda.compartida`,
+`diagnostico.validado`) se publican igual, desde sus servicios. La topología está en el [flujo de
+mensajes](mensajes.md).
+
+```mermaid
+sequenceDiagram
+    actor Usuario as Cliente
+    participant Web as GET /derivar/{ofertaId}
+    participant Deriv as ServicioDerivaciones
+    participant UoW as UnitOfWork
+    participant Despacho as DespachadorEventos
+    participant Pub as PublicadorEventos
+    participant Bus as BusRabbitMq
+    participant MQ as RabbitMQ (repmatch.eventos)
+    participant Cons as ConsumidorComisiones (worker)
+    participant Com as ServicioComisiones
+    participant BD as PostgreSQL
+
+    Usuario->>Web: Ir a la tienda
+    Web->>Deriv: DerivarAsync(ofertaId)
+    Deriv->>UoW: ConfirmarAsync (guarda la Derivacion)
+    Deriv->>Despacho: DespacharAsync(DerivacionATienda)
+    Despacho->>Pub: ObservarAsync (último observador)
+    Pub->>Bus: PublicarAsync(derivacion.tienda, correlation id)
+    alt broker disponible
+        Bus->>MQ: publicar persistente
+        MQ-->>Bus: confirmación (publisher confirm)
+    else broker caído o sin confirmar
+        Bus-->>Pub: excepción
+        Note over Pub: warning en el log: la operación sigue<br/>por 30 s no se intenta conectar de nuevo
+    end
+    Deriv-->>Web: URL de la tienda
+    Web-->>Usuario: 302 a la tienda
+
+    MQ->>Cons: entrega desde repmatch.comisiones
+    Note over Cons: lee el sobre y pone el correlation id en el log
+    alt no se puede leer
+        Cons->>MQ: nack sin reencolar → repmatch.comisiones.dlq
+    else
+        Cons->>Com: RegistrarDerivacionAsync(mensaje)
+        Com->>BD: ¿ya procesado? (mensajes_procesados)
+        alt primera vez
+            Com->>BD: suma a comisiones_tienda + marca procesado (una transacción)
+            Cons->>MQ: ack
+        else ya procesado
+            Note over Com: se ignora la segunda entrega
+            Cons->>MQ: ack
+        else falla
+            alt primer intento
+                Cons->>MQ: nack reencolando
+            else ya se reintentó
+                Cons->>MQ: nack sin reencolar → DLQ
+            end
+        end
+    end
+```
+
+Código de referencia: [PublicadorEventos.cs](../../src/RepMatch.Aplicacion/Eventos/PublicadorEventos.cs),
+[BusRabbitMq.cs](../../src/RepMatch.Mensajeria/BusRabbitMq.cs),
+[ConsumidorRabbitMq.cs](../../src/RepMatch.Mensajeria/ConsumidorRabbitMq.cs) y
+[ServicioComisiones.cs](../../src/RepMatch.Aplicacion/Servicios/ServicioComisiones.cs).

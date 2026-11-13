@@ -7,17 +7,24 @@ descartó y cómo se ve en el código real.
 | Patrón | Dónde vive |
 |---|---|
 | [Factory](#factory-fabricacatalogo) | `src/RepMatch.Web/Servicios/FabricaCatalogo.cs` |
-| [Strategy](#strategy-icatalogorepuestos-con-dos-implementaciones) | `src/RepMatch.Contracts/ICatalogoRepuestos.cs`, con `CatalogoLocal` y `CatalogoRemoto` |
+| [Strategy](#strategy-icatalogorepuestos-con-dos-implementaciones) | `src/RepMatch.Contracts/ICatalogoRepuestos.cs`, con `CatalogoLocal`, `CatalogoRemoto` y, desde la Segunda Parte, `CatalogoSoap` |
 | [Repository](#repository-irepository-con-implementaciones-en-persistence) | `src/RepMatch.Domain/Repositorios/` y `src/RepMatch.Persistence/Repositorios/` |
 | [Unit of Work](#unit-of-work-iunitofwork-y-unitofwork) | `src/RepMatch.Domain/Repositorios/IUnitOfWork.cs` y `src/RepMatch.Persistence/UnitOfWork.cs` |
-| [Adapter](#adapter-catalogoremoto) | `src/RepMatch.Clientes.Rest/CatalogoRemoto.cs` |
-| [Observer](#observer-despachador-de-eventos-de-dominio) | `src/RepMatch.Aplicacion/Eventos/` — `IDespachadorEventos`, `DespachadorEventos`, `IObservadorEventoDominio`, `ObservadorCompatibilidad`; los eventos (`BusquedaCreada` y los de la colaboración con el mecánico) en `src/RepMatch.Domain/Eventos/` |
+| [Adapter](#adapter-catalogoremoto) | `src/RepMatch.Clientes.Rest/CatalogoRemoto.cs`, `src/RepMatch.Clientes.Soap/CatalogoSoap.cs` y, para la API externa, `src/RepMatch.Fuentes.Vtex/FuenteVtex.cs` |
+| [Observer](#observer-despachador-de-eventos-de-dominio) | `src/RepMatch.Aplicacion/Eventos/` — `IDespachadorEventos`, `DespachadorEventos`, `IObservadorEventoDominio`, `ObservadorCompatibilidad`, `PublicadorEventos`; los eventos (`BusquedaCreada` y los de la colaboración con el mecánico) en `src/RepMatch.Domain/Eventos/` |
 | [Facade](#facade-fachadaaplicacion) | `src/RepMatch.Aplicacion/Fachada/FachadaAplicacion.cs` |
+| [Circuit Breaker](#circuit-breaker-por-tienda) | `src/RepMatch.Fuentes.Vtex/FuenteVtex.cs` |
+| [Template Method](#template-method-consumidorrabbitmqt) | `src/RepMatch.Mensajeria/ConsumidorRabbitMq.cs`, con `ConsumidorComisiones` y `ConsumidorActividad` en el worker |
 
 El catálogo vehicular y el componente de IA de la Segunda Parte repiten Factory, Strategy y Adapter
-con contratos propios; se describen al final, en [El catálogo vehicular y los mismos
-patrones](#el-catálogo-vehicular-y-los-mismos-patrones) y [El componente de IA y los mismos
-patrones](#el-componente-de-ia-y-los-mismos-patrones).
+con contratos propios, el servicio SOAP suma una tercera estrategia al catálogo de repuestos y las
+tiendas externas son adapters de un contrato nuevo, `IFuenteOfertas`. Se describen al final, en [El
+catálogo vehicular y los mismos patrones](#el-catálogo-vehicular-y-los-mismos-patrones), [El
+componente de IA y los mismos patrones](#el-componente-de-ia-y-los-mismos-patrones), [El servicio
+SOAP y los mismos patrones](#el-servicio-soap-y-los-mismos-patrones), [Las tiendas externas y los
+mismos patrones](#las-tiendas-externas-y-los-mismos-patrones) y [La cola de mensajes y los mismos
+patrones](#la-cola-de-mensajes-y-los-mismos-patrones). La cola suma un patrón propio, Template
+Method, descripto aparte.
 
 ---
 
@@ -119,12 +126,12 @@ inyectó el contenedor, y la usa igual en los dos modos:
 
 Ver [ServicioDiagnostico.cs](../src/RepMatch.Aplicacion/Servicios/ServicioDiagnostico.cs).
 
-| | Local | Remoto |
-|---|---|---|
-| Implementación | `Aplicacion.Catalogo.CatalogoLocal` | `Clientes.Rest.CatalogoRemoto` |
-| Mecanismo | invocación directa en proceso | HTTP + JSON contra `Catalogo.Api` |
-| Serialización | ninguna | query string de entrada y JSON de respuesta |
-| Latencia en régimen (mediana) | ~2 ms | ~7 ms |
+| | Local | Remoto | SOAP *(Segunda Parte)* |
+|---|---|---|---|
+| Implementación | `Aplicacion.Catalogo.CatalogoLocal` | `Clientes.Rest.CatalogoRemoto` | `Clientes.Soap.CatalogoSoap` |
+| Mecanismo | invocación directa en proceso | HTTP + JSON contra `Catalogo.Api` | sobre SOAP por HTTP contra `Catalogo.Soap` |
+| Serialización | ninguna | query string de entrada y JSON de respuesta | XML descripto por el WSDL |
+| Latencia en régimen (mediana, informe 5.2) | ~3 ms | ~12 ms | ~25 ms |
 
 ---
 
@@ -347,15 +354,14 @@ no se atrapa en el observador ni en `DespachadorEventos`, así que se propaga a 
 
 Los servicios de la colaboración entre cliente y mecánico usan el mismo mecanismo.
 `ServicioRevisiones` despacha `BusquedaCompartida` y `DiagnosticoValidado`, y `ServicioDerivaciones`
-despacha `DerivacionATienda`, siempre después de confirmar. Hoy ningún observador los acepta: el
-despachador los recorre sin efecto. Quedan listos para que en la Segunda Parte un consumidor avise
-al mecánico, cuente las derivaciones o junte los pares propuesto/recomendado para validar la IA,
-sin tocar esos servicios.
+despacha `DerivacionATienda`, siempre después de confirmar.
 
-Este diseño también es el punto de extensión hacia RabbitMQ. En la Segunda Parte se registrará
-otra implementación de `IDespachadorEventos` que, en lugar de invocar observadores en proceso,
-publique `BusquedaCreada` a través de `IEventBus`, la interfaz propia que envolverá
-`RabbitMQ.Client`. `ServicioBusquedas` no cambia.
+Este diseño fue el punto de extensión hacia RabbitMQ. En la Segunda Parte se registró un segundo
+observador, `PublicadorEventos`, que acepta esos cuatro eventos y los publica a través de
+`IEventBus`, la interfaz propia que envuelve `RabbitMQ.Client`. No hizo falta otra implementación
+de `IDespachadorEventos`: con dos observadores el despacho queda compuesto, primero el que completa
+la búsqueda y después el que publica. `ServicioBusquedas` no cambió (ver [La cola de mensajes y los
+mismos patrones](#la-cola-de-mensajes-y-los-mismos-patrones)).
 
 ### Qué pasaría sin él
 
@@ -368,9 +374,8 @@ consecuencias concretas son tres:
 - Agregar un segundo efecto colateral —por ejemplo, publicar en una cola o mandar un email—
   requiere tocar `ServicioBusquedas`, que ya tiene su propia lógica de validación, persistencia y
   manejo de errores.
-- Migrar a mensajería asincrónica (RabbitMQ) obligaría a reescribir el servicio. Con
-  `IDespachadorEventos` alcanza con registrar otra implementación del despachador, que publique
-  `BusquedaCreada` a través de `IEventBus`, la interfaz propia que envolverá `RabbitMQ.Client`.
+- Migrar a mensajería asincrónica (RabbitMQ) obligaría a reescribir el servicio. Con el Observer
+  alcanzó con registrar un observador más, `PublicadorEventos`, que publica por `IEventBus`.
 
 ### Código de referencia
 
@@ -530,8 +535,173 @@ entre los candidatos.
 **Facade.** `FachadaAplicacion.DiagnosticarAsync` resuelve la búsqueda sin sesión: valida el
 vehículo, diagnostica y devuelve las piezas elegidas sin crear una `Busqueda`.
 
+## El servicio SOAP y los mismos patrones
+
+`RepMatch.Catalogo.Soap` publica la consulta de compatibilidad por SOAP, con WSDL, como pide la
+consigna de la Segunda Parte. Del lado de la Web no hizo falta ningún patrón nuevo: los del TP
+Inicial ya dejaban el lugar.
+
+**Strategy.** `CatalogoSoap` (`src/RepMatch.Clientes.Soap/CatalogoSoap.cs`) es la tercera
+implementación de `ICatalogoRepuestos`, junto a `CatalogoLocal` y `CatalogoRemoto`. `ServicioDiagnostico`,
+la fachada y `GET /evidencia/catalogo` no cambiaron: siguen recibiendo la interfaz.
+
+Ver [CatalogoSoap.cs](../src/RepMatch.Clientes.Soap/CatalogoSoap.cs).
+
+**Factory.** `FabricaCatalogo` suma un caso: con `Catalogo:Modo=Soap` enlaza `ICatalogoRepuestos` a
+`CatalogoSoap` y deja `ICatalogoVehiculos` en `CatalogoVehiculosRemoto`, porque el servicio SOAP solo
+publica repuestos. Es el modo con que arranca la Web en docker compose.
+
+**Adapter.** `CatalogoSoap` traduce en dos sentidos. Convierte los tipos del proxy que generó
+`dotnet-svcutil` desde el WSDL (`ServicioSoap/ConsultaCompatibilidad.cs`) en los DTO de `Contracts`.
+Y convierte los errores de WCF (`EndpointNotFoundException`, `TimeoutException`, faults SOAP) en
+`HttpRequestException`, que es lo que la fachada y el observador ya atrapaban para el camino REST.
+Sin esa segunda traducción, una caída del servicio SOAP tiraría la página.
+
+**Facade, del lado del servidor.** `ServicioConsultaCompatibilidad` no tiene lógica propia: es una
+fachada de protocolo sobre `CatalogoLocal`, el mismo que usa `Catalogo.Api`. Por eso los dos caminos
+remotos devuelven exactamente lo mismo, y `AccesoSoapTests` lo verifica.
+
+Ver [ServicioConsultaCompatibilidad.cs](../src/RepMatch.Catalogo.Soap/ServicioConsultaCompatibilidad.cs).
+
+## Las tiendas externas y los mismos patrones
+
+`IFuenteOfertas` (`src/RepMatch.Contracts/IFuenteOfertas.cs`) es una tienda donde buscar precios: recibe
+una pieza del catálogo y devuelve ofertas ya normalizadas (`OfertaExternaDto`). Es el punto donde la
+aplicación consume la API externa real que pide la Segunda Parte.
+
+Ver [IFuenteOfertas.cs](../src/RepMatch.Contracts/IFuenteOfertas.cs).
+
+**Adapter.** `FuenteVtex` (`src/RepMatch.Fuentes.Vtex/FuenteVtex.cs`) traduce el contrato al buscador
+público de catálogo de VTEX, la plataforma de Easy y Frávega: arma
+`/api/catalog_system/pub/products/search?ft=…&_from=0&_to=9`, acepta el `206 Partial Content` como
+respuesta válida y convierte los errores de la tienda en `HttpRequestException`. `LectorVtex` hace la
+otra mitad de la traducción: del JSON de VTEX a `OfertaExternaDto`, con las reglas que salieron de
+respuestas reales (categorías válidas, primera palabra del título, vendedor con stock en el
+marketplace). Sin el adapter, `ServicioOfertas` tendría que conocer el formato de cada tienda, y
+sumar eBay obligaría a tocarlo.
+
+Ver [FuenteVtex.cs](../src/RepMatch.Fuentes.Vtex/FuenteVtex.cs) y
+[LectorVtex.cs](../src/RepMatch.Fuentes.Vtex/LectorVtex.cs).
+
+**Configuración en lugar de clases.** Una sola clase sirve para todas las tiendas VTEX: cada
+entrada de `Ofertas:Tiendas` (nombre, URL base, moneda, categorías válidas) se registra como otra
+instancia de `FuenteVtex` en `AgregarFuentesOfertas`. Sumar una tienda VTEX es agregar una entrada,
+sin código.
+
+**Varias implementaciones a la vez.** A diferencia del catálogo, donde la Factory enlaza la interfaz
+a una sola estrategia, acá se usan todas juntas: `ServicioOfertas` recibe la lista completa de
+`IFuenteOfertas`, las consulta en paralelo con un tope global de tiempo y sigue con las que
+respondieron. eBay (#17) sería una implementación más en esa lista.
+
+**Repository y Unit of Work.** `ServicioOfertas` guarda lo capturado en la `Busqueda` a través de
+`IBusquedaRepository` y confirma con `IUnitOfWork`, como el resto de los servicios. La regla de no
+duplicar publicaciones y de marcar lo que desapareció vive en el dominio
+(`Busqueda.ActualizarOfertas`), no en el servicio.
+
+**Facade.** `FachadaAplicacion.ObtenerOfertasAsync` (búsqueda guardada, para el dueño o el mecánico
+asignado) y `ResumirPreciosAsync` (búsqueda sin sesión, sin guardar nada) son la única entrada de
+la presentación a los precios.
+
+## Circuit Breaker por tienda
+
+**Dónde vive.** Cada instancia singleton de `FuenteVtex` construye su propio pipeline de Polly:
+timeout por tienda, hasta dos reintentos con espera exponencial y un circuito que abre después de
+tres fallos dentro de 30 segundos durante otros 30 segundos. `IDistributedCache` comparte las
+respuestas entre instancias cuando se configura Redis; sin esa conexión, se registra la caché en
+memoria.
+
+**Qué problema resuelve.** Una API lenta o caída no debe acumular esperas ni bloquear las consultas
+posteriores a esa misma tienda. Cuando el timeout se agota o el circuito ya está abierto,
+`FuenteVtex` lo traduce a `HttpRequestException`, que `ServicioOfertas` convierte en un fallo de esa
+fuente: conserva resultados de las demás y no marca como agotadas sus ofertas anteriores. Los
+fallos de Redis al leer o guardar se registran y la fuente sigue consultando la red.
+
+**Qué pasaría sin él.** Cada solicitud volvería a esperar el timeout completo y podría repetir
+consultas inútiles contra una tienda caída; además, un fallo del circuito o del timeout de Polly
+podría escapar del contrato esperado por `ServicioOfertas` y abortar la agregación completa.
+
+**Código.** `FuenteVtex` configura `AddCircuitBreaker`, `AddRetry` y `AddTimeout`; el límite de
+concurrencia por tienda se mantiene aparte. Compose configura `ConnectionStrings:Redis` y espera a
+que Redis esté saludable antes de iniciar la Web.
+
+Ver [FuenteVtex.cs](../src/RepMatch.Fuentes.Vtex/FuenteVtex.cs),
+[ExtensionesFuentesVtex.cs](../src/RepMatch.Fuentes.Vtex/ExtensionesFuentesVtex.cs) y
+[docker-compose.yml](../docker-compose.yml).
+
+## La cola de mensajes y los mismos patrones
+
+La cola de la Segunda Parte (issues #12 a #14) se armó con los patrones que ya estaban: el punto de
+extensión que dejó la Primera Parte en el Observer alcanzó para sumar el productor sin tocar
+`ServicioBusquedas`. La topología y las garantías están en el [diagrama de flujo de
+mensajes](diagramas/mensajes.md).
+
+**Observer.** `PublicadorEventos` (`src/RepMatch.Aplicacion/Eventos/PublicadorEventos.cs`) es un
+`IObservadorEventoDominio` más: acepta `BusquedaCreada`, `BusquedaCompartida`,
+`DiagnosticoValidado` y `DerivacionATienda`, los traduce a eventos de integración y los publica. Se
+registra después de `ObservadorCompatibilidad`, así el despacho queda compuesto: primero lo que la
+pantalla necesita ya, después la cola. `DespachadorEventos` y los servicios que despachan no
+cambiaron.
+
+Ver [PublicadorEventos.cs](../src/RepMatch.Aplicacion/Eventos/PublicadorEventos.cs).
+
+**Adapter.** `BusRabbitMq` (`src/RepMatch.Mensajeria/BusRabbitMq.cs`) adapta `IEventBus`, que vive
+en `Contracts` y no sabe de AMQP, a `RabbitMQ.Client`: arma las propiedades del mensaje
+(persistente, `MessageId`, tipo, cabecera de correlación), publica en el exchange con la clave de
+ruteo y espera la confirmación del broker. Quien publica no conoce RabbitMQ, y la aplicación corre
+igual con `BusDesactivado` cuando no hay broker.
+
+**Strategy y Factory.** `IEventBus` tiene dos implementaciones, `BusRabbitMq` y `BusDesactivado`, y
+`AgregarMensajeria` elige una al arrancar según `Mensajeria:Habilitada`, igual que `FabricaCatalogo`
+con `Catalogo:Modo`.
+
+**Repository y Unit of Work.** El consumidor de comisiones guarda la suma (`ComisionesTienda`) y la
+marca de mensaje procesado (`MensajeProcesado`) por `IComisionesRepository` y las confirma juntas con
+`IUnitOfWork`: es lo que hace idempotente al consumidor.
+
+## Template Method: `ConsumidorRabbitMq<T>`
+
+### Dónde está
+
+`src/RepMatch.Mensajeria/ConsumidorRabbitMq.cs` define el algoritmo de consumo y deja un solo paso
+abstracto, `ProcesarAsync`. Las subclases están en el worker:
+`src/RepMatch.Notificaciones.Worker/Consumidores/ConsumidorComisiones.cs` y
+`ConsumidorActividad.cs`. Cada una elige su definición de cola centralizada en
+`TopologiaRabbitMq` y qué hacer con el mensaje. El publicador declara todas las definiciones antes
+de su primer envío, así la topología no depende de que el worker arranque primero.
+
+### Qué problema resuelve
+
+Consumir bien un mensaje tiene siempre los mismos pasos, y equivocarse en cualquiera pierde o
+duplica mensajes: conectar y reconectar si el broker no está, declarar la cola con su DLQ, leer el
+sobre, poner el correlation id en el log, abrir un scope de DI por mensaje, confirmar recién
+después de procesar, reintentar una vez y mandar a la DLQ lo que no se puede procesar. La clase
+base hace todo eso en un orden fijo; cada consumidor solo escribe la parte que es suya.
+
+### Qué pasaría sin él
+
+Cada consumidor repetiría el manejo del canal y de las confirmaciones, y cualquier diferencia sería
+un error silencioso. Uno que confirmara antes de procesar perdería el mensaje si el proceso se
+cae; uno que reencolara siempre dejaría un mensaje que falla dando vueltas para siempre en vez de
+mandarlo a la DLQ. Sumar las notificaciones a cliente y mecánico sería volver a escribir lo mismo.
+
+### Código de referencia
+
+La regla de qué hacer con el mensaje está aparte, en `ReglaEntrega.Decidir`, para probarla sin
+broker:
+
+| Se pudo leer | Se pudo procesar | Ya se reintentó | Decisión |
+|---|---|---|---|
+| no | — | — | DLQ |
+| sí | sí | — | confirmar |
+| sí | no | no | reintentar (vuelve a la cola) |
+| sí | no | sí | DLQ |
+
+Ver [ConsumidorRabbitMq.cs](../src/RepMatch.Mensajeria/ConsumidorRabbitMq.cs) y
+[ConsumidorComisiones.cs](../src/RepMatch.Notificaciones.Worker/Consumidores/ConsumidorComisiones.cs).
+
 ## Documentación relacionada
 
 - [Diagrama de componentes](diagramas/componentes.md), dónde vive cada pieza y cómo se referencian
 - [Diagrama de clases](diagramas/clases.md), el modelo de dominio sobre el que operan estos patrones
+- [Flujo de mensajes](diagramas/mensajes.md), la cola: productores, colas, DLQ y consumidores
 - [Informe de arquitectura](informe-arquitectura.md), decisiones de arquitectura y hoja de ruta

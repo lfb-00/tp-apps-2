@@ -1,44 +1,45 @@
 Usando la configuración de inicio de src\RepMatch.Web\Properties\launchSettings.json...
-[19:56:59 INF] [Web] [] Base de datos lista (proveedor Microsoft.EntityFrameworkCore.InMemory).
-[19:56:59 INF] [Web] [] Web iniciada. Modo de acceso al catalogo: Local (en proceso)
-[19:56:59 INF] [Web] [] Now listening on: http://localhost:5080
-[19:56:59 INF] [Web] [] Application started. Press Ctrl+C to shut down.
-[19:56:59 INF] [Web] [] Hosting environment: Development
-[19:56:59 INF] [Web] [] Content root path: C:\Repos\tp-apps-2-evidencias\src\RepMatch.Web
-[19:56:59 INF] [Web] [ad42c8e88266] HTTP GET /salud responded 200 in 33.4727 ms
-[19:56:59 INF] [Web] [c144db6b5a34] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
-[19:56:59 INF] [Web] [c144db6b5a34] Evidencia acceso origen=Local duracion=163,9ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
-[19:56:59 INF] [Web] [c144db6b5a34] HTTP GET /evidencia/catalogo responded 200 in 177.5506 ms
-[19:57:00 INF] [Web] [8cab7b4d92af] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
-[19:57:00 INF] [Web] [8cab7b4d92af] Evidencia acceso origen=Local duracion=37,1ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
-[19:57:00 INF] [Web] [8cab7b4d92af] HTTP GET /evidencia/catalogo responded 200 in 39.8386 ms
-[19:57:00 INF] [Web] [ea321fad27a2] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
-[19:57:00 INF] [Web] [ea321fad27a2] Evidencia acceso origen=Local duracion=2,2ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
-[19:57:00 INF] [Web] [ea321fad27a2] HTTP GET /evidencia/catalogo responded 200 in 6.0045 ms
-[19:57:00 INF] [Web] [dde6dc2a712e] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
-[19:57:00 INF] [Web] [dde6dc2a712e] Evidencia acceso origen=Local duracion=2,0ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
-[19:57:00 INF] [Web] [dde6dc2a712e] HTTP GET /evidencia/catalogo responded 200 in 2.8101 ms
-[19:57:00 INF] [Web] [d3f133ae1078] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
-[19:57:00 INF] [Web] [d3f133ae1078] Evidencia acceso origen=Local duracion=3,6ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
-[19:57:00 INF] [Web] [d3f133ae1078] HTTP GET /evidencia/catalogo responded 200 in 4.6024 ms
-[19:57:00 INF] [Web] [cf24ddd2ef48] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
-[19:57:00 INF] [Web] [cf24ddd2ef48] Evidencia acceso origen=Local duracion=2,2ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
-[19:57:00 INF] [Web] [cf24ddd2ef48] HTTP GET /evidencia/catalogo responded 200 in 3.0205 ms
-[19:57:00 INF] [Web] [2fa49459d620] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
-[19:57:00 INF] [Web] [2fa49459d620] Evidencia acceso origen=Local duracion=1,8ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
-[19:57:00 INF] [Web] [2fa49459d620] HTTP GET /evidencia/catalogo responded 200 in 2.7171 ms
-[19:57:00 INF] [Web] [08184cc2844f] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
-[19:57:00 INF] [Web] [08184cc2844f] Evidencia acceso origen=Local duracion=1,9ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
-[19:57:00 INF] [Web] [08184cc2844f] HTTP GET /evidencia/catalogo responded 200 in 2.5498 ms
-[19:57:00 INF] [Web] [ced1afc80016] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
-[19:57:00 INF] [Web] [ced1afc80016] Evidencia acceso origen=Local duracion=2,3ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
-[19:57:00 INF] [Web] [ced1afc80016] HTTP GET /evidencia/catalogo responded 200 in 3.1328 ms
-[19:57:00 INF] [Web] [b9a62141a7fa] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
-[19:57:00 INF] [Web] [b9a62141a7fa] Evidencia acceso origen=Local duracion=1,9ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
-[19:57:00 INF] [Web] [b9a62141a7fa] HTTP GET /evidencia/catalogo responded 200 in 2.8388 ms
-[19:57:00 INF] [Web] [d55227cee404] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
-[19:57:00 INF] [Web] [d55227cee404] Evidencia acceso origen=Local duracion=2,2ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
-[19:57:00 INF] [Web] [d55227cee404] HTTP GET /evidencia/catalogo responded 200 in 2.8222 ms
-[19:57:00 INF] [Web] [ad132bef6426] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
-[19:57:00 INF] [Web] [ad132bef6426] Evidencia acceso origen=Local duracion=1,8ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
-[19:57:00 INF] [Web] [ad132bef6426] HTTP GET /evidencia/catalogo responded 200 in 2.4047 ms
+[21:47:54 INF] [Web] [] Base de datos lista (proveedor Microsoft.EntityFrameworkCore.InMemory).
+[21:47:54 INF] [Web] [] Web iniciada. Modo de acceso al catalogo: Local (en proceso)
+[21:47:54 INF] [Web] [] Modo de acceso a la IA: Local (en proceso)
+[21:47:55 INF] [Web] [] Now listening on: http://localhost:5080
+[21:47:55 INF] [Web] [] Application started. Press Ctrl+C to shut down.
+[21:47:55 INF] [Web] [] Hosting environment: Development
+[21:47:55 INF] [Web] [] Content root path: C:\Repos\tp-apps-2-soap\src\RepMatch.Web
+[21:47:55 INF] [Web] [246c3a826fc2] HTTP GET /salud responded 200 in 82.1219 ms
+[21:47:58 INF] [Web] [cc0b8aa61440] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:47:58 INF] [Web] [cc0b8aa61440] Evidencia acceso origen=Local duracion=368,5ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
+[21:47:58 INF] [Web] [cc0b8aa61440] HTTP GET /evidencia/catalogo responded 200 in 405.1401 ms
+[21:48:04 INF] [Web] [fc6f80ef7ee4] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:48:04 INF] [Web] [fc6f80ef7ee4] Evidencia acceso origen=Local duracion=103,8ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
+[21:48:04 INF] [Web] [fc6f80ef7ee4] HTTP GET /evidencia/catalogo responded 200 in 110.9396 ms
+[21:48:09 INF] [Web] [e0b164ee49e0] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:48:09 INF] [Web] [e0b164ee49e0] Evidencia acceso origen=Local duracion=3,1ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
+[21:48:09 INF] [Web] [e0b164ee49e0] HTTP GET /evidencia/catalogo responded 200 in 17.1483 ms
+[21:48:17 INF] [Web] [f047ed34be6e] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:48:17 INF] [Web] [f047ed34be6e] Evidencia acceso origen=Local duracion=3,3ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
+[21:48:17 INF] [Web] [f047ed34be6e] HTTP GET /evidencia/catalogo responded 200 in 4.4721 ms
+[21:48:20 INF] [Web] [6aa991d97d05] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:48:20 INF] [Web] [6aa991d97d05] Evidencia acceso origen=Local duracion=21,6ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
+[21:48:20 INF] [Web] [6aa991d97d05] HTTP GET /evidencia/catalogo responded 200 in 25.6174 ms
+[21:48:22 INF] [Web] [1414d01de8f0] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:48:22 INF] [Web] [1414d01de8f0] Evidencia acceso origen=Local duracion=1,8ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
+[21:48:22 INF] [Web] [1414d01de8f0] HTTP GET /evidencia/catalogo responded 200 in 2.3141 ms
+[21:48:30 INF] [Web] [9c24806ec83b] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:48:30 INF] [Web] [9c24806ec83b] Evidencia acceso origen=Local duracion=3,6ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
+[21:48:30 INF] [Web] [9c24806ec83b] HTTP GET /evidencia/catalogo responded 200 in 4.7197 ms
+[21:48:34 INF] [Web] [45c96c351efd] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:48:34 INF] [Web] [45c96c351efd] Evidencia acceso origen=Local duracion=3,0ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
+[21:48:34 INF] [Web] [45c96c351efd] HTTP GET /evidencia/catalogo responded 200 in 4.4416 ms
+[21:48:38 INF] [Web] [78b515504b6c] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:48:38 INF] [Web] [78b515504b6c] Evidencia acceso origen=Local duracion=2,5ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
+[21:48:38 INF] [Web] [78b515504b6c] HTTP GET /evidencia/catalogo responded 200 in 22.9119 ms
+[21:48:41 INF] [Web] [f16501351736] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:48:41 INF] [Web] [f16501351736] Evidencia acceso origen=Local duracion=1,4ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
+[21:48:41 INF] [Web] [f16501351736] HTTP GET /evidencia/catalogo responded 200 in 1.7955 ms
+[21:48:52 INF] [Web] [d8b4c9a446a2] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:48:52 INF] [Web] [d8b4c9a446a2] Evidencia acceso origen=Local duracion=2,2ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
+[21:48:52 INF] [Web] [d8b4c9a446a2] HTTP GET /evidencia/catalogo responded 200 in 2.7263 ms
+[21:49:00 INF] [Web] [6cb45cff66e5] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:49:00 INF] [Web] [6cb45cff66e5] Evidencia acceso origen=Local duracion=1,3ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
+[21:49:00 INF] [Web] [6cb45cff66e5] HTTP GET /evidencia/catalogo responded 200 in 1.8982 ms

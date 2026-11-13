@@ -1,0 +1,22 @@
+@* Aviso de tiendas que no respondieron. Lo que si llego se muestra igual: una tienda caida no
+   tiene que esconder los precios de las demas, ni parecer que la pieza no tiene ofertas. *@
+
+@if (!string.IsNullOrWhiteSpace(Error))
+{
+    <div class="alerta alerta-error aviso-precios" role="alert">No pudimos buscar precios: @Error</div>
+}
+else if (TiendasSinRespuesta.Count > 0)
+{
+    <div class="alerta alerta-info aviso-precios" role="status">
+        No pudimos consultar @string.Join(" ni ", TiendasSinRespuesta) en este momento: sus precios no
+        aparecen. Probá de nuevo en unos minutos.
+    </div>
+}
+
+@code {
+    [Parameter]
+    public IReadOnlyList<string> TiendasSinRespuesta { get; set; } = [];
+
+    [Parameter]
+    public string? Error { get; set; }
+}

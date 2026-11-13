@@ -1,0 +1,66 @@
+@using System.Globalization
+@using RepMatch.Contracts.Dtos
+
+<li class="oferta">
+    <div class="oferta-precio">
+        <strong>@Importe(Oferta.PrecioTotal, Oferta.Moneda)</strong>
+        @if (Oferta.PrecioLista is { } lista)
+        {
+            <s>@Importe(lista, Oferta.Moneda)</s>
+        }
+    </div>
+    <div class="oferta-datos">
+        <span class="oferta-titulo">@Oferta.Titulo</span>
+        <span class="oferta-tienda">
+            @Oferta.NombreTienda
+            @if (!string.IsNullOrWhiteSpace(Oferta.Vendedor)
+                 && !Oferta.Vendedor.Equals(Oferta.NombreTienda, StringComparison.OrdinalIgnoreCase))
+            {
+                <span> · vende @Oferta.Vendedor</span>
+            }
+        </span>
+        @if (Recomendados?.Contains(Oferta.CodigoRepuesto) == true)
+        {
+            <span class="etiqueta etiqueta-ok">Recomendada por @(ParaMecanico ? "vos" : "tu mecánico")</span>
+        }
+        @if (Oferta.Coincidencia == CoincidenciasOferta.ExactoPorEan)
+        {
+            <small class="oferta-aviso">Mismo producto identificado por EAN.</small>
+        }
+        else if (Oferta.Coincidencia == CoincidenciasOferta.ExactoPorCodigo)
+        {
+            <small class="oferta-aviso">Coincide por código de pieza.</small>
+        }
+        else
+        {
+            <small class="oferta-aviso">Coincide por nombre: verificá que sea la medida de tu auto.</small>
+        }
+    </div>
+    @if (ParaMecanico)
+    {
+        <a class="link-marca" href="@Oferta.UrlOriginal" target="_blank" rel="noopener noreferrer">Ver en la tienda</a>
+    }
+    else
+    {
+        <a class="link-marca" href="/derivar/@Oferta.Id" target="_blank" rel="noopener">Ir a la tienda</a>
+    }
+</li>
+
+@code {
+    private static readonly CultureInfo Argentina = CultureInfo.GetCultureInfo("es-AR");
+
+    [Parameter, EditorRequired]
+    public OfertaDto Oferta { get; set; } = null!;
+
+    [Parameter]
+    public bool ParaMecanico { get; set; }
+
+    [Parameter]
+    public IReadOnlyCollection<string>? Recomendados { get; set; }
+
+    private static string Importe(decimal monto, string moneda)
+    {
+        var numero = monto.ToString(monto % 1 == 0 ? "N0" : "N2", Argentina);
+        return moneda == "ARS" ? $"$ {numero}" : $"{moneda} {numero}";
+    }
+}

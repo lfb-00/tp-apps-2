@@ -1,0 +1,244 @@
+#!/usr/bin/env bash
+# Pruebas de punta a punta (Playwright) contra el entorno completo de docker compose.
+#
+#   Windows PowerShell: .\scripts\bash.ps1 scripts\e2e.sh
+#   bash scripts/e2e.sh              # todo: base limpia, entorno, 6 fases de pruebas, apagado
+#   bash scripts/e2e.sh --dejar      # igual, pero deja el entorno levantado al terminar
+#   bash scripts/e2e.sh --docker     # fuerza correr las pruebas dentro de un contenedor
+#   bash scripts/e2e.sh --local      # fuerza correr las pruebas con el SDK de .NET de esta maquina
+#   bash scripts/e2e.sh --sin-reset  # no borra la base (mas rapido, pero arrastra datos viejos)
+#   bash scripts/e2e.sh --evidencia  # ademas copia el resumen a docs/evidencias/09-pruebas-e2e.txt
+#
+# Por defecto elige solo: si hay SDK de .NET 10 corre las pruebas en esta maquina, si no, dentro
+# de un contenedor. En los dos casos la app corre en docker compose.
+#
+# Fases:
+#   1. Normal       todo arriba: navegacion, formularios, permisos, roles, IA.
+#   2. SinIA        con ia-api frenado: la busqueda tiene que seguir funcionando.
+#   3. SinCatalogo  con catalogo-api frenado (REST: vehiculos): la app no se tiene que caer.
+#   4. SinSoap      con catalogo-soap frenado (SOAP: repuestos): la busqueda avisa y no se cae.
+#   5. SinTiendas   con tienda-simulada frenada: se ven las piezas y un aviso, sin precios.
+#   6. SinCola      con rabbitmq frenado: buscar, compartir y salir a la tienda siguen andando.
+#
+# Los precios no salen de las tiendas reales sino de tienda-simulada, que responde con busquedas
+# reales grabadas de easy.com.ar y fravega.com: las pruebas pueden afirmar precios exactos.
+#
+# Corre SIN clave de LLM aunque el .env tenga una: responde el clasificador local, que es
+# determinista, y las pruebas pueden afirmar sistema y piezas.
+#
+# Usa un proyecto, puertos y volumenes propios: el reset solo borra datos de prueba.
+#
+# Termina con codigo 0 si las seis fases pasan. Capturas, trazas, reportes .trx, la salida de
+# cada fase y resumen.txt quedan en tests/RepMatch.E2E/resultados (fuera de git). Con
+# --evidencia, el resumen se copia a docs/evidencias para la entrega: el total de pruebas sale de
+# esa corrida y nadie lo escribe a mano en la documentacion.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+RAIZ="$(pwd)"
+PROYECTO="tests/RepMatch.E2E/RepMatch.E2E.csproj"
+RESULTADOS="$RAIZ/tests/RepMatch.E2E/resultados"
+
+DEJAR=0
+RESET=1
+EVIDENCIA=0
+MODO="auto"
+for arg in "$@"; do
+  case "$arg" in
+    --dejar) DEJAR=1 ;;
+    --sin-reset) RESET=0 ;;
+    --evidencia) EVIDENCIA=1 ;;
+    --docker) MODO="docker" ;;
+    --local) MODO="local" ;;
+    -h|--help) sed -n '2,36p' "$0"; exit 0 ;;
+    *) echo "Opcion desconocida: $arg (ver --help)"; exit 2 ;;
+  esac
+done
+
+paso() { printf '\n\033[1;34m== %s\033[0m\n' "$*"; }
+aviso() { printf '\033[1;33m%s\033[0m\n' "$*"; }
+
+command -v docker >/dev/null || { echo "Falta docker en el PATH."; exit 1; }
+docker compose version >/dev/null || { echo "Falta docker compose (v2)."; exit 1; }
+
+# Carga secretos locales, pero las pruebas tienen puertos y almacenamiento aislados.
+if [ -f .env ]; then set -a; . ./.env; set +a; fi
+export IA_LLM_APIKEY=""
+export COMPOSE_PROJECT_NAME="${E2E_COMPOSE_PROJECT_NAME:-repmatch-e2e}"
+export REPMATCH_CONTAINER_PREFIX="${COMPOSE_PROJECT_NAME}-"
+# La Web busca precios en el simulador, sin cache: la fase SinTiendas tiene que ver la caida.
+export OFERTAS_URL_EASY="http://tienda-simulada:8080/easy"
+export OFERTAS_URL_FRAVEGA="http://tienda-simulada:8080/fravega"
+export OFERTAS_CACHE_MINUTOS=0
+export PUERTO_WEB="${E2E_PUERTO_WEB:-18080}"
+export PUERTO_WEB_LOCAL="${E2E_PUERTO_WEB_LOCAL:-18090}"
+export PUERTO_CATALOGO="${E2E_PUERTO_CATALOGO:-18081}"
+export PUERTO_CATALOGO_SOAP="${E2E_PUERTO_CATALOGO_SOAP:-18082}"
+export PUERTO_IA="${E2E_PUERTO_IA:-18083}"
+export PUERTO_POSTGRES="${E2E_PUERTO_POSTGRES:-15432}"
+export PUERTO_RABBITMQ="${E2E_PUERTO_RABBITMQ:-25672}"
+export PUERTO_RABBITMQ_UI="${E2E_PUERTO_RABBITMQ_UI:-25673}"
+export PUERTO_WORKER="${E2E_PUERTO_WORKER:-18085}"
+
+if [ "$MODO" = "auto" ]; then
+  if command -v dotnet >/dev/null && dotnet --list-sdks 2>/dev/null | grep -q '^10\.'; then
+    MODO="local"
+  else
+    MODO="docker"
+  fi
+fi
+echo "Las pruebas corren en modo: $MODO"
+
+compose() { docker compose --project-name "$COMPOSE_PROJECT_NAME" --profile local --profile simulacion "$@"; }
+compose_e2e() { docker compose --project-name "$COMPOSE_PROJECT_NAME" --profile e2e "$@"; }
+
+apagar() {
+  if [ "$DEJAR" -eq 0 ]; then
+    paso "Apagando el entorno"
+    compose down -v --remove-orphans
+  else
+    aviso "El entorno queda levantado: Web http://localhost:$PUERTO_WEB · Local http://localhost:$PUERTO_WEB_LOCAL"
+  fi
+}
+trap apagar EXIT
+
+if [ "$RESET" -eq 1 ]; then
+  paso "1/4 Volumenes de prueba limpios ($COMPOSE_PROJECT_NAME)"
+  compose down -v --remove-orphans
+fi
+
+paso "2/4 Levantando el entorno (web, web-local, catalogo-api, catalogo-soap, ia-api, rabbitmq, worker, tienda-simulada, postgres)"
+compose up --build --wait
+
+paso "3/4 Preparando las pruebas"
+mkdir -p "$RESULTADOS"
+if [ "$MODO" = "local" ]; then
+  rm -rf "${RESULTADOS:?}"/*
+  dotnet build "$PROYECTO" -c Release --nologo -v q
+else
+  compose_e2e build e2e
+  # Lo que dejo una corrida anterior en el contenedor puede ser de root: se borra desde adentro.
+  compose_e2e run --rm --no-deps --entrypoint sh e2e -c 'rm -rf /resultados/*'
+fi
+
+# Corre una fase sin cortar el script: devuelve el codigo de dotnet test.
+correr() {
+  local escenario="$1"; shift
+  if [ "$MODO" = "local" ]; then
+    E2E_ESCENARIO="$escenario" \
+    E2E_URL_WEB="http://localhost:$PUERTO_WEB" \
+    E2E_URL_WEB_LOCAL="http://localhost:$PUERTO_WEB_LOCAL"     E2E_URL_CATALOGO_SOAP="http://localhost:$PUERTO_CATALOGO_SOAP"     E2E_URL_WORKER="http://localhost:$PUERTO_WORKER"     E2E_URL_RABBITMQ="http://localhost:$PUERTO_RABBITMQ_UI"     E2E_RABBITMQ_USUARIO="${RABBITMQ_USUARIO:-repmatch}"     E2E_RABBITMQ_CONTRASENA="${RABBITMQ_CONTRASENA:-repmatch}" \
+    E2E_RESULTADOS="$RESULTADOS" \
+      dotnet test "$PROYECTO" -c Release --no-build --nologo \
+        --results-directory "$RESULTADOS" \
+        --logger "trx;LogFileName=$escenario.trx" \
+        --logger "console;verbosity=normal" "$@"
+  else
+    E2E_ESCENARIO="$escenario" compose_e2e run --rm --no-deps e2e \
+      --logger "trx;LogFileName=$escenario.trx" \
+      --logger "console;verbosity=normal" "$@"
+  fi
+}
+
+ESTADO_Normal="-"; ESTADO_SinIA="-"; ESTADO_SinCatalogo="-"; ESTADO_SinSoap="-"; ESTADO_SinTiendas="-"; ESTADO_SinCola="-"
+fallos=0
+fase() {
+  local escenario="$1"; shift
+  paso "Fase $escenario"
+  # Con pipefail, el codigo de la tuberia es el de dotnet test aunque tee termine bien.
+  if correr "$escenario" "$@" 2>&1 | tee "$RESULTADOS/$escenario.log"; then
+    eval "ESTADO_$escenario=OK"
+  else
+    eval "ESTADO_$escenario='CON ERRORES'"
+    fallos=$((fallos + 1))
+  fi
+}
+
+paso "4/4 Pruebas"
+# En la fase Normal las de resiliencia se omiten solas (miran E2E_ESCENARIO).
+fase Normal
+
+compose stop ia-api
+fase SinIA --filter "Escenario=SinIA"
+compose up -d --wait ia-api
+
+compose stop catalogo-api
+fase SinCatalogo --filter "Escenario=SinCatalogo"
+compose up -d --wait catalogo-api
+
+compose stop catalogo-soap
+fase SinSoap --filter "Escenario=SinSoap"
+compose up -d --wait catalogo-soap
+
+compose stop tienda-simulada
+fase SinTiendas --filter "Escenario=SinTiendas"
+compose up -d --wait tienda-simulada
+
+compose stop rabbitmq
+fase SinCola --filter "Escenario=SinCola"
+compose up -d --wait rabbitmq
+
+# En modo docker los archivos los escribio root dentro del contenedor: se devuelven al usuario.
+if [ "$MODO" = "docker" ] && command -v id >/dev/null; then
+  compose_e2e run --rm --no-deps --entrypoint chown e2e -R "$(id -u):$(id -g)" /resultados >/dev/null 2>&1 || true
+fi
+
+# El resumen de cada fase: VSTest (en ingles o espaniol) y Microsoft.Testing.Platform.
+linea_resumen() {
+  local archivo="$RESULTADOS/$1.log"
+  if grep -qE '^(Total tests:|Pruebas totales:)' "$archivo" 2>/dev/null; then
+    awk '
+      /^Total tests:/ { total = $3 }
+      /^Pruebas totales:/ { total = $3 }
+      /^[[:space:]]*Passed:/ { aprobadas = $2 }
+      /^[[:space:]]*Correcto:/ { aprobadas = $2 }
+      /^[[:space:]]*Skipped:/ { omitidas = $2 }
+      /^[[:space:]]*Omitido:/ { omitidas = $2 }
+      /^[[:space:]]*Failed:/ { fallidas = $2 }
+      /^[[:space:]]*Con error:/ { fallidas = $3 }
+      /^[[:space:]]*Incorrecto:/ { fallidas = $2 }
+      END {
+        printf "Total %d, aprobadas %d, omitidas %d, fallidas %d", total, aprobadas, omitidas, fallidas
+      }
+    ' "$archivo"
+  else
+    grep -hE '(Correctas!|Con error!|Passed!|Failed!) +- ' "$archivo" 2>/dev/null \
+      | sed -e 's/^ *//' -e 's/ - [^ ]*\.dll.*$//' | tail -1
+  fi
+}
+
+{
+  echo "# Pruebas de punta a punta (Playwright) de RepMatch"
+  echo "# Generado por scripts/e2e.sh. No editar a mano."
+  echo
+  echo "Fecha:   $(date '+%Y-%m-%d %H:%M %z')"
+  echo "Commit:  $(git rev-parse --short HEAD 2>/dev/null || echo 'sin git')"
+  echo "Modo:    pruebas en $MODO, app en docker compose (web con SOAP y REST, y web-local), sin clave de LLM, precios del simulador de tiendas"
+  echo
+  echo "| Fase | Estado | Resumen de dotnet test |"
+  echo "|---|---|---|"
+  echo "| Normal | $ESTADO_Normal | $(linea_resumen Normal) |"
+  echo "| SinIA (ia-api frenado) | $ESTADO_SinIA | $(linea_resumen SinIA) |"
+  echo "| SinCatalogo (catalogo-api frenado) | $ESTADO_SinCatalogo | $(linea_resumen SinCatalogo) |"
+  echo "| SinSoap (catalogo-soap frenado) | $ESTADO_SinSoap | $(linea_resumen SinSoap) |"
+  echo "| SinTiendas (tienda-simulada frenada) | $ESTADO_SinTiendas | $(linea_resumen SinTiendas) |"
+  echo "| SinCola (rabbitmq frenado) | $ESTADO_SinCola | $(linea_resumen SinCola) |"
+  echo
+  echo "Las omitidas de la fase Normal son las de resiliencia (corren en su fase) y las que"
+  echo "documentan errores conocidos (ver tests/RepMatch.E2E/README.md)."
+} > "$RESULTADOS/resumen.txt"
+
+if [ "$EVIDENCIA" -eq 1 ]; then
+  cp "$RESULTADOS/resumen.txt" "$RAIZ/docs/evidencias/09-pruebas-e2e.txt"
+fi
+
+paso "Resumen"
+cat "$RESULTADOS/resumen.txt"
+echo
+[ "$EVIDENCIA" -eq 1 ] && echo "  Evidencia: docs/evidencias/09-pruebas-e2e.txt (para commitear con la entrega)"
+echo "  Capturas:  tests/RepMatch.E2E/resultados/capturas/"
+echo "  Trazas:    tests/RepMatch.E2E/resultados/trazas/   (se abren arrastrando el .zip a"
+echo "             https://trace.playwright.dev, que lo procesa en el navegador sin subirlo)"
+echo "  Reportes:  tests/RepMatch.E2E/resultados/*.trx"
+
+exit "$fallos"

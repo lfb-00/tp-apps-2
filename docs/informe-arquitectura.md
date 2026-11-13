@@ -56,30 +56,40 @@ Repository, Strategy, Observer y Facade**, la fachada para las operaciones de cl
 eventos de dominio internos (`BusquedaCreada`) y el modelado con diagramas de capas y de secuencia.
 Sobre esa base se agregaron los roles cliente y mecánico, la revisión del diagnóstico y el registro
 de derivaciones del modelo de negocio.
-De la Segunda Parte ya está el **componente de IA**: diagnóstico del texto libre, expuesto por REST
-en `RepMatch.IA.Api` (secciones 6.7 y 7). El servicio SOAP, la mensajería y los adaptadores a
-tiendas externas corresponden a las entregas siguientes, y la arquitectura está preparada para
-recibirlos sin rediseño (sección 7).
+De la Segunda Parte ya están el **componente de IA** (diagnóstico del texto libre, expuesto por REST
+en `RepMatch.IA.Api`, secciones 6.7 y 7) y el **servicio SOAP** del catálogo (`RepMatch.Catalogo.Soap`,
+con WSDL, secciones 4 y 6.8), que la Web usa en cada búsqueda, y la **API externa real**: el
+Servicio de Ofertas consulta los precios en Easy y Frávega con la API pública de VTEX
+(`RepMatch.Fuentes.Vtex`, sección 6.9). También está la **cola de mensajes** con productores y
+consumidores: los eventos de dominio se publican en RabbitMQ y un worker los consume (sección
+6.10). El adaptador de eBay y las notificaciones a cliente y mecánico corresponden a las entregas
+siguientes, y la arquitectura está preparada para recibirlos sin rediseño (sección 7).
 
 ---
 
 ## 2. Componentes construidos
 
-La consigna pide un mínimo de tres componentes reutilizables independientes. Se construyeron siete
-(los seis del TP Inicial y el de IA de la Segunda Parte):
+La consigna pide un mínimo de tres componentes reutilizables independientes. Se construyeron diez
+(los seis del TP Inicial y, de la Segunda Parte, el de IA, el cliente SOAP, el adaptador de tiendas
+VTEX y el de mensajería):
 
 | # | Componente | Tipo pedido por la consigna | Responsabilidad |
 |---|---|---|---|
 | 1 | `RepMatch.Domain` | **Dominio** | Entidades, value objects, eventos de dominio e interfaces de repositorio |
-| 2 | `RepMatch.Persistence` | **Acceso a datos** | `DbContext`, mapeos, repositorios y unidad de trabajo sobre EF Core |
+| 2 | `RepMatch.Persistence` | **Acceso a datos** | `DbContext`, mapeos, migraciones, repositorios y unidad de trabajo sobre EF Core |
 | 3 | `RepMatch.Common` | **Utilidad** | Validación, logging, configuración externalizada, `ResultadoOperacion<T>`, medición de latencia y correlación |
-| 4 | `RepMatch.Contracts` | Contratos | DTOs, `ICatalogoRepuestos`, `ICatalogoVehiculos`, `IDiagnosticador`, `OpcionesCatalogo` y `OpcionesIA` |
-| 5 | `RepMatch.Aplicacion` | Lógica de negocio | `FachadaAplicacion`, `ServicioClientes`, `ServicioBusquedas`, `ServicioMecanicos`, `ServicioRevisiones`, `ServicioDerivaciones`, `ServicioDiagnostico`, `DespachadorEventos`, `ObservadorCompatibilidad`, mapeadores, validadores y los catálogos locales de repuestos y vehículos |
+| 4 | `RepMatch.Contracts` | Contratos | DTOs, `ICatalogoRepuestos`, `ICatalogoVehiculos`, `IDiagnosticador`, `IFuenteOfertas`, `IEventBus` y los eventos de integración, `OpcionesCatalogo`, `OpcionesIA`, `OpcionesOfertas` y `OpcionesMensajeria` |
+| 5 | `RepMatch.Aplicacion` | Lógica de negocio | `FachadaAplicacion`, `ServicioClientes`, `ServicioBusquedas`, `ServicioMecanicos`, `ServicioRevisiones`, `ServicioDerivaciones`, `ServicioDiagnostico`, `ServicioOfertas`, `ServicioComisiones`, `DespachadorEventos`, `ObservadorCompatibilidad`, `PublicadorEventos`, mapeadores, validadores y los catálogos locales de repuestos y vehículos |
 | 6 | `RepMatch.Clientes.Rest` | Adaptador remoto | `CatalogoRemoto`, `CatalogoVehiculosRemoto`, `DiagnosticadorRemoto` y propagación de correlación |
 | 7 | `RepMatch.IA` | Componente de IA | `DiagnosticadorLlm` (adapter del LLM), `DiagnosticadorLocal` (clasificador TF-IDF + k-NN), `DiagnosticadorConRespaldo`, filtro de datos personales y el corpus de síntomas |
+| 8 | `RepMatch.Clientes.Soap` | Adaptador SOAP | `CatalogoSoap`, el proxy generado con `dotnet-svcutil` desde el WSDL de `Catalogo.Soap` y la propagación de correlación |
+| 9 | `RepMatch.Fuentes.Vtex` | Adaptador de API externa | `FuenteVtex` (una instancia por tienda configurada), `LectorVtex` (traduce la respuesta del buscador de VTEX) y su registro `AgregarFuentesOfertas` |
+| 10 | `RepMatch.Mensajeria` | Mensajería | `BusRabbitMq` (implementa `IEventBus`), `ConexionRabbitMq`, la topología (`TopologiaRabbitMq`) y la base de los consumidores (`ConsumidorRabbitMq<T>`), sobre `RabbitMQ.Client` |
 
-Más tres hosts ejecutables: `RepMatch.Web` (presentación), `RepMatch.Catalogo.Api` (host REST del
-componente de catálogo) y `RepMatch.IA.Api` (host REST del componente de IA, sin base de datos).
+Más cinco hosts ejecutables: `RepMatch.Web` (presentación), `RepMatch.Catalogo.Api` (host REST del
+componente de catálogo), `RepMatch.Catalogo.Soap` (host SOAP del mismo componente, con CoreWCF),
+`RepMatch.IA.Api` (host REST del componente de IA, sin base de datos) y
+`RepMatch.Notificaciones.Worker` (consumidor de la cola, con `/salud` y `GET /api/comisiones`).
 
 **Criterio de independencia.** `Domain`, `Common` y `Contracts` no referencian ningún otro proyecto
 de la solución. Ésa es la prueba de que son reutilizables y no fragmentos de una misma bola de barro.
@@ -96,19 +106,19 @@ materializan así:
 | Cliente | `Cliente` | Igual: quien busca, con su garage de vehículos. La misma entidad representa al mecánico, con `Rol = Mecanico`, datos de taller y plan. |
 | Producto | `Repuesto` + `Oferta` | `Repuesto` es la pieza como concepto (código canónico, equivalencias, tabla de compatibilidad). `Oferta` es esa pieza publicada por una tienda a un precio. **Separarlos es lo que hace posible comparar la misma pieza entre sitios distintos**, que es el corazón de la aplicación. |
 | Pedido | `Busqueda` | El agregado que atraviesa el sistema: vehículo + texto libre + estado + resultados. Cumple el mismo rol estructural que un pedido, pero lo que se "despacha" es la consulta a las tiendas. |
-| Inventario | _(no aplica)_ | RepMatch no gestiona stock; ver la nota debajo de la tabla. |
+| Inventario | `ServicioOfertas` | RepMatch no tiene stock propio: su "inventario" son las ofertas de las tiendas. Ver la nota debajo de la tabla. |
 
-**Sobre el Servicio de Inventario.** RepMatch no tiene inventario. El catálogo propio
+**Sobre el Servicio de Inventario.** RepMatch no tiene inventario propio. El catálogo
 (`IRepuestoRepository`) guarda las piezas y sus tablas de compatibilidad —qué repuesto le entra a
-qué vehículo—, pero no cantidades ni precios. En la Segunda Parte, los adaptadores a tiendas
-consultarán precio y disponibilidad en el momento de cada búsqueda, y cada resultado quedará
-guardado como una `Oferta`: una foto del precio, el envío, la tienda y un indicador de
-disponibilidad, con su fecha `CapturadaEn`. Es un registro de la búsqueda, no stock. Hoy `Oferta` y
-`Busqueda.RegistrarOfertas` existen en el dominio, pero nadie las alimenta todavía. Mantener un
-inventario propio implicaría almacenar datos de terceros, sincronizarlos continuamente y asumir la
-responsabilidad de su exactitud, lo que contradice el modelo de negocio de un comparador. Si la
-consigna menciona un "Servicio de Inventario" como ejemplo, en este dominio ese rol lo cumplirá el
-catálogo de repuestos combinado con las consultas a las tiendas.
+qué vehículo—, pero no cantidades ni precios. El equivalente es `ServicioOfertas`: consulta precio y
+disponibilidad en las tiendas en el momento de la búsqueda y guarda cada resultado como una
+`Oferta`, una foto del precio, la tienda, el vendedor y la disponibilidad, con su fecha
+`CapturadaEn`. Con eso hace lo que haría un servicio de inventario sobre datos de terceros: no
+duplica publicaciones (la misma publicación de la misma tienda se actualiza), marca como no
+disponible lo que una tienda dejó de publicar, vuelve a consultar cuando los precios vencen
+(`Ofertas:VigenciaMinutos`) y arma el ranking por precio total sin mezclar monedas. Mantener stock
+propio implicaría almacenar datos de terceros, sincronizarlos todo el tiempo y responder por su
+exactitud, lo que contradice el modelo de negocio de un comparador.
 
 ---
 
@@ -152,8 +162,8 @@ Las referencias de proyectos y el uso de sus tipos muestran estas decisiones:
 
 Las páginas usan `FachadaAplicacion` para clientes, mecánicos, búsquedas y repuestos. Agrupa
 los métodos de `ServicioClientes`, `ServicioBusquedas`, `ServicioMecanicos`, `ServicioRevisiones`,
-`ServicioDerivaciones`, `ServicioDiagnostico`, `ICatalogoRepuestos` e `ICatalogoVehiculos` en una
-superficie única y estable. Los permisos por rol se chequean en esos servicios —quién puede ver una consulta,
+`ServicioDerivaciones`, `ServicioDiagnostico`, `ServicioOfertas`, `ICatalogoRepuestos` e
+`ICatalogoVehiculos` en una superficie única y estable. Los permisos por rol se chequean en esos servicios —quién puede ver una consulta,
 compartirla o revisarla, y el límite del plan—, no en las páginas: la presentación solo decide qué
 mostrar. Las páginas no conocen qué servicio interno maneja cada operación, ni si el
 catálogo está en proceso o detrás de una API: esa decisión queda encapsulada. Además, `BuscarAsync`
@@ -162,6 +172,14 @@ las piezas compatibles—, coordinación que no le corresponde hacer a ninguna p
 consultó el catálogo para decidir los códigos; la fachada lo vuelve a consultar para traer el detalle
 de esas piezas. La búsqueda sin sesión usa `DiagnosticarAsync`, que valida el vehículo y devuelve
 diagnóstico y piezas sin crear una `Busqueda`.
+
+Los precios llegan en un segundo paso, a propósito. La página muestra el diagnóstico y las piezas
+apenas vuelve `BuscarAsync`, con "Buscando precios…" en cada pieza, y recién entonces pide
+`ObtenerOfertasAsync`: una tienda lenta no demora el diagnóstico. Es también el comportamiento que va
+a tener con la cola de mensajes, cuando el consumidor de `BusquedaCreada` sea quien busque los
+precios y la página solo los lea. Sin sesión, `ResumirPreciosAsync` devuelve "desde cuánto y en
+cuántas tiendas" sin guardar nada: ver dónde y derivar requiere una búsqueda guardada, que es de
+donde sale la comisión.
 
 `SelectorVehiculo.razor` inyecta directamente `ICatalogoVehiculos` para obtener las opciones.
 La fábrica selecciona este contrato entre `CatalogoVehiculosLocal` y `CatalogoVehiculosRemoto`.
@@ -188,34 +206,40 @@ motivo. Cualquier otra excepción —por ejemplo, un error de base de datos en m
 atrapa: la búsqueda queda `Pendiente`, pero ya persistida. Ese error no se atrapa en el
 despachador: se propaga a `ServicioBusquedas.CrearAsync`, que lo devuelve como
 `ResultadoOperacion` fallido si es una `ExcepcionDominio`; cualquier otra excepción sube sin
-atrapar. Y `IDespachadorEventos` es una interfaz: en la Segunda Parte se registrará otra
-implementación de `IDespachadorEventos` que publique el evento a través de `IEventBus` (sobre
-`RabbitMQ.Client`, sección 6.5), sin tocar `ServicioBusquedas`.
+atrapar.
 
 `ServicioRevisiones` y `ServicioDerivaciones` siguen el mismo orden —confirmar y después
-despachar— con `BusquedaCompartida`, `DiagnosticoValidado` y `DerivacionATienda`. Hoy ningún
-observador los acepta; quedan como hechos publicables para la Segunda Parte.
+despachar— con `BusquedaCompartida`, `DiagnosticoValidado` y `DerivacionATienda`.
+
+En la Segunda Parte el despacho quedó **compuesto** sin cambiar `ServicioBusquedas` ni el
+despachador: se registró un segundo observador, `PublicadorEventos`, que acepta los cuatro eventos
+y los publica en la cola por `IEventBus` (sección 6.10). Va registrado después de
+`ObservadorCompatibilidad`, y el despachador los llama en ese orden: primero se completa la
+búsqueda en proceso, porque la pantalla necesita las piezas ya, y después se publica. Si el broker
+no responde, el observador lo registra y la operación sigue.
 
 ---
 
 ## 4. Acceso local vs. remoto entre componentes
 
 Es el ejercicio central del TP Inicial. Cada contrato, `ICatalogoRepuestos` e `ICatalogoVehiculos`, tiene
-**dos implementaciones intercambiables por configuración**. A continuación se muestra el de repuestos.
+**dos implementaciones intercambiables por configuración**. En la Segunda Parte, el de repuestos sumó
+una **tercera, por SOAP**, sin cambiar la interfaz ni sus consumidores. A continuación se muestra el de
+repuestos.
 
 ### El contrato
 
 Ver [ICatalogoRepuestos.cs](../src/RepMatch.Contracts/ICatalogoRepuestos.cs).
 
-### Las dos implementaciones
+### Las implementaciones
 
-| | **Local** | **Remoto** |
-|---|---|---|
-| Clase | `Aplicacion.Catalogo.CatalogoLocal` | `Clientes.Rest.CatalogoRemoto` |
-| Mecanismo | Invocación directa en proceso, por referencia de proyecto | HTTP + JSON contra `Catalogo.Api` |
-| Recorrido | `CatalogoLocal → IRepuestoRepository → EF Core → BD` | `HttpClient → GET /api/repuestos/compatibles → CatalogoLocal (otro proceso) → BD` |
-| Serialización | ninguna | query string de entrada y JSON de respuesta |
-| Frontera de fallas | excepciones del dominio | además: timeouts, DNS, códigos HTTP |
+| | **Local** | **Remoto** | **SOAP** *(Segunda Parte)* |
+|---|---|---|---|
+| Clase | `Aplicacion.Catalogo.CatalogoLocal` | `Clientes.Rest.CatalogoRemoto` | `Clientes.Soap.CatalogoSoap` |
+| Mecanismo | Invocación directa en proceso, por referencia de proyecto | HTTP + JSON contra `Catalogo.Api` | Sobre SOAP 1.1 por HTTP contra `Catalogo.Soap`, con el proxy generado desde el WSDL |
+| Recorrido | `CatalogoLocal → IRepuestoRepository → EF Core → BD` | `HttpClient → GET /api/repuestos/compatibles → CatalogoLocal (otro proceso) → BD` | `canal WCF → POST /ConsultaCompatibilidad.svc (ConsultarPorVehiculo) → CatalogoLocal (otro proceso) → BD` |
+| Serialización | ninguna | query string de entrada y JSON de respuesta | XML en los dos sentidos, descripto por el WSDL |
+| Frontera de fallas | excepciones del dominio | además: timeouts, DNS, códigos HTTP | además: faults SOAP; el adapter las traduce a `HttpRequestException` |
 
 ### La selección
 
@@ -224,14 +248,19 @@ interfaz:
 
 Ver [FabricaCatalogo.cs](../src/RepMatch.Web/Servicios/FabricaCatalogo.cs).
 
-Se cambia con `Catalogo:Modo` en `appsettings.json` o con la variable de entorno `Catalogo__Modo`.
-**Sin recompilar**, y sin que `FachadaAplicacion` ni las páginas se enteren de cuál quedó enchufada.
+Se cambia con `Catalogo:Modo` en `appsettings.json` o con la variable de entorno `Catalogo__Modo`
+(`Local`, `Remoto` o `Soap`). **Sin recompilar**, y sin que `FachadaAplicacion` ni las páginas se
+enteren de cuál quedó enchufada. En modo `Soap` las opciones de vehículo (`ICatalogoVehiculos`)
+siguen por REST: el servicio SOAP publica solo la consulta de compatibilidad. Es el modo con que
+arranca la Web en docker compose, así que **cada búsqueda pasa por los dos protocolos**.
 
 ### Por qué esto no es una complicación gratuita
 
-La misma decisión resuelve un problema real de las entregas siguientes: cuando el catálogo pase a
-ser un microservicio propio y aparezca además una tercera vía SOAP (CoreWCF), sólo hay que agregar
-otra implementación de la misma interfaz. La presentación no se toca.
+La Segunda Parte lo puso a prueba: la vía SOAP entró como otra implementación de la misma interfaz.
+`FachadaAplicacion`, los servicios de negocio y las páginas no cambiaron una línea; en la Web solo
+cambió la fábrica (un caso más en el `switch`) y la configuración. El único cuidado fue que
+`CatalogoSoap` traduzca los errores de WCF a `HttpRequestException`, la excepción que los
+consumidores ya atrapaban para el camino REST (sección 6.8).
 
 ---
 
@@ -243,34 +272,45 @@ otra implementación de la misma interfaz. La presentación no se toca.
 bash scripts/evidencias.sh
 ```
 
+En Windows PowerShell, usar `.\scripts\bash.ps1 scripts\evidencias.sh`. Ese lanzador localiza Git
+Bash mediante Git for Windows y evita la conversión automática de rutas de MSYS al llamar a Docker.
+
 Deja en `docs/evidencias/` los logs de los tres procesos, la respuesta REST cruda, el contrato
 OpenAPI y las dos mediciones de `GET /evidencia/catalogo`. En cada modo, el script hace 12 llamadas:
 una primera (arranque en frío), diez de calentamiento y una última, que es la única que se guarda
 en `06-medicion-local.json` o `07-medicion-remota.json`. La duración de las 12 queda en el log de la
-Web (líneas `Evidencia acceso ... duracion=`).
+Web (líneas `Evidencia acceso ... duracion=`). Después repite la medición con la Web en modo
+`Soap` contra `Catalogo.Soap` (`12-catalogo-soap.log`, `13-web-modo-soap.log` y
+`14-medicion-soap.json`) y guarda el contrato SOAP: `10-wsdl.xml` y su esquema de tipos,
+`11-wsdl-tipos.xsd`. Al final corre las pruebas automatizadas y deja su resultado en `08-pruebas.txt`
+(sección 5.4).
 
 ### 5.2 Latencia medida
 
-Consulta: repuestos compatibles con un **Volkswagen Gol 2015 1.6**. Los dos caminos devuelven
+Consulta: repuestos compatibles con un **Volkswagen Gol 2015 1.6**. Los tres caminos devuelven
 **los mismos 7 códigos**, en el mismo orden. Cada petición a `GET /evidencia/catalogo` crea un
-ámbito nuevo y, por lo tanto, un `DbContext` nuevo. Valores de la corrida del 2026-10-05, tomados
-de `01-web-modo-local.log` y `02-web-modo-remoto.log`:
+ámbito nuevo y, por lo tanto, un `DbContext` nuevo. Valores de la corrida del 2026-11-10, tomados
+de `01-web-modo-local.log`, `02-web-modo-remoto.log` y `13-web-modo-soap.log`:
 
-| Ejecución | Local | Remoto | Sobrecosto |
+| Ejecución | Local | Remoto (REST) | SOAP |
 |---|---|---|---|
-| Primera llamada (arranque en frío) | 163,9 ms | 334,6 ms | +170,7 ms |
-| Segunda llamada (todavía calentando) | 37,1 ms | 58,7 ms | +21,6 ms |
-| **En régimen: llamadas 3 a 12, mediana (rango)** | **2,1 ms** (1,8–3,6) | **7,4 ms** (6,4–11,2) | **≈ +5 ms** |
+| Primera llamada (arranque en frío) | 368,5 ms | 763,1 ms | 2.252,9 ms |
+| Segunda llamada (todavía calentando) | 103,8 ms | 109,6 ms | 178,7 ms |
+| **En régimen: llamadas 3 a 12, mediana (rango)** | **2,8 ms** (1,3–21,6) | **11,8 ms** (5,1–27,1) | **24,6 ms** (9,8–293,9) |
 
-`06-medicion-local.json` y `07-medicion-remota.json` guardan solo la última llamada de cada modo
-(1,8 ms y 11,2 ms). Una sola muestra puede caer en cualquier punto del rango —en esta corrida, la
-remota fue la más lenta de las diez—, por eso para comparar conviene mirar la mediana.
+`06-medicion-local.json`, `07-medicion-remota.json` y `14-medicion-soap.json` guardan solo la
+última llamada de cada modo (1,3 ms, 26,0 ms y 293,9 ms). Una sola muestra puede caer en cualquier
+punto del rango —en esta corrida, la última SOAP fue un pico, la más lenta de las diez—, por eso
+para comparar conviene mirar la mediana.
 
-La primera llamada incluye la compilación JIT y la caché de consultas de EF Core, y en modo Remoto
-además la apertura de la conexión HTTP; por eso no sirve para comparar los dos caminos. En régimen,
-la invocación directa resuelve la consulta en un par de milisegundos y el salto por HTTP le suma
-alrededor de **5 ms**. Los valores exactos cambian de una corrida a otra, pero el orden de magnitud
-se mantiene. Ése es el precio de poder desplegar el componente de catálogo por separado.
+La primera llamada incluye la compilación JIT y la caché de consultas de EF Core; en modo Remoto,
+además, la apertura de la conexión HTTP, y en SOAP la construcción del canal WCF del lado del
+cliente y del despachador de CoreWCF del lado del servidor. Por eso no sirve para comparar los
+caminos. En régimen, la invocación directa resuelve la consulta en un par de milisegundos, el
+salto por HTTP con JSON le suma unos **9 ms** y SOAP, con su sobre XML y el serializador de
+contratos, unos **22 ms**. Los valores exactos cambian de una corrida a otra (esta máquina mostró
+picos en los tres modos), pero el orden se mantiene. Es el precio de poder desplegar el componente
+de catálogo por separado y de ofrecerle a otros sistemas un contrato formal.
 
 ### 5.3 Trazabilidad entre procesos
 
@@ -279,18 +319,32 @@ las llamadas salientes. Una misma operación en modo Remoto queda así en los do
 
 ```
 # Web  (docs/evidencias/02-web-modo-remoto.log)
-[19:57:11 INF] [Web] [c1be50fb134a] Sending HTTP request GET http://localhost:5081/api/repuestos/compatibles?*
-[19:57:11 INF] [Web] [c1be50fb134a] Catalogo[Remoto] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
-[19:57:11 INF] [Web] [c1be50fb134a] Evidencia acceso origen=Remoto duracion=11,2ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
+[21:49:54 INF] [Web] [fb6e66a242ec] Sending HTTP request GET http://localhost:5081/api/repuestos/compatibles?*
+[21:49:54 INF] [Web] [fb6e66a242ec] Catalogo[Remoto] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:49:54 INF] [Web] [fb6e66a242ec] Evidencia acceso origen=Remoto duracion=26,0ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
 
 # Catalogo.Api  (docs/evidencias/03-catalogo-api.log)  ← mismo identificador
-[19:57:11 INF] [Catalogo.Api] [c1be50fb134a] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
-[19:57:11 INF] [Catalogo.Api] [c1be50fb134a] HTTP GET /api/repuestos/compatibles responded 200 in 2.6876 ms
+[21:49:54 INF] [Catalogo.Api] [fb6e66a242ec] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:49:54 INF] [Catalogo.Api] [fb6e66a242ec] HTTP GET /api/repuestos/compatibles responded 200 in 22.1046 ms
 ```
 
-Con dos procesos ya hace falta. El mismo identificador ya llega a `IA.Api` cuando la Web la usa en
-modo remoto; cuando se sumen la cola y los adaptadores externos, es lo único que permite
-reconstruir el recorrido completo de una búsqueda.
+Por SOAP pasa lo mismo: `CorrelacionSoapHandler` agrega la cabecera al pedido HTTP que lleva el
+sobre SOAP, y `Catalogo.Soap` la registra con el mismo identificador:
+
+```
+# Web  (docs/evidencias/13-web-modo-soap.log)
+[21:51:23 INF] [Web] [e41e77a14eb1] Catalogo[Soap] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[21:51:23 INF] [Web] [e41e77a14eb1] Evidencia acceso origen=Soap duracion=27,5ms vehiculo=Volkswagen Gol 2015 (1.6) resultados=7
+
+# Catalogo.Soap  (docs/evidencias/12-catalogo-soap.log)  ← mismo identificador
+[21:51:23 INF] [Catalogo.Soap] [e41e77a14eb1] SOAP ConsultarPorVehiculo Volkswagen Gol 2015 1.6 sistema=(todos) -> 7
+[21:51:23 INF] [Catalogo.Soap] [e41e77a14eb1] HTTP POST /ConsultaCompatibilidad.svc responded 200 in 18.8289 ms
+```
+
+Con dos procesos ya hace falta. El mismo identificador llega a `IA.Api` cuando la Web la usa en
+modo remoto, y a la cola: `PublicadorEventos` lo pone en el mensaje (y en la cabecera
+`X-Correlation-Id` de AMQP) y el consumidor del worker lo vuelve a poner en su contexto de log. Así
+una salida a la tienda se sigue desde la Web hasta el worker con un solo id.
 
 ### 5.4 Verificación automatizada
 
@@ -302,14 +356,72 @@ completas y comprueba que los modelos de la semilla tengan piezas compatibles.
 `tests/RepMatch.Tests/IA/` hace lo mismo con el componente de IA: hospeda `IA.Api` en memoria, sin
 clave de LLM, y compara su respuesta con la del cliente remoto; prueba el clasificador local sobre
 un conjunto fijo de síntomas y el adapter del LLM con respuestas grabadas, sin red.
+`tests/RepMatch.Tests/Ofertas/` prueba el adaptador VTEX con respuestas reales grabadas de Easy y
+Frávega (`tests/fixtures/vtex/`) y `ServicioOfertas` con tiendas simuladas: tienda caída, tope
+global de tiempo, deduplicación, vencimiento, permisos por rol y piezas recomendadas por el mecánico.
+`tests/RepMatch.Tests/Mensajeria/` prueba la cola sin broker: el contrato JSON y su versión, la
+regla de reintento y DLQ, qué publica `PublicadorEventos` (y que el texto libre no viaja), que con
+el broker inalcanzable la publicación falla rápido y no vuelve a esperar, y la idempotencia del
+registro de comisiones. `FlujoDistribuidoTests` usa Testcontainers con PostgreSQL y RabbitMQ
+reales para el flujo integrado, la correlación hasta el consumidor y los caminos de falla. Las E2E
+(`ColaTests`) también ejercitan RabbitMQ real dentro de Compose.
+`tests/RepMatch.Tests/Integracion/AccesoSoapTests.cs` cubre el camino SOAP: hospeda
+`Catalogo.Soap` en memoria, lo consume con el proxy generado desde el WSDL y verifica que devuelva
+lo mismo que el catálogo en proceso, que el WSDL publique las cuatro operaciones y que una caída
+del servicio llegue como `HttpRequestException`.
 
-```
-Correctas! - Con error:     0, Superado:   137, Omitido:     0, Total:   137
-```
+El resultado de la última corrida está en
+[`docs/evidencias/08-pruebas.txt`](evidencias/08-pruebas.txt): fecha, commit, advertencias de
+compilación y el resumen de `dotnet test`. Lo genera `bash scripts/evidencia-pruebas.sh`, que
+también corre al final de `scripts/evidencias.sh` (en Windows se puede invocar directamente con
+`.\scripts\bash.ps1 scripts\evidencia-pruebas.sh`). El total no se copia en este informe: así,
+sumar una prueba no obliga a editar la documentación, y el número entregado sale de una corrida
+real. Las mismas pruebas corren sin el SDK con `docker compose --profile test run --build --rm tests`.
 
-Verificación del 2026-11-04 con `dotnet test` y el SDK local: 137 pruebas correctas y compilación
-sin advertencias. El 2026-11-05, `docker compose --profile test run --build --rm tests` (Docker
-dentro de WSL) dio el mismo resultado: 137 correctas y compilación sin advertencias.
+### 5.5 Pruebas funcionales de punta a punta
+
+`tests/RepMatch.E2E` recorre la aplicación con un navegador real (Playwright) contra el entorno
+completo de docker compose, como lo haría una persona: registro e ingreso, búsquedas con y sin
+sesión, el componente de IA, los precios de las tiendas con los tres roles, la cola de mensajes, garage, perfil, la
+colaboración entre cliente y mecánico, la vista de celular y los permisos (páginas sin sesión, rol equivocado, consultas ajenas). Prueba los
+errores además del camino feliz, y cualquier prueba falla si la Web muestra el cartel de error
+inesperado.
+
+`bash scripts/e2e.sh` (en Windows PowerShell, `.\scripts\bash.ps1 scripts\e2e.sh`) lo hace todo:
+arranca de una base limpia, levanta la Web principal (repuestos por SOAP, vehículos e IA por REST)
+y la Web en modo Local, y corre seis fases. La primera tiene
+todo arriba, así que cada búsqueda prueba también el camino SOAP. Las otras frenan `ia-api`,
+`catalogo-api`, `catalogo-soap`, `tienda-simulada` y `rabbitmq`, para comprobar que la búsqueda
+sigue sin IA, que la app no se cae sin catálogo REST ni SOAP, que sin tiendas se ven las piezas con
+un aviso y que sin cola se puede buscar, compartir y salir a la tienda.
+Corre sin clave de LLM para que el diagnóstico sea determinista, y con los precios de
+`tienda-simulada`, que responde con búsquedas reales grabadas de Easy y Frávega: así las pruebas
+pueden afirmar precios exactos sin depender de lo que publiquen ese día. Con `--evidencia` deja el
+resumen de las seis fases en `docs/evidencias/09-pruebas-e2e.txt`.
+
+Las pruebas que encontraron errores reales quedan omitidas con la causa explicada, hasta que se
+corrijan. La lista está en [`tests/RepMatch.E2E/README.md`](../tests/RepMatch.E2E/README.md).
+
+### 5.6 Pruebas de carga
+
+`bash scripts/carga.sh` (en Windows PowerShell, `.\scripts\bash.ps1 scripts\carga.sh`) ejecuta k6
+en Docker contra la Web en modo Local y Remoto, `IA.Api` y la cola de actividad de RabbitMQ. El
+escenario de IA desactiva por defecto la clave del LLM para medir
+el clasificador local sin consumir cuota; `IA_CARGA_LLM=1` lo habilita explícitamente. La corrida
+usa 10 VUs durante 30 segundos por escenario y una ráfaga de 200 mensajes con 10 publicadores.
+
+En la corrida del 2026-11-12, catálogo Local obtuvo p50/p95/p99 de 3,43/5,57/8,18 ms y Remoto
+5,80/10,26/16,35 ms; no hubo errores HTTP. El endpoint medido es `/evidencia/catalogo`, así que
+las latencias incluyen la llamada HTTP del generador a la Web además del camino de catálogo que esta
+usa. El diagnóstico local obtuvo 1,09/2,04/3,25 ms, también sin errores. RabbitMQ aceptó los 200
+mensajes y el worker vació la cola en 6 ms después de la última publicación; la latencia p50/p95/p99
+de publicación vía API de administración fue 9,84/15,92/20,45 ms.
+
+La diferencia observada entre catálogo Local y Remoto es el primer costo visible de integración
+bajo esta concurrencia; no se observó saturación a 10 VUs. La publicación vía API de administración
+incluye el costo de HTTP de RabbitMQ y no equivale a medir el productor `BusRabbitMq`. El detalle
+reproducible, los percentiles, errores y resúmenes JSON están en
+[`docs/evidencias/carga.md`](evidencias/carga.md).
 
 ---
 
@@ -323,8 +435,8 @@ Se relevaron las fuentes reales disponibles antes de comprometer el diseño:
 |---|---|---|
 | MercadoLibre `sites/MLA/search` | **HTTP 403 forbidden** sin token — cerraron la búsqueda pública | ❌ Descartada |
 | `argautopartes.com.ar` (Tiendanube) | `robots.txt` con `Disallow: /search/` | ❌ Descartada |
-| **VTEX `easy.com.ar`** | HTTP 206 con autopartes reales y precio, endpoint público, permitido por `robots.txt` | ✅ Adoptada |
-| **VTEX `fravega.com`** | HTTP 206, mismo contrato | ✅ Adoptada |
+| **VTEX `easy.com.ar`** | HTTP 206 con autopartes reales y precio, endpoint público, permitido por `robots.txt` | ✅ Implementada |
+| **VTEX `fravega.com`** | HTTP 206, mismo contrato | ✅ Implementada |
 | **eBay Browse API** | API oficial, OAuth2 client_credentials, 5000 llamadas/día, filtros de compatibilidad vehicular | ✅ Adoptada |
 | **NHTSA vPIC** | HTTP 200, sin API key, sin rate limit | ✅ Adoptada |
 
@@ -354,12 +466,13 @@ bug del llamador.
 testear la aplicación **sin Docker ni base instalada**; el segundo es el del entorno containerizado.
 La decisión se toma en un único punto (`ExtensionesPersistencia`) y ningún repositorio se entera.
 
-### 6.5 RabbitMQ.Client directo, no MassTransit *(decisión anticipada para la Segunda Parte)*
+### 6.5 RabbitMQ.Client directo, no MassTransit
 
 MassTransit 9 pasó a licencia comercial y la rama 8 (Apache-2.0) queda sin soporte a fin de 2026.
 Más allá de la licencia: la consigna evalúa *"implementación de productores y consumidores de
 mensajes"*, y escribirlos explícitamente sobre `RabbitMQ.Client` 7.2.2 muestra la mecánica en vez de
-esconderla detrás de un framework. Se envolverá en una interfaz `IEventBus` propia.
+esconderla detrás de un framework. Está envuelto en una interfaz propia, `IEventBus`, en
+`Contracts` (sección 6.10).
 
 ### 6.6 Versiones y seguridad
 
@@ -389,6 +502,114 @@ la cola. Se tomaron cuatro decisiones:
   (`FiltroDatosPersonales`), y los logs registran el largo del texto, no su contenido. En la
   búsqueda sin sesión el texto se diagnostica pero no se guarda.
 
+### 6.8 SOAP: un contrato formal sobre el mismo catálogo
+
+La consigna pide al menos un servicio SOAP con WSDL y contrato. Las decisiones:
+
+- **CoreWCF en un host propio.** En .NET moderno WCF existe solo como cliente; CoreWCF es su
+  versión de servidor sobre ASP.NET Core. `Catalogo.Soap` va aparte de `Catalogo.Api` para que cada
+  host tenga un protocolo, su propio puerto (8082) y su propio healthcheck. Por dentro usa el mismo
+  `CatalogoLocal` que el host REST, así los dos caminos devuelven exactamente lo mismo.
+- **Contrato propio, no los DTO internos.** `IConsultaCompatibilidad` y los tipos `Repuesto` y
+  `Aplicacion` del WSDL viven en el host SOAP, con espacio de nombres `urn:repmatch:catalogo:v1`. El
+  WSDL es un contrato público: tiene que quedar estable aunque cambien los DTO de `Contracts`. Sus
+  operaciones cubren `ICatalogoRepuestos` completo (`ConsultarPorVehiculo`, `ObtenerPorCodigo`,
+  `Listar`) y suman `VerificarCodigo`, la consulta puntual que haría otro sistema que se integra.
+- **El cliente sale del WSDL.** `RepMatch.Clientes.Soap` no referencia al host: su proxy lo genera
+  `dotnet-svcutil` a partir del WSDL publicado (`ServicioSoap/`), que es como lo consumiría
+  cualquier otro sistema. Se regenera con `dotnet-svcutil -u ServicioSoap` con el servicio levantado.
+- **Errores traducidos en el adapter.** WCF informa las caídas con `EndpointNotFoundException`,
+  `TimeoutException` o faults SOAP. `CatalogoSoap` las convierte en `HttpRequestException`, la que la
+  fachada y el observador ya atrapaban para el catálogo remoto. Sin eso, una caída del servicio SOAP
+  tiraría la página en vez de mostrar "no se pudo consultar el catálogo".
+- **Que se use, no que solo exista.** En docker compose la Web busca los repuestos por SOAP y las
+  opciones de vehículo y el diagnóstico por REST. Cada búsqueda de la demo usa los dos protocolos,
+  y el correlation id permite seguirla en los logs de los tres procesos (sección 5.3).
+
+### 6.9 Precios de las tiendas: lo que mostró la API real
+
+El adaptador se diseñó a partir de respuestas reales de Easy y Frávega, grabadas en
+`tests/fixtures/vtex/`:
+
+- **Las tiendas generalistas tienen pocos repuestos.** Del catálogo semilla, Easy publica baterías
+  de auto y casi nada más; Frávega vende sobre todo accesorios. La pantalla lo dice ("Ninguna tienda
+  conectada la publica por ahora") en vez de mostrar una lista vacía. eBay (#17) es la fuente
+  pensada para dar profundidad.
+- **Buscar por nombre trae basura.** "Batería" devuelve taladros y pilas; "pastillas de freno", las
+  pastillas para encender el fuego. Cada tienda configura sus categorías válidas
+  (`PrefijosCategoria`: `/Automotor/` en Easy) y, en la búsqueda por nombre, el título tiene que
+  empezar con la misma palabra que la pieza. La aplicación descarta coincidencias probables que
+  contradicen los datos disponibles del vehículo: modelo, marca, año, posición o sistema. Si la
+  publicación no trae esos datos, no se presume incompatibilidad; queda como probable y se advierte
+  ("verificá que sea la medida de tu auto"). En la búsqueda por código equivalente, el código debe
+  aparecer en la publicación.
+- **Frávega es un marketplace.** Cada producto trae varios vendedores y el de la propia tienda suele
+  estar sin stock: se toma el vendedor disponible más barato y se muestra quién vende.
+- **La búsqueda no informa el costo de envío.** Obtenerlo requiere simular la compra con un código
+  postal. El precio se muestra como de referencia y la pantalla aclara que el envío se calcula en la
+  tienda; `Oferta.PrecioTotal` ya lo suma cuando una fuente lo informe.
+- **Identidad por EAN.** Si distintas tiendas publican el mismo EAN, sus ofertas se clasifican como
+  coincidencias exactas de la misma pieza; se mantienen separadas porque son publicaciones y precios
+  distintos.
+- **Uso responsable y resiliente de las APIs.** Cada fuente limita pedidos simultáneos
+  (`PedidosSimultaneos`), cachea respuestas por término (`CacheMinutos`) y tiene timeout, reintentos
+  y circuito independiente. En Compose la caché es Redis compartida; sin `ConnectionStrings:Redis`
+  se usa caché distribuida en memoria. Además, `ServicioOfertas` aplica un tope global
+  (`TimeoutGlobalSegundos`): si una tienda falla, se muestran las demás y no se marcan como agotadas
+  las ofertas guardadas de la tienda que no respondió. Los fallos de caché se registran y la consulta
+  continúa por red.
+
+Cada rol ve los precios de una forma distinta. El **cliente** ve las ofertas de cada pieza y sale a
+la tienda por `/derivar`, que registra la comisión. El **mecánico** ve las mismas ofertas con enlace
+directo a la tienda: si pasara por `/derivar`, su propio clic contaría como una derivación atribuida
+a él. Si corrige el diagnóstico, también se buscan los precios de las piezas que recomendó, para que
+el cliente pueda comprarlas. **Sin sesión** se ve "desde $X en N tiendas" con un "Ingresá para ver
+dónde".
+
+### 6.10 Cola de mensajes: qué se publica y para qué
+
+La consigna pide *"mecanismos de mensajería y colas"* y *"productores y consumidores de mensajes"*.
+Los mensajes de RepMatch son **eventos de integración**: hechos que ya ocurrieron y quedaron
+guardados (`busqueda.creada`, `busqueda.compartida`, `diagnostico.validado`, `derivacion.tienda`).
+Sirven para lo que tiene que pasar como consecuencia de una acción, que la persona no necesita
+esperar y que no se puede perder si quien lo hace está caído. El primer caso real es la comisión:
+"Ir a la tienda" redirige al instante y el registro de la derivación por tienda y mes lo hace el
+worker después, desde la cola. La topología, las garantías y cómo seguir un mensaje en la demo
+están en el [diagrama de flujo de mensajes](diagramas/mensajes.md).
+
+Las decisiones:
+
+- **Despacho compuesto, búsqueda sincrónica.** La cola no reemplaza al observador en proceso:
+  `ObservadorCompatibilidad` sigue completando la búsqueda en la misma petición y
+  `PublicadorEventos` publica después. Mover la resolución de piezas a la cola obligaría a la
+  pantalla a esperar o consultar a un worker.
+- **Un contrato propio y versionado.** Todos los mensajes viajan en `MensajeIntegracion<T>` (id del
+  mensaje, tipo, versión, fecha, correlation id y datos) en JSON. Un campo nuevo no rompe a un
+  consumidor viejo; cambiar el significado de uno obliga a subir la versión. Los datos llevan ids y
+  lo mínimo para actuar, **nunca el texto libre** ni datos personales: un mensaje puede quedar en
+  la cola, en la DLQ o en un log.
+- **Topología compartida y protegida contra arranques simultáneos.** Exchange topic
+  `repmatch.eventos`, una cola durable por consumidor y un exchange de mensajes muertos con una DLQ
+  por cola. `TopologiaRabbitMq` es la fuente única de nombres y claves: los publicadores declaran
+  todas las colas conocidas al conectarse y cada consumidor vuelve a declarar la propia. Las
+  declaraciones son idempotentes, así que el primer evento no depende de que el worker haya
+  arrancado antes. La publicación usa `mandatory`; si RabbitMQ devuelve un mensaje sin ruta, queda
+  registrado como error en el log en vez de parecer entregado.
+- **El broker no es requisito para usar la app.** Si RabbitMQ no responde, la publicación falla, se
+  registra y la operación de la persona sigue: el hecho ya está en la base. Después de una falla
+  no se intenta conectar por 30 segundos, para que un broker caído no le sume el timeout a cada
+  clic. El costo es que ese mensaje se pierde; garantizarlo necesitaría un outbox, que quedó fuera
+  de alcance. Sin `Mensajeria:Habilitada` (fuera de Docker) no se publica nada.
+- **Consumir sin perder ni duplicar.** El consumidor confirma el mensaje recién después de
+  procesarlo; si falla, lo reintenta una vez y después lo manda a la DLQ; si no se puede leer, va
+  directo. Como un mensaje puede llegar dos veces, el registro de comisiones guarda el id del
+  mensaje procesado en la misma transacción que la suma.
+- **Un worker aparte.** `RepMatch.Notificaciones.Worker` corre en su propio contenedor: si se cae,
+  los mensajes esperan en la cola y se procesan cuando vuelve, sin que la Web se entere. Las
+  notificaciones a cliente y mecánico, y la búsqueda de precios en segundo plano, son los próximos
+  consumidores (sección 7).
+
+
 ---
 
 ## 7. Cómo esta arquitectura recibe las entregas siguientes
@@ -396,12 +617,15 @@ la cola. Se tomaron cuatro decisiones:
 | Entrega | Qué agrega | Dónde se enchufa | Qué NO hay que tocar |
 |---|---|---|---|
 | **Primera** | Patrones formalizados, fachada, eventos de dominio internos | `DespachadorEventos` publica `BusquedaCreada` a `ObservadorCompatibilidad`. Las operaciones pasan por `FachadaAplicacion`; `SelectorVehiculo` consulta `ICatalogoVehiculos` directamente | Dominio, contratos |
-| **Segunda** | SOAP `ConsultaCompatibilidad` (CoreWCF + WSDL) | Tercera implementación de `ICatalogoRepuestos` | Presentación, lógica de negocio |
+| **Segunda** *(implementado)* | SOAP `ConsultaCompatibilidad` (CoreWCF + WSDL) | `Catalogo.Soap` publica el servicio; `CatalogoSoap` es la tercera implementación de `ICatalogoRepuestos`, elegida con `Catalogo:Modo=Soap` (sección 6.8) | Presentación, lógica de negocio, interfaz del catálogo |
 | **Segunda** | REST documentados con OpenAPI | `Catalogo.Api` e `IA.Api` publican `/openapi/v1.json` | — |
-| **Segunda** | RabbitMQ, productores y consumidores | Implementación de `IDespachadorEventos` sobre `IEventBus`; `BusquedaCreada`, `BusquedaCompartida` (aviso al mecánico) y `DerivacionATienda` (conteo de comisiones) ya existen como eventos de dominio | Entidades |
-| **Segunda** | Adaptadores a eBay y VTEX | Nueva interfaz `IFuenteOfertas`, consumida por `search-api` | Catálogo, dominio |
+| **Segunda** *(implementado)* | RabbitMQ, productores y consumidores | `PublicadorEventos` es un observador más de los eventos de dominio y publica por `IEventBus` (`BusRabbitMq`); el worker consume `derivacion.tienda` (registro de comisiones) y todos los eventos para el log de actividad (sección 6.10) | `ServicioBusquedas`, `DespachadorEventos`, entidades |
+| **Segunda** | Notificaciones y precios en segundo plano | Consumidores nuevos en el worker: una cola atada a `busqueda.compartida` o `diagnostico.validado` para avisar al mecánico o al cliente, y otra a `busqueda.creada` que llame a `ServicioOfertas.ObtenerAsync`, el mismo método que hoy dispara la página | Productores, topología, `ConsumidorRabbitMq<T>`, la pantalla de precios |
+| **Segunda** *(implementado)* | Servicio de Ofertas y API externa (VTEX: Easy y Frávega) | `IFuenteOfertas` en `Contracts`; `FuenteVtex` en `RepMatch.Fuentes.Vtex`, con caché distribuida y resiliencia por tienda; `ServicioOfertas` agrega resultados, clasifica EAN y valida coincidencias por nombre (sección 6.9) | `ServicioBusquedas.CrearAsync`, catálogo |
+| **Segunda** | Adaptador a eBay | Otra implementación de `IFuenteOfertas`, en USD; el ranking no mezcla monedas | `ServicioOfertas`, presentación |
 | **Segunda** *(implementado)* | Componente de IA (texto libre → repuestos) | `ObservadorCompatibilidad` usa `ServicioDiagnostico`, que le pasa `Busqueda.TextoLibre` y las piezas compatibles a `IDiagnosticador` (local o remota contra `IA.Api`, por `IA:Modo`) | `ServicioBusquedas.CrearAsync`; en la presentación solo se agregó la tarjeta del diagnóstico |
-| **Integrador** | Métricas de IA, pruebas de carga, despliegue | `DiagnosticoValidado` trae, por cada revisión, los códigos propuestos y los que recomendó el mecánico: el dataset etiquetado para medir exactitud | — |
+| **Integrador** | Métricas de exactitud de IA y despliegue | `DiagnosticoValidado` trae, por cada revisión, los códigos propuestos y los que recomendó el mecánico: el dataset etiquetado para medir exactitud | — |
+| **Integrador** *(pruebas implementadas)* | Pruebas funcionales, de integración y de carga | `tests/RepMatch.E2E`, `FlujoDistribuidoTests` con Testcontainers y `tests/carga` con k6; secciones 5.4–5.6 | — |
 
 El punto de extensión quedó en el evento: `ServicioBusquedas.CrearAsync` persiste la búsqueda y
 despacha `BusquedaCreada` igual que en la Primera Parte. La IA se sumó del lado del observador, que
@@ -422,6 +646,10 @@ dotnet run --project src/RepMatch.Catalogo.Api --urls http://localhost:5081
 ```
 
 ```bash
+dotnet run --project src/RepMatch.Catalogo.Soap --urls http://localhost:5082
+```
+
+```bash
 dotnet run --project src/RepMatch.IA.Api --urls http://localhost:5083
 ```
 
@@ -429,8 +657,15 @@ dotnet run --project src/RepMatch.IA.Api --urls http://localhost:5083
 dotnet run --project src/RepMatch.Web --urls http://localhost:5080
 ```
 
-La Web sola alcanza: por defecto resuelve catálogo e IA en proceso. La evidencia de acceso local y
-remoto se genera con `bash scripts/evidencias.sh`.
+La Web sola alcanza: por defecto resuelve catálogo e IA en proceso y no publica en la cola
+(`Mensajeria:Habilitada=false`). Los precios salen de las
+tiendas reales, así que necesitan internet; sin conexión la búsqueda funciona igual y avisa que no
+pudo consultar las tiendas. Para trabajar sin red está el simulador:
+`dotnet run --project tests/RepMatch.TiendaSimulada --urls http://localhost:5084`, con la Web
+arrancada con `Ofertas__Tiendas__0__UrlBase=http://localhost:5084/easy` y
+`Ofertas__Tiendas__1__UrlBase=http://localhost:5084/fravega`. Para el modo SOAP, con
+`Catalogo.Api` y `Catalogo.Soap` levantados, se arranca la Web con `Catalogo__Modo=Soap`. La
+evidencia de los tres caminos se genera con `bash scripts/evidencias.sh`.
 
 ### Con Docker
 
@@ -438,10 +673,12 @@ remoto se genera con `bash scripts/evidencias.sh`.
 docker compose up --build
 ```
 
-Web en `http://localhost:8080`, Catálogo en `http://localhost:8081/salud`, IA en
-`http://localhost:8083/salud`, PostgreSQL en `5432`. En compose la Web arranca en modo **Remoto**
-para el catálogo y la IA, de modo que el acceso remoto entre componentes queda
-demostrado apenas se levanta el entorno.
+Web en `http://localhost:8080`, Catálogo REST en `http://localhost:8081/salud`, Catálogo SOAP en
+`http://localhost:8082/ConsultaCompatibilidad.svc?wsdl`, IA en `http://localhost:8083/salud`,
+RabbitMQ en `5672` con su UI en `http://localhost:15672` (usuario y contraseña `repmatch`), el
+worker en `http://localhost:8085/salud`, PostgreSQL en `5432`. En compose la Web arranca en modo **Soap**: repuestos por SOAP, opciones de
+vehículo e IA por REST. El acceso remoto entre componentes, y los dos protocolos de integración,
+quedan demostrados apenas se levanta el entorno.
 
 ---
 
@@ -450,7 +687,7 @@ demostrado apenas se levanta el entorno.
 | Requisito de la consigna | Dónde está |
 |---|---|
 | Entorno configurado (.NET 10, contenedores) | `docker-compose.yml`, `src/*/Dockerfile` |
-| ≥3 componentes reutilizables independientes | 6 componentes en esa entrega, 7 hoy — sección 2 |
+| ≥3 componentes reutilizables independientes | 6 componentes en esa entrega, 10 hoy — sección 2 |
 | Aplicación multicapa | Sección 3 |
 | Gestión de dependencias (NuGet) | `RepMatch.slnx`, `*.csproj` |
 | Acceso local y remoto entre componentes | Sección 4 |
@@ -467,7 +704,7 @@ demostrado apenas se levanta el entorno.
 |---|---|
 | Aplicación sobre framework empresarial | `src/RepMatch.Web`, `src/RepMatch.Catalogo.Api` |
 | Patrones Factory, Repository, Strategy, Observer, Facade | [`docs/patrones.md`](patrones.md) |
-| Servicios de negocio e integración por eventos | `ServicioClientes`, `ServicioBusquedas`, `ServicioMecanicos`, `ServicioRevisiones`, `ServicioDerivaciones`, `ObservadorCompatibilidad` |
-| Servicio de Inventario | No existe como módulo separado porque RepMatch no almacena stock. El catálogo interno cubre la compatibilidad de piezas; en la Segunda Parte, disponibilidad y precio se consultarán en el momento de cada búsqueda a las APIs de las tiendas. Justificación ampliada en la nota "Sobre el Servicio de Inventario" de la sección 2. |
+| Servicios de negocio e integración por eventos | `ServicioClientes`, `ServicioBusquedas`, `ServicioMecanicos`, `ServicioRevisiones`, `ServicioDerivaciones`, `ServicioOfertas`, `ObservadorCompatibilidad` |
+| Servicio de Inventario | `ServicioOfertas`: como RepMatch no almacena stock, su inventario son las ofertas de las tiendas, consultadas en cada búsqueda, sin duplicar y con vencimiento. Justificación en la nota "Sobre el Servicio de Inventario" de la sección 2. |
 | Diagrama de arquitectura en capas | [`docs/diagramas/capas.md`](diagramas/capas.md) |
 | Diagramas de secuencia (búsquedas, login, alta de vehículo, catálogo, eliminación de cuenta y diagnóstico por IA) | [`docs/diagramas/secuencia.md`](diagramas/secuencia.md) |

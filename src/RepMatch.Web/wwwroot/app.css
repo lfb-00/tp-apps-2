@@ -897,3 +897,37 @@ button.btn-peligro:hover:not(:disabled) { background: var(--color-error); border
 @media (max-width: 400px) {
     .marca-texto small { display: none; }
 }
+
+/* --- Precios de las tiendas (Servicio de Ofertas) ------------------------------------ */
+.precios { margin-top: 0.75rem; padding-top: 0.65rem; border-top: 1px solid var(--color-border); }
+.precios-cargando, .precios-vacio, .precios-resumen { margin: 0; font-size: 0.9rem; color: var(--color-text-muted); }
+.precios-cargando { display: flex; align-items: center; gap: 0.4rem; }
+.precios-resumen strong { color: var(--color-text); }
+.ofertas { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.55rem; }
+.ofertas-titulo { margin: 0.25rem 0 0.5rem; font-size: 0.84rem; }
+.ofertas-probables { margin-top: 0.65rem; }
+.ofertas-probables summary { color: var(--color-text-muted); font-size: 0.84rem; cursor: pointer; }
+.ofertas-probables .ofertas { margin-top: 0.5rem; }
+.oferta {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas: "precio enlace" "datos datos";
+    gap: 0.2rem 0.75rem;
+    padding-bottom: 0.55rem;
+    border-bottom: 1px dashed var(--color-border);
+}
+.oferta:last-child { border-bottom: 0; padding-bottom: 0; }
+.oferta-precio { grid-area: precio; display: flex; align-items: baseline; gap: 0.45rem; flex-wrap: wrap; }
+.oferta-precio strong { font-size: 1.02rem; }
+.oferta-precio s { font-size: 0.78rem; color: var(--color-text-muted); }
+.oferta > a { grid-area: enlace; align-self: baseline; font-size: 0.88rem; white-space: nowrap; }
+.oferta-datos { grid-area: datos; display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.oferta-titulo { font-size: 0.88rem; overflow-wrap: anywhere; }
+.oferta-tienda { font-size: 0.8rem; color: var(--color-text-muted); }
+.oferta-aviso { font-size: 0.75rem; color: var(--color-text-muted); font-style: italic; }
+.oferta .etiqueta { margin-left: 0; align-self: flex-start; }
+.aviso-precios { margin: 0.5rem 0 0.75rem; }
+.precios-de-pieza + .precios-de-pieza { margin-top: 1rem; }
+.precios-de-pieza h3 { margin: 0; font-size: 1rem; }
+.precios-de-pieza .precios { border-top: 0; padding-top: 0.25rem; }
+.precios-pie { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; margin: 1rem 0 0; flex-wrap: wrap; }

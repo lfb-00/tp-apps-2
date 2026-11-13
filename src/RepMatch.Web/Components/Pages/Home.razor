@@ -98,14 +98,20 @@
         else
         {
             <p class="conteo">@resultadoAnon.Piezas.Count @(resultadoAnon.Piezas.Count == 1 ? "pieza compatible" : "piezas compatibles")</p>
+            <AvisoPrecios TiendasSinRespuesta="@(resumenAnon?.TiendasSinRespuesta ?? [])" />
             <div class="piezas">
                 @foreach (var pieza in resultadoAnon.Piezas)
                 {
                     <article class="pieza">
                         <TarjetaRepuesto Repuesto="pieza" Vehiculo="vehiculoAnonDto" />
+                        <PreciosPieza CodigoRepuesto="@pieza.CodigoCanonico"
+                                      Cargando="cargandoPreciosAnon"
+                                      HuboTiendasSinRespuesta="@(resumenAnon?.TiendasSinRespuesta.Count > 0)"
+                                      Resumen="@resumenAnon?.Piezas.FirstOrDefault(r => r.CodigoRepuesto == pieza.CodigoCanonico)" />
                     </article>
                 }
             </div>
+            <p class="texto-ayuda">Precios de referencia de las tiendas conectadas. El envío se calcula en cada tienda.</p>
         }
     }
 }
@@ -172,7 +178,7 @@ else
             </div>
 
             <p style="margin:0.85rem 0 0">
-                <button @onclick="BuscarAsync" disabled="@buscando">
+                <button @onclick="BuscarAsync" disabled="@(buscando || cargandoPrecios)">
                     @if (buscando)
                     {
                         <span class="ai-spin"><AiIcon /></span>
@@ -222,14 +228,23 @@ else
                 }
 
                 <p class="conteo">@resultado.Piezas.Count @(resultado.Piezas.Count == 1 ? "pieza compatible" : "piezas compatibles")</p>
+                <AvisoPrecios TiendasSinRespuesta="@tiendasSinRespuesta" Error="@errorPrecios" />
                 <div class="piezas">
                     @foreach (var pieza in resultado.Piezas)
                     {
                         <article class="pieza">
                             <TarjetaRepuesto Repuesto="pieza" Vehiculo="resultado.Busqueda.Vehiculo" />
+                            <PreciosPieza CodigoRepuesto="@pieza.CodigoCanonico"
+                                          Cargando="cargandoPrecios"
+                                          HuboTiendasSinRespuesta="@(tiendasSinRespuesta.Count > 0)"
+                                          Ofertas="@ofertas?.Ofertas" />
                         </article>
                     }
                 </div>
+                <p class="texto-ayuda">
+                    Ordenadas por precio. RepMatch no vende: te lleva a la tienda, donde se calcula el envío.
+                    <a class="link-discreto" href="/consultas/@resultado.Busqueda.Id">Ver la consulta completa</a>
+                </p>
             }
         }
     }
@@ -281,6 +296,8 @@ else
     private string? errorTextoAnon;
     private ResultadoDiagnosticoDto? resultadoAnon;
     private VehiculoDto? vehiculoAnonDto;
+    private ResumenPreciosBusquedaDto? resumenAnon;
+    private bool cargandoPreciosAnon;
 
     // búsqueda con sesión
     private string vehiculoSeleccionado = "";
@@ -288,6 +305,12 @@ else
     private bool buscando;
     private List<string> errores = [];
     private string? errorTexto;
+
+    // Precios: llegan despues de las piezas (ver ServicioOfertas). Mientras tanto, "Buscando precios…".
+    private BusquedaDto? ofertas;
+    private bool cargandoPrecios;
+    private IReadOnlyList<string> tiendasSinRespuesta = [];
+    private string? errorPrecios;
 
     private bool MostrarErrorTextoAnon => errorTextoAnon is not null && textoAnon.Length < 15;
     private bool MostrarErrorTexto     => errorTexto is not null && texto.Length < 15;
@@ -339,6 +362,10 @@ else
         errores = [];
         errorTexto = null;
         resultadoAnon = null;
+        resumenAnon = null;
+        ofertas = null;
+        tiendasSinRespuesta = [];
+        errorPrecios = null;
         vehiculoAnonDto = null;
         erroresAnon = [];
         errorTextoAnon = null;
@@ -380,10 +407,11 @@ else
         buscandoAnon = true;
         erroresAnon = [];
         resultadoAnon = null;
+        resumenAnon = null;
+        var vehiculo = vehiculoAnonDto;
 
         try
         {
-            var vehiculo = vehiculoAnonDto;
             if (vehiculo is null)
             {
                 erroresAnon = ["Elegí marca, modelo, año y motor del vehículo."];
@@ -412,11 +440,28 @@ else
         {
             buscandoAnon = false;
         }
+
+        if (resultadoAnon is { Piezas.Count: > 0 } conPiezas)
+        {
+            // Primero se muestran las piezas; los precios llegan cuando respondan las tiendas.
+            cargandoPreciosAnon = true;
+            StateHasChanged();
+            try
+            {
+                resumenAnon = await Fachada.ResumirPreciosAsync(conPiezas.Piezas, vehiculo);
+            }
+            finally
+            {
+                cargandoPreciosAnon = false;
+            }
+        }
     }
 
     private async Task BuscarAsync()
     {
-        if (Sesion.Cliente is null)
+        // Mientras llegan los precios de la busqueda anterior no se lanza otra: la pagina comparte un
+        // solo DbContext con esa consulta.
+        if (Sesion.Cliente is null || cargandoPrecios)
             return;
 
         buscando = true;
@@ -454,12 +499,45 @@ else
             }
 
             resultado = respuesta.Valor;
+            ofertas = null;
+            tiendasSinRespuesta = [];
+            errorPrecios = null;
             texto = "";
             recientes = await Fachada.ListarBusquedasDelClienteAsync(Sesion.Cliente.Id);
         }
         finally
         {
             buscando = false;
+        }
+
+        if (resultado is { Piezas.Count: > 0 } conPiezas && Sesion.Cliente is { } cliente)
+            await CargarPreciosAsync(conPiezas.Busqueda.Id, cliente.Id);
+    }
+
+    /// <summary>
+    /// Pide los precios de la busqueda recien creada. Se llama despues de mostrar las piezas:
+    /// el diagnostico no espera a las tiendas. Con la cola de mensajes, este paso lo hace el
+    /// consumidor de BusquedaCreada y la pantalla solo lee el resultado.
+    /// </summary>
+    private async Task CargarPreciosAsync(Guid busquedaId, Guid clienteId)
+    {
+        cargandoPrecios = true;
+        StateHasChanged();
+        try
+        {
+            var respuesta = await Fachada.ObtenerOfertasAsync(busquedaId, clienteId);
+            if (respuesta.EsFallido)
+            {
+                errorPrecios = respuesta.Error;
+                return;
+            }
+
+            ofertas = respuesta.Valor.Busqueda;
+            tiendasSinRespuesta = respuesta.Valor.TiendasSinRespuesta;
+        }
+        finally
+        {
+            cargandoPrecios = false;
         }
     }
 }

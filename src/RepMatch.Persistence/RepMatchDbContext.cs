@@ -18,6 +18,8 @@ public class RepMatchDbContext(DbContextOptions<RepMatchDbContext> opciones) : D
     public DbSet<Oferta> Ofertas => Set<Oferta>();
     public DbSet<ConfiguracionVehiculo> ConfiguracionesVehiculo => Set<ConfiguracionVehiculo>();
     public DbSet<Derivacion> Derivaciones => Set<Derivacion>();
+    public DbSet<ComisionesTienda> Comisiones => Set<ComisionesTienda>();
+    public DbSet<MensajeProcesado> MensajesProcesados => Set<MensajeProcesado>();
 
     protected override void OnModelCreating(ModelBuilder modelo)
     {

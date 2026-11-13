@@ -7,3 +7,4 @@
 **/.gitignore
 **/*.user
 docs/
+tests/RepMatch.E2E/resultados/

@@ -9,13 +9,20 @@ public enum ModoAccesoCatalogo
     Local = 0,
 
     /// <summary>Invocacion remota por HTTP contra RepMatch.Catalogo.Api.</summary>
-    Remoto = 1
+    Remoto = 1,
+
+    /// <summary>
+    /// Repuestos por SOAP contra RepMatch.Catalogo.Soap (Segunda Parte); las opciones de vehiculo
+    /// siguen por REST contra Catalogo.Api. Asi una busqueda usa los dos protocolos que pide la
+    /// consigna, y es el modo con que arranca la Web en docker compose.
+    /// </summary>
+    Soap = 2
 }
 
 /// <summary>
 /// Configuracion externalizada del acceso al catalogo. Se cambia por appsettings o por variable
-/// de entorno (Catalogo__Modo=Remoto), sin recompilar: eso es lo que permite mostrar los dos
-/// modos de ejecucion uno detras del otro durante la demo.
+/// de entorno (Catalogo__Modo=Remoto o Soap), sin recompilar: eso es lo que permite mostrar los
+/// tres modos de ejecucion uno detras del otro durante la demo.
 /// </summary>
 public sealed class OpcionesCatalogo
 {
@@ -24,8 +31,11 @@ public sealed class OpcionesCatalogo
     [Required]
     public ModoAccesoCatalogo Modo { get; set; } = ModoAccesoCatalogo.Local;
 
-    /// <summary>URL base de Catalogo.Api. Solo se usa cuando <see cref="Modo"/> es Remoto.</summary>
+    /// <summary>URL base de Catalogo.Api. Se usa en modo Remoto y, para los vehiculos, en modo Soap.</summary>
     public string UrlBaseRemota { get; set; } = "http://localhost:5081";
+
+    /// <summary>Direccion del servicio SOAP (el endpoint, no el WSDL). Solo se usa en modo Soap.</summary>
+    public string UrlSoap { get; set; } = "http://localhost:5082/ConsultaCompatibilidad.svc";
 
     [Range(1, 120)]
     public int TimeoutSegundos { get; set; } = 30;

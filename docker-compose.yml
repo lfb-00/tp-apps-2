@@ -1,16 +1,26 @@
 # Entorno de laboratorio de RepMatch — TP Inicial.
 #
-# Levanta los tres nodos del diagrama de despliegue: la base de datos, el host remoto del
-# componente de catalogo y la aplicacion web. La Web arranca en modo Remoto para que el
-# ejercicio de acceso remoto entre componentes quede demostrado apenas se levanta el entorno.
+# Levanta los nodos del diagrama de despliegue: la base de datos, los hosts del componente de
+# catalogo (REST y SOAP), el de IA y la aplicacion web. La Web arranca en modo Soap: busca los
+# repuestos por SOAP y las opciones de vehiculo y el diagnostico por REST, asi cada busqueda usa
+# los dos protocolos de integracion que pide la consigna.
 #
 #   docker compose up --build --wait     -> espera a que todos esten sanos
 #     Web       http://localhost:8080
 #     Catalogo  http://localhost:8081/salud
+#     SOAP      http://localhost:8082/ConsultaCompatibilidad.svc?wsdl   (Segunda Parte: WSDL)
 #     IA        http://localhost:8083/salud   (Segunda Parte: diagnostico por texto libre)
 #
 #   docker compose --profile test run --rm tests        -> corre las pruebas
 #   docker compose --profile local up --build web-local -> la misma Web en modo Local
+#
+# Cola de mensajes (Segunda Parte): rabbitmq recibe los eventos que publican web y catalogo-api,
+# y worker los consume. UI de administracion en http://localhost:15672 (usuario y contrasena
+# RABBITMQ_USUARIO / RABBITMQ_CONTRASENA del .env, por defecto repmatch / repmatch).
+#
+# Los precios salen de las tiendas reales (easy.com.ar y fravega.com, API publica de VTEX).
+# scripts/e2e.sh las cambia por el simulador (perfil "simulacion") con OFERTAS_URL_EASY y
+# OFERTAS_URL_FRAVEGA, para que las pruebas no dependan de precios que cambian todos los dias.
 #
 # Los puertos del host se pueden cambiar con un archivo .env (ver .env.example) para
 # evitar choques con lo que cada uno tenga corriendo.
@@ -26,10 +36,35 @@ x-llm: &llm
   IA__Llm__UrlBase: "${IA_LLM_URLBASE:-https://api.groq.com/openai/v1/}"
   IA__Llm__Modelo: "${IA_LLM_MODELO:-llama-3.3-70b-versatile}"
 
+# Tiendas donde buscar precios. Por defecto las reales; las pruebas las apuntan al simulador.
+x-tiendas: &tiendas
+  Ofertas__Tiendas__0__UrlBase: "${OFERTAS_URL_EASY:-https://www.easy.com.ar}"
+  Ofertas__Tiendas__0__CacheMinutos: "${OFERTAS_CACHE_MINUTOS:-10}"
+  Ofertas__Tiendas__1__UrlBase: "${OFERTAS_URL_FRAVEGA:-https://www.fravega.com}"
+  Ofertas__Tiendas__1__CacheMinutos: "${OFERTAS_CACHE_MINUTOS:-10}"
+
+# Cola de mensajes. Los servicios que publican o consumen la usan; si rabbitmq esta caido, la Web
+# y la API siguen funcionando y lo dejan en el log.
+x-mensajeria: &mensajeria
+  Mensajeria__Habilitada: "true"
+  Mensajeria__Host: rabbitmq
+  Mensajeria__Usuario: "${RABBITMQ_USUARIO:-repmatch}"
+  Mensajeria__Contrasena: "${RABBITMQ_CONTRASENA:-repmatch}"
+
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: repmatch-redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [repmatch]
+
   postgres:
     image: postgres:17-alpine
-    container_name: repmatch-postgres
+    container_name: "${REPMATCH_CONTAINER_PREFIX:-}repmatch-postgres"
     environment:
       POSTGRES_DB: repmatch
       POSTGRES_USER: repmatch
@@ -52,9 +87,9 @@ services:
       context: .
       dockerfile: src/RepMatch.Catalogo.Api/Dockerfile
     image: repmatch/catalogo-api:tp-inicial
-    container_name: repmatch-catalogo-api
+    container_name: "${REPMATCH_CONTAINER_PREFIX:-}repmatch-catalogo-api"
     environment:
-      <<: [*conexion-postgres, *llm]
+      <<: [*conexion-postgres, *llm, *mensajeria]
       # Development habilita /openapi/v1.json, que es parte del entregable.
       ASPNETCORE_ENVIRONMENT: Development
     ports:
@@ -64,13 +99,35 @@ services:
         condition: service_healthy
     networks: [repmatch]
 
+  # Componente de catalogo expuesto por SOAP (Segunda Parte). Misma base y misma logica que
+  # catalogo-api; publica el WSDL en /ConsultaCompatibilidad.svc?wsdl.
+  catalogo-soap:
+    build:
+      context: .
+      dockerfile: src/RepMatch.Catalogo.Soap/Dockerfile
+    image: repmatch/catalogo-soap:segunda
+    container_name: "${REPMATCH_CONTAINER_PREFIX:-}repmatch-catalogo-soap"
+    environment:
+      <<: *conexion-postgres
+      ASPNETCORE_ENVIRONMENT: Development
+    ports:
+      - "${PUERTO_CATALOGO_SOAP:-8082}:8080"
+    # Espera a catalogo-api, que siembra la base primero: con la base vacia, dos hosts sembrando
+    # a la vez chocan con los indices unicos.
+    depends_on:
+      postgres:
+        condition: service_healthy
+      catalogo-api:
+        condition: service_healthy
+    networks: [repmatch]
+
   # Componente de IA expuesto por REST. No tiene base: recibe los candidatos en la peticion.
   ia-api:
     build:
       context: .
       dockerfile: src/RepMatch.IA.Api/Dockerfile
     image: repmatch/ia-api:segunda
-    container_name: repmatch-ia-api
+    container_name: "${REPMATCH_CONTAINER_PREFIX:-}repmatch-ia-api"
     environment:
       <<: *llm
       ASPNETCORE_ENVIRONMENT: Development
@@ -83,12 +140,15 @@ services:
       context: .
       dockerfile: src/RepMatch.Web/Dockerfile
     image: repmatch/web:tp-inicial
-    container_name: repmatch-web
+    container_name: "${REPMATCH_CONTAINER_PREFIX:-}repmatch-web"
     environment:
-      <<: *conexion-postgres
+      <<: [*conexion-postgres, *tiendas, *mensajeria]
+      ConnectionStrings__Redis: redis:6379
       ASPNETCORE_ENVIRONMENT: Development
-      # Acceso REMOTO al componente de catalogo: resuelve por HTTP contra el otro contenedor.
-      Catalogo__Modo: Remoto
+      # Repuestos por SOAP contra catalogo-soap; opciones de vehiculo por REST contra
+      # catalogo-api. Catalogo__Modo=Remoto o Local cambian el camino sin recompilar.
+      Catalogo__Modo: "${CATALOGO_MODO:-Soap}"
+      Catalogo__UrlSoap: "http://catalogo-soap:8080/ConsultaCompatibilidad.svc"
       Catalogo__UrlBaseRemota: "http://catalogo-api:8080"
       # La IA tambien por HTTP, contra IA.Api.
       IA__Modo: Remoto
@@ -105,7 +165,56 @@ services:
         condition: service_healthy
       catalogo-api:
         condition: service_healthy
+      catalogo-soap:
+        condition: service_healthy
       ia-api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks: [repmatch]
+
+  # Broker de mensajes. El hostname fijo no es decorativo: RabbitMQ guarda los datos por nombre de
+  # nodo, y con un hostname al azar el volumen no se reconoceria al recrear el contenedor (las
+  # colas durables y sus mensajes se perderian).
+  rabbitmq:
+    image: rabbitmq:4-management
+    container_name: "${REPMATCH_CONTAINER_PREFIX:-}repmatch-rabbitmq"
+    hostname: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: "${RABBITMQ_USUARIO:-repmatch}"
+      RABBITMQ_DEFAULT_PASS: "${RABBITMQ_CONTRASENA:-repmatch}"
+    ports:
+      - "${PUERTO_RABBITMQ:-5672}:5672"
+      - "${PUERTO_RABBITMQ_UI:-15672}:15672"
+    volumes:
+      - datos-rabbitmq:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks: [repmatch]
+
+  # Consumidor de la cola: registro de comisiones por tienda y log de actividad. Espera a que
+  # catalogo-api este sano porque ese servicio aplica las migraciones de la base.
+  worker:
+    build:
+      context: .
+      dockerfile: src/RepMatch.Notificaciones.Worker/Dockerfile
+    image: repmatch/worker:segunda
+    container_name: "${REPMATCH_CONTAINER_PREFIX:-}repmatch-worker"
+    environment:
+      <<: [*conexion-postgres, *mensajeria]
+      ASPNETCORE_ENVIRONMENT: Development
+    ports:
+      - "${PUERTO_WORKER:-8085}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      catalogo-api:
         condition: service_healthy
     networks: [repmatch]
 
@@ -119,9 +228,10 @@ services:
     build:
       context: .
       dockerfile: src/RepMatch.Web/Dockerfile
-    container_name: repmatch-web-local
+    container_name: "${REPMATCH_CONTAINER_PREFIX:-}repmatch-web-local"
     environment:
-      <<: [*conexion-postgres, *llm]
+      <<: [*conexion-postgres, *llm, *tiendas, *mensajeria]
+      ConnectionStrings__Redis: redis:6379
       ASPNETCORE_ENVIRONMENT: Development
       Catalogo__Modo: Local
       IA__Modo: Local
@@ -130,13 +240,30 @@ services:
       - claves-web-local:/claves
     ports:
       - "${PUERTO_WEB_LOCAL:-8090}:8080"
+    # Tambien siembra la base: espera a catalogo-api por el mismo motivo que catalogo-soap.
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+      catalogo-api:
+        condition: service_healthy
     networks: [repmatch]
 
-  # Corre las pruebas sin necesidad de tener el SDK de .NET instalado.
-  # La prueba de inicializacion concurrente usa una base temporal aislada en PostgreSQL.
+  # Simulador de tiendas VTEX con busquedas reales grabadas (tests/fixtures/vtex). Solo lo usan
+  # las pruebas de punta a punta: scripts/e2e.sh apunta la Web aca y lo frena en la fase
+  # SinTiendas para probar que la busqueda sigue andando sin precios.
+  tienda-simulada:
+    profiles: [simulacion]
+    build:
+      context: .
+      dockerfile: tests/RepMatch.TiendaSimulada/Dockerfile
+    image: repmatch/tienda-simulada:segunda
+    container_name: "${REPMATCH_CONTAINER_PREFIX:-}repmatch-tienda-simulada"
+    networks: [repmatch]
+
+  # Corre las pruebas sin necesidad de tener el SDK de .NET instalado. Los casos con Testcontainers
+  # crean PostgreSQL y RabbitMQ temporales a traves del socket de Docker montado abajo.
   tests:
     profiles: [test]
     build:
@@ -144,14 +271,51 @@ services:
       dockerfile: tests/RepMatch.Tests/Dockerfile
     image: repmatch/tests:tp-inicial
     environment:
-      REPMATCH_TEST_POSTGRES: "Host=postgres;Port=5432;Database=repmatch;Username=repmatch;Password=repmatch"
-    depends_on:
-      postgres:
-        condition: service_healthy
+      REPMATCH_TESTCONTAINERS: "1"
+      TESTCONTAINERS_HOST_OVERRIDE: host.docker.internal
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks: [repmatch]
+
+  # Pruebas de carga k6 contra Web Local/Remota, IA REST y RabbitMQ.
+  carga:
+    profiles: [carga]
+    image: grafana/k6:0.54.0
+    environment:
+      RABBITMQ_USUARIO: "${RABBITMQ_USUARIO:-repmatch}"
+      RABBITMQ_CONTRASENA: "${RABBITMQ_CONTRASENA:-repmatch}"
+    volumes:
+      - ./tests/carga:/scripts:ro
+      - ./docs/evidencias:/evidencias
+    networks: [repmatch]
+
+  # Pruebas de punta a punta con Playwright, contra web (Remoto) y web-local (Local) por la red
+  # de compose. Las orquesta scripts/e2e.sh, que ademas frena ia-api o catalogo-api para las
+  # pruebas de resiliencia. Las capturas y trazas quedan en tests/RepMatch.E2E/resultados.
+  e2e:
+    profiles: [e2e]
+    build:
+      context: .
+      dockerfile: tests/RepMatch.E2E/Dockerfile
+    image: repmatch/e2e:segunda
+    environment:
+      E2E_URL_WEB: "http://web:8080"
+      E2E_URL_WEB_LOCAL: "http://web-local:8080"
+      E2E_URL_CATALOGO_SOAP: "http://catalogo-soap:8080"
+      E2E_URL_WORKER: "http://worker:8080"
+      E2E_URL_RABBITMQ: "http://rabbitmq:15672"
+      E2E_RABBITMQ_USUARIO: "${RABBITMQ_USUARIO:-repmatch}"
+      E2E_RABBITMQ_CONTRASENA: "${RABBITMQ_CONTRASENA:-repmatch}"
+      E2E_ESCENARIO: "${E2E_ESCENARIO:-Normal}"
+    volumes:
+      - ./tests/RepMatch.E2E/resultados:/resultados
     networks: [repmatch]
 
 volumes:
   datos-postgres:
+  datos-rabbitmq:
   claves-web:
   claves-web-local:
 

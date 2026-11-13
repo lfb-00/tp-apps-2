@@ -11,7 +11,10 @@
     <ProjectReference Include="..\RepMatch.Persistence\RepMatch.Persistence.csproj" />
     <ProjectReference Include="..\RepMatch.Aplicacion\RepMatch.Aplicacion.csproj" />
     <ProjectReference Include="..\RepMatch.Clientes.Rest\RepMatch.Clientes.Rest.csproj" />
+    <ProjectReference Include="..\RepMatch.Clientes.Soap\RepMatch.Clientes.Soap.csproj" />
     <ProjectReference Include="..\RepMatch.IA\RepMatch.IA.csproj" />
+    <ProjectReference Include="..\RepMatch.Fuentes.Vtex\RepMatch.Fuentes.Vtex.csproj" />
+    <ProjectReference Include="..\RepMatch.Mensajeria\RepMatch.Mensajeria.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

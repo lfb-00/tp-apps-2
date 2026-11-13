@@ -127,7 +127,7 @@ else
                 <p>Le llegó a su bandeja. Cuando la revise, vas a ver acá si confirma o corrige el diagnóstico.</p>
                 <TarjetaMecanico Mecanico="consulta.Mecanico" />
                 <p style="margin-bottom:0">
-                    <button class="secundario" @onclick="DejarDeCompartirAsync" disabled="@trabajando">Dejar de compartir</button>
+                    <button class="secundario" @onclick="DejarDeCompartirAsync" disabled="@Ocupado">Dejar de compartir</button>
                 </p>
             </div>
         }
@@ -160,7 +160,7 @@ else
                             <div class="vehiculo-card">
                                 <TarjetaMecanico Mecanico="mecanico" />
                                 <div class="vehiculo-acciones">
-                                    <button @onclick="() => CompartirAsync(mecanico.Id)" disabled="@trabajando">Compartir</button>
+                                    <button @onclick="() => CompartirAsync(mecanico.Id)" disabled="@Ocupado">Compartir</button>
                                 </div>
                             </div>
                         }
@@ -210,30 +210,40 @@ else
             </div>
 
             <p style="margin-bottom:0">
-                <button @onclick="RevisarAsync" disabled="@trabajando">Enviar revisión</button>
+                <button @onclick="RevisarAsync" disabled="@Ocupado">Enviar revisión</button>
             </p>
         </div>
     }
 
-    @if (busqueda.Ofertas.Count > 0)
+    @if (PiezasConPrecio(busqueda).Count > 0)
     {
-        <div class="tarjeta">
+        <div class="tarjeta donde-conseguirlas">
             <h2 style="margin-top:0">Dónde conseguirlas</h2>
-            <p class="texto-ayuda">Ordenadas por precio final con envío. RepMatch no vende: te lleva a la tienda.</p>
-            <ul class="recientes">
-                @foreach (var oferta in OfertasPorPrecio(busqueda))
+            <p class="texto-ayuda">
+                Ordenadas por precio: ni el mecánico ni lo que paga la tienda cambian el orden.
+                RepMatch no vende: @(EsDuenio ? "te lleva" : "lleva al cliente") a la tienda, donde se calcula el envío.
+            </p>
+            <AvisoPrecios TiendasSinRespuesta="@tiendasSinRespuesta" Error="@errorPrecios" />
+            @foreach (var codigo in PiezasConPrecio(busqueda))
+            {
+                <section class="precios-de-pieza">
+                    <h3>@NombrePieza(codigo) <code>@codigo</code></h3>
+                    <PreciosPieza CodigoRepuesto="@codigo"
+                                  Cargando="cargandoPrecios"
+                                  HuboTiendasSinRespuesta="@(tiendasSinRespuesta.Count > 0)"
+                                  Ofertas="@busqueda.Ofertas"
+                                  ParaMecanico="!EsDuenio"
+                                  Recomendados="@busqueda.Revision?.CodigosRecomendados"
+                                  Maximo="10" />
+                </section>
+            }
+            <p class="precios-pie">
+                @if (busqueda.PreciosConsultadosEn is { } consultados)
                 {
-                    <li>
-                        <strong>@oferta.Titulo</strong>
-                        <span>@oferta.NombreTienda · @oferta.Moneda @oferta.PrecioTotal.ToString("N2")</span>
-                        @if (busqueda.Revision?.CodigosRecomendados.Contains(oferta.CodigoRepuesto) == true)
-                        {
-                            <em>Recomendada por tu mecánico</em>
-                        }
-                        <a class="link-marca" href="/derivar/@oferta.Id" target="_blank" rel="noopener">Ir a la tienda</a>
-                    </li>
+                    <small class="fecha">Precios consultados el @consultados.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</small>
                 }
-            </ul>
+                <button class="secundario" @onclick="() => CargarPreciosAsync(forzar: true)" disabled="@cargandoPrecios">Actualizar precios</button>
+            </p>
         </div>
     }
 }
@@ -252,9 +262,20 @@ else
     private IReadOnlyList<MecanicoDto> mecanicos = [];
     private string provincia = "";
 
+    private bool cargandoPrecios;
+    private IReadOnlyList<string> tiendasSinRespuesta = [];
+    private string? errorPrecios;
+
     private bool confirma = true;
     private HashSet<string> elegidas = new(StringComparer.OrdinalIgnoreCase);
     private string nota = "";
+
+    /// <summary>
+    /// Mientras se buscan precios no se comparte ni se revisa: en Blazor Server la pagina comparte un
+    /// solo DbContext, y dos operaciones a la vez sobre el chocarian. Se libera apenas responden las
+    /// tiendas (como mucho, Ofertas:TimeoutGlobalSegundos).
+    /// </summary>
+    private bool Ocupado => trabajando || cargandoPrecios;
 
     private bool EsDuenio => consulta is not null && consulta.Busqueda.ClienteId == Sesion.Cliente?.Id;
     private bool EsMecanicoAsignado => consulta is not null && consulta.Busqueda.MecanicoId == Sesion.Cliente?.Id;
@@ -281,15 +302,51 @@ else
         }
 
         cargando = false;
+
+        if (consulta is not null)
+        {
+            // La consulta se muestra ya; los precios llegan cuando respondan las tiendas.
+            StateHasChanged();
+            await CargarPreciosAsync(forzar: false);
+        }
+    }
+
+    /// <summary>Piezas propuestas por el sistema y las que recomendo el mecanico, sin repetir.</summary>
+    private static List<string> PiezasConPrecio(BusquedaDto busqueda) =>
+        [.. busqueda.CodigosObjetivo.Concat(busqueda.Revision?.CodigosRecomendados ?? []).Distinct()];
+
+    /// <summary>
+    /// Pide precios solo de lo que falta o vencio (o de todo, con "Actualizar precios"). Si el
+    /// mecanico corrigio el diagnostico, aca aparecen las ofertas de lo que recomendo.
+    /// </summary>
+    private async Task CargarPreciosAsync(bool forzar)
+    {
+        if (Sesion.Cliente is null || consulta is null || PiezasConPrecio(consulta.Busqueda).Count == 0)
+            return;
+
+        cargandoPrecios = true;
+        errorPrecios = null;
+        try
+        {
+            var respuesta = await Fachada.ObtenerOfertasAsync(Id, Sesion.Cliente.Id, forzar);
+            if (respuesta.EsFallido)
+            {
+                errorPrecios = respuesta.Error;
+                return;
+            }
+
+            consulta = consulta with { Busqueda = respuesta.Valor.Busqueda };
+            tiendasSinRespuesta = respuesta.Valor.TiendasSinRespuesta;
+        }
+        finally
+        {
+            cargandoPrecios = false;
+        }
     }
 
     private string NombrePieza(string codigo) =>
         compatibles.FirstOrDefault(p => p.CodigoCanonico.Equals(codigo, StringComparison.OrdinalIgnoreCase))?.Nombre
         ?? "Pieza";
-
-    /// <summary>El orden es solo por precio: ni el mecánico ni lo que paga la tienda lo cambian.</summary>
-    private static IEnumerable<OfertaDto> OfertasPorPrecio(BusquedaDto busqueda) =>
-        busqueda.Ofertas.Where(o => o.Disponible).OrderBy(o => o.Moneda).ThenBy(o => o.PrecioTotal);
 
     private async Task CargarMecanicosAsync()
     {
@@ -342,6 +399,10 @@ else
             mensaje = exito;
             if (EsDuenio && consulta.Busqueda.MecanicoId is null)
                 await CargarMecanicosAsync();
+
+            // Si el mecanico recomendo piezas nuevas, ya tienen precio cuando el cliente abra la consulta.
+            if (consulta.Busqueda.Revision is not null)
+                await CargarPreciosAsync(forzar: false);
         }
         finally
         {

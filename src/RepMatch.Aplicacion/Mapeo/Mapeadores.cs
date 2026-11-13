@@ -94,7 +94,17 @@ public static class Mapeadores
         PrecioTotal = oferta.PrecioTotal.Monto,
         UrlOriginal = oferta.UrlOriginal,
         Disponible = oferta.Disponible,
-        CapturadaEn = oferta.CapturadaEn
+        CapturadaEn = oferta.CapturadaEn,
+        PrecioLista = oferta.PrecioLista?.Monto,
+        Coincidencia = oferta.Coincidencia switch
+        {
+            CoincidenciaOferta.ExactoPorEan => CoincidenciasOferta.ExactoPorEan,
+            CoincidenciaOferta.ExactoPorCodigo => CoincidenciasOferta.ExactoPorCodigo,
+            _ => CoincidenciasOferta.ProbablePorNombre
+        },
+        Marca = oferta.Marca,
+        Ean = oferta.Ean,
+        Vendedor = oferta.Vendedor
     };
 
     public static BusquedaDto ADto(this Busqueda busqueda) => new()
@@ -117,6 +127,7 @@ public static class Mapeadores
             }
             : null,
         Ofertas = [.. busqueda.Ofertas.Select(o => o.ADto())],
+        PreciosConsultadosEn = busqueda.PreciosConsultadosEn,
         MecanicoId = busqueda.MecanicoId,
         CompartidaEn = busqueda.CompartidaEn,
         Revision = busqueda.RevisadaEn is { } revisadaEn

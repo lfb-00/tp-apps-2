@@ -1,0 +1,36 @@
+[
+  {
+    "productId": "990355228",
+    "productName": "Pastillas de Freno Trasera Honda Africa Twin Crf 1000",
+    "brand": "Honda",
+    "categories": [
+      "/Autos, Motos y Otros/Accesorios para autos y motos/Repuestos y accesorios/",
+      "/Autos, Motos y Otros/Accesorios para autos y motos/",
+      "/Autos, Motos y Otros/"
+    ],
+    "link": "https://www.fravega.com/pastillas-de-freno-trasera-honda-africa-twin-crf-1000-21867048/p",
+    "items": [
+      {
+        "itemId": "21867048",
+        "nameComplete": "Pastillas de Freno Trasera Honda Africa Twin Crf 1000",
+        "ean": "",
+        "referenceId": [
+          {
+            "Key": "RefId",
+            "Value": "fravegasellerprod1026-21867048"
+          }
+        ],
+        "sellers": [
+          {
+            "sellerName": "Tuamoto",
+            "commertialOffer": {
+              "Price": 126724.0,
+              "AvailableQuantity": 10,
+              "IsAvailable": true
+            }
+          }
+        ]
+      }
+    ]
+  }
+]

@@ -41,11 +41,11 @@ Los docs son entregables evaluados tanto como el código. Cada etapa suma sobre 
   capa de servicios**.
 - **Entregable:** app funcional + documentación de patrones aplicados + diagrama de capas.
 
-### Segunda Parte — integración sincrónica y asincrónica (**en curso**: IA implementada)
+### Segunda Parte — integración sincrónica y asincrónica (**en curso**: IA, SOAP, API externa VTEX y cola implementados)
 - ≥1 servicio **SOAP** (WSDL + contrato) y ≥2 servicios **REST** (OpenAPI/Swagger).
-- Mensajería con colas (RabbitMQ decidido), productores y consumidores (ej. `BusquedaCreada`).
+- Mensajería con colas (RabbitMQ implementado), productores y consumidores (ej. `BusquedaCreada`).
 - Integración SOA / microservicios ligeros.
-- ≥1 **API externa real** (planeado: eBay y VTEX vía APIs oficiales, nunca scraping).
+- ≥1 **API externa real** (VTEX implementado: Easy y Frávega; eBay pendiente. APIs oficiales, nunca scraping).
 - **Componente de IA** (acá: texto libre del problema → diagnóstico y repuestos
   candidatos), expuesto por REST o invocado asincrónicamente por la cola.
 - **Entregable:** servicios documentados + productores/consumidores + API externa + IA funcional +
@@ -73,28 +73,46 @@ src/
                            interfaces I*Repository e IUnitOfWork. SIN dependencias.
   RepMatch.Common/         Utilidad: Serilog + CorrelacionMiddleware, validación, opciones,
                            ResultadoOperacion<T>, ResultadoMedido/Cronometro. SIN refs internas.
-  RepMatch.Contracts/      DTOs, ICatalogoRepuestos, ICatalogoVehiculos, IDiagnosticador, OpcionesCatalogo,
-                           OpcionesIA. SIN refs internas.
+  RepMatch.Contracts/      DTOs, ICatalogoRepuestos, ICatalogoVehiculos, IDiagnosticador, IFuenteOfertas,
+                           OpcionesCatalogo, OpcionesIA, OpcionesOfertas. SIN refs internas.
   RepMatch.Persistence/    Acceso a datos: RepMatchDbContext, Configuraciones/ (todo el mapeo EF),
-                           repositorios, UnitOfWork, DatosSemilla. → Domain, Common
+                           Migraciones/, repositorios, UnitOfWork, DatosSemilla. → Domain, Common
   RepMatch.Aplicacion/     Lógica de negocio: FachadaAplicacion, ServicioClientes, ServicioBusquedas,
                            ServicioMecanicos, ServicioRevisiones, ServicioDerivaciones,
-                           ServicioDiagnostico, DespachadorEventos, ObservadorCompatibilidad,
+                           ServicioDiagnostico, ServicioOfertas, DespachadorEventos, ObservadorCompatibilidad,
                            validadores, mapeadores,
                            CatalogoLocal, CatalogoVehiculosLocal. → Domain, Common, Contracts
   RepMatch.Clientes.Rest/  Adaptadores remotos: CatalogoRemoto, CatalogoVehiculosRemoto y
                            DiagnosticadorRemoto (HttpClient tipado). → Common, Contracts
+  RepMatch.Clientes.Soap/  Adaptador SOAP: CatalogoSoap (tercera ICatalogoRepuestos) sobre el proxy que
+                           genera dotnet-svcutil desde el WSDL (ServicioSoap/, no editar a mano).
+                           → Common, Contracts. No referencia al host SOAP.
   RepMatch.IA/             Componente de IA: DiagnosticadorLlm (Groq/Gemini, API compatible con
                            OpenAI), DiagnosticadorLocal (TF-IDF + k-NN sobre Datos/sintomas.json,
                            embebido), DiagnosticadorConRespaldo, FiltroDatosPersonales. → Common, Contracts
+  RepMatch.Fuentes.Vtex/   API externa: FuenteVtex (un IFuenteOfertas por tienda de Ofertas:Tiendas) y
+                           LectorVtex (JSON del buscador de VTEX → OfertaExternaDto). → Common, Contracts
+  RepMatch.Mensajeria/     Cola: BusRabbitMq (IEventBus sobre RabbitMQ.Client), ConexionRabbitMq (una
+                           conexión por proceso, pausa tras una falla), TopologiaRabbitMq y la base
+                           ConsumidorRabbitMq<T> (ack tras procesar, un reintento, DLQ). → Common, Contracts
+  RepMatch.Notificaciones.Worker/ Host del consumidor: ConsumidorComisiones (derivacion.tienda →
+                           ServicioComisiones, idempotente) y ConsumidorActividad (todo al log).
+                           /salud y GET /api/comisiones. No crea el esquema ni siembra.
   RepMatch.Catalogo.Api/   Host REST del catálogo (controllers, OpenAPI en /openapi/v1.json).
                            Siempre resuelve ICatalogoRepuestos con CatalogoLocal e
                            ICatalogoVehiculos con CatalogoVehiculosLocal; IDiagnosticador en proceso.
+  RepMatch.Catalogo.Soap/  Host SOAP del catálogo (CoreWCF): contrato IConsultaCompatibilidad, WSDL
+                           en /ConsultaCompatibilidad.svc?wsdl. Resuelve con CatalogoLocal.
   RepMatch.IA.Api/         Host REST de la IA: POST /api/diagnostico, OpenAPI. Sin base de datos.
-  RepMatch.Web/            Presentación Blazor Server. FabricaCatalogo y FabricaDiagnostico eligen
-                           Local/Remoto.
+  RepMatch.Web/            Presentación Blazor Server. FabricaCatalogo elige Local/Remoto/Soap y
+                           FabricaDiagnostico, Local/Remoto.
 tests/RepMatch.Tests/      Dominio/, Persistencia/, Aplicacion/, Presentacion/, Integracion/
-                           (WebApplicationFactory sobre Catalogo.Api) e IA/ (también sobre IA.Api)
+                           (WebApplicationFactory sobre Catalogo.Api y Catalogo.Soap) e IA/ (también sobre IA.Api)
+tests/RepMatch.E2E/        Pruebas de punta a punta con Playwright contra la app levantada. NO está
+                           en RepMatch.slnx a propósito (el `dotnet test` de la raíz corre sin
+                           entorno); se corren con scripts/e2e.sh. Ver su README.
+tests/RepMatch.TiendaSimulada/  Simulador de tiendas VTEX para los E2E (respuestas reales grabadas en
+                           tests/fixtures/vtex/). Está en RepMatch.slnx: solo compila, no tiene pruebas.
 docs/                      informe-arquitectura.md, patrones.md, diagramas/*.md (Mermaid), evidencias/
 scripts/evidencias.sh      regenera docs/evidencias/ (logs + mediciones local vs. remoto)
 ```
@@ -110,14 +128,19 @@ scripts/evidencias.sh      regenera docs/evidencias/ (logs + mediciones local vs
   caminos levantando la Web dos veces, una con cada valor de `Catalogo:Modo` (la página `/acceso`
   ya no existe).
   `ExtensionesAplicacion` **no** registra `ICatalogoRepuestos` a propósito: es decisión del host.
-  La futura implementación SOAP es una tercera estrategia, sin tocar interfaz ni consumidores.
+  `CatalogoSoap` es la tercera estrategia (Segunda Parte), sin tocar interfaz ni consumidores. En
+  `Catalogo:Modo=Soap` los repuestos van por SOAP y los vehículos por REST; es el modo de la Web en
+  compose, para que cada búsqueda use los dos protocolos. `CatalogoSoap` traduce los errores de WCF
+  a `HttpRequestException`: es lo que atrapan la fachada y el observador, no lo cambies.
 - **Errores esperables → `ResultadoOperacion<T>`**, no excepciones. Excepciones solo para lo
   verdaderamente excepcional.
 - **Eventos de dominio**: `EntidadBase` acumula eventos (`RegistrarEvento`); `Busqueda` emite
   `BusquedaCreada`. El despacho in-process (`DespachadorEventos` → `ObservadorCompatibilidad`,
-  Observer) es de la Primera Parte. En la Segunda se registrará otra implementación de
-  `IDespachadorEventos` que publique a través de un `IEventBus` propio (sobre `RabbitMQ.Client`
-  directo, no MassTransit), sin tocar `ServicioBusquedas`.
+  Observer) es de la Primera Parte. En la Segunda se sumó `PublicadorEventos`, un observador más
+  registrado **después** de `ObservadorCompatibilidad`, que publica los cuatro eventos por
+  `IEventBus` (`RabbitMQ.Client` directo, no MassTransit). La búsqueda sigue sincrónica y
+  `ServicioBusquedas` no cambió. Broker caído → la operación sigue y queda en el log. Los mensajes
+  llevan ids, nunca el texto libre. Sin `Mensajeria:Habilitada` se usa `BusDesactivado`.
 - **Catálogo vehicular**: `ICatalogoVehiculos` tiene estrategias local y remota elegidas por
   la misma fábrica. `SelectorVehiculo` lo consulta directamente. La fachada valida la configuración
   antes de buscar piezas.
@@ -129,18 +152,35 @@ scripts/evidencias.sh      regenera docs/evidencias/ (logs + mediciones local vs
   `ServicioBusquedas.CrearAsync` no cambió. `Busqueda.RegistrarDiagnostico` guarda sistema,
   urgencia, causas y fuente. La búsqueda sin sesión usa `FachadaAplicacion.DiagnosticarAsync` y no
   guarda el texto. `FabricaDiagnostico` elige por `IA:Modo`, igual que el catálogo.
+- **Ofertas (el "Inventario")**: `ServicioOfertas` consulta todas las `IFuenteOfertas` en paralelo
+  con un tope global y guarda lo capturado en la `Busqueda` (`ActualizarOfertas`: misma publicación
+  → se actualiza y conserva el `Id`, que puede tener derivaciones; lo que una tienda que respondió
+  dejó de publicar → no disponible; una tienda caída no toca sus ofertas). La página pide los precios
+  **después** de mostrar las piezas: es el comportamiento que tendrá con la cola. El cliente deriva
+  por `/derivar`; el mecánico ve enlaces directos (su clic no se le atribuye); sin sesión solo
+  "desde $X en N tiendas". Si dos tiendas publican el mismo EAN, sus ofertas son coincidencias
+  exactas (#29); las coincidencias por nombre que contradicen el vehículo se descartan
+  (`ValidadorCandidatoOferta`, #30); cada `FuenteVtex` tiene Polly y caché, Redis en compose (#20).
+  La pantalla separa exactas de probables, pero dentro de cada grupo el orden es solo por precio.
+  `Oferta` solo acepta URLs http o https: terminan como enlaces en la página.
 - **Roles y modelo de negocio**: `Cliente.Rol` distingue cliente y mecánico (misma entidad, a
   propósito). El cliente comparte una `Busqueda` con un mecánico, que confirma o corrige el
   diagnóstico (`CodigosRecomendados` queda aparte de `CodigosObjetivo`: es el dato etiquetado de la
   IA). El ingreso es comisión de afiliado por `Derivacion` (`GET /derivar/{ofertaId}`) y el plan Pro
   del mecánico, sin cobro real. El ranking de ofertas depende solo del precio: no lo atar a quién paga.
 - **Configuración externalizada**: todo se sobreescribe por variable de entorno (`Seccion__Clave`):
-  `Catalogo:Modo` (`Local`/`Remoto`), `Catalogo:UrlBaseRemota`, `IA:Modo`, `IA:UrlBaseRemota`,
+  `Catalogo:Modo` (`Local`/`Remoto`/`Soap`), `Catalogo:UrlBaseRemota`, `Catalogo:UrlSoap`, `IA:Modo`, `IA:UrlBaseRemota`,
   `IA:Llm:*` (`ApiKey` solo por entorno o `.env`, nunca en el repo), `Persistencia:Proveedor`
-  (`InMemory`/`Postgres`), `ConnectionStrings:RepMatch`. Puertos del host en `.env`.
+  (`InMemory`/`Postgres`), `ConnectionStrings:RepMatch`, `Ofertas:*` (tiendas, timeouts, vigencia,
+  cache), `Mensajeria:*` (habilitada, host, credenciales, timeout). Puertos del host en `.env`.
 - **Logging/trazabilidad**: cada host llama `UsarSerilog(nombre)` y `UsarCorrelacion()`; el id de
   correlación viaja Web → Catalogo.Api y Web → IA.Api (es parte de las evidencias).
-- Base: `EnsureCreatedAsync` + `DatosSemilla`, idempotente, con reintentos. **No hay migraciones.**
+- Base: PostgreSQL aplica migraciones bajo un bloqueo advisory y luego carga `DatosSemilla`; las
+  bases anteriores sin historial de migraciones se adoptan solo si tienen completo el esquema
+  inicial conocido: todas sus tablas y columnas, que se leen del modelo de la migración
+  `EsquemaInicial`. Una base más vieja (por ejemplo, anterior a las ofertas) falla con un mensaje
+  que pide `docker compose down -v`. InMemory usa `EnsureCreatedAsync`. PostgreSQL reintenta
+  errores de conexión.
 
 ### Patrones ya documentados
 `docs/patrones.md` cubre Factory, Strategy, Repository, Unit of Work, Adapter, Observer y Facade,
@@ -152,13 +192,30 @@ capas está en `docs/diagramas/capas.md`. Al agregar un patrón, documentarlo co
 ```bash
 dotnet build && dotnet test                                            # sin Docker, InMemory
 dotnet run --project src/RepMatch.Catalogo.Api --urls http://localhost:5081
+dotnet run --project src/RepMatch.Catalogo.Soap --urls http://localhost:5082
 dotnet run --project src/RepMatch.IA.Api --urls http://localhost:5083
 dotnet run --project src/RepMatch.Web --urls http://localhost:5080    # GET /evidencia/catalogo mide el modo activo
-docker compose up --build --wait                                       # web 8080, api 8081, ia 8083, pg 5432 (Web en modo Remoto)
+docker compose up --build --wait                                       # web 8080, api 8081, soap 8082, ia 8083, pg 5432 (Web en modo Soap)
 docker compose --profile test run --rm tests                           # pruebas sin SDK
 docker compose --profile local up --build web-local                    # Web en modo Local (8090)
 bash scripts/evidencias.sh                                             # regenera docs/evidencias/
+bash scripts/e2e.sh                                                    # Playwright: Compose aislado, 6 fases, apaga (borra volúmenes E2E)
 ```
+
+En Windows PowerShell, ejecutar scripts Bash con `.\scripts\bash.ps1 scripts\<nombre>.sh
+[opciones]`. El lanzador encuentra Git Bash desde la instalación de Git for Windows, fija
+`MSYS_NO_PATHCONV=1` y propaga el código de salida; no usar `bash` a secas, que puede resolver al
+puente de WSL. Por ejemplo, para las pruebas de punta a punta:
+
+```powershell
+.\scripts\bash.ps1 scripts\e2e.sh
+```
+
+E2E usa su propio proyecto Compose (`repmatch-e2e`), puertos y volúmenes: el reset no borra datos
+del entorno normal. Si un cambio toca una pantalla, correr `bash scripts/e2e.sh` (o el lanzador
+PowerShell en Windows).
+Las pruebas que encontraron un error real están con `Skip` y un comentario: al arreglar el error,
+sacar el `Skip`.
 
 La solución compila **sin advertencias**; mantenerlo así.
 
@@ -179,11 +236,12 @@ La solución compila **sin advertencias**; mantenerlo así.
 - **Docs**: `docs/informe-arquitectura.md` (incluye la tabla de la sección 7 "cómo recibe las
   entregas siguientes" y la de entregables), `docs/diagramas/*.md`, `docs/patrones.md` y
   `README.md`. Los diagramas se editan en los bloques Mermaid de los Markdown, que son su única fuente. Verificar su renderizado con un preview compatible.
-- **Cantidad de pruebas**: está escrita literal en la sección 5.4 del informe (la salida de
-  `dotnet test`) y en `status.md` ("137 passed", `dotnet test` local del 2026-11-04 y Docker en
-  WSL del 2026-11-05). `docker-compose.yml` y
-  `tests/RepMatch.Tests/Dockerfile` dicen "las pruebas" sin número, a propósito. Si agregás o quitás
-  pruebas, corré `dotnet test` y actualizá los dos.
+- **Cantidad de pruebas**: no se escribe a mano en ningún doc (issue #36). La sección 5.4 del
+  informe enlaza `docs/evidencias/08-pruebas.txt`, que genera `bash scripts/evidencia-pruebas.sh`;
+  la 5.5 enlaza `docs/evidencias/09-pruebas-e2e.txt`, que genera `bash scripts/e2e.sh --evidencia`.
+  Se regeneran al cerrar una entrega, no con cada prueba. `docker-compose.yml`, los Dockerfile y
+  los README dicen "las pruebas" sin número. `status.md` sí registra el resultado de cada corrida
+  con su fecha: es historial, no un total vigente.
 - **Proyecto nuevo**: sumarlo a `RepMatch.slnx` **y** a los `COPY` de `.csproj` de cada
   `Dockerfile` que lo necesite (`src/*/Dockerfile`, `tests/RepMatch.Tests/Dockerfile`); si no, el
   `dotnet restore` del build en Docker falla.

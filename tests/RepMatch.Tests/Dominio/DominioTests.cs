@@ -280,6 +280,55 @@ public class BusquedaTests
     }
 
     [Fact]
+    public void La_misma_publicacion_capturada_dos_veces_queda_una_sola_vez_con_el_precio_nuevo()
+    {
+        var busqueda = NuevaBusqueda();
+        busqueda.AsignarCodigosObjetivo(["BATE-12V-60AH"]);
+
+        busqueda.RegistrarOfertas([new Oferta(busqueda.Id, "BATE-12V-60AH", "Easy", "Batería 12X65",
+            Dinero.Pesos(118600m), "https://www.easy.com.ar/p/1", referenciaTienda: "1304479")]);
+        busqueda.RegistrarOfertas([new Oferta(busqueda.Id, "BATE-12V-60AH", "Easy", "Batería 12X65",
+            Dinero.Pesos(100810m), "https://www.easy.com.ar/p/1", referenciaTienda: "1304479",
+            precioLista: Dinero.Pesos(118600m))]);
+
+        var oferta = Assert.Single(busqueda.Ofertas);
+        Assert.Equal(100810m, oferta.Precio.Monto);
+        Assert.Equal(118600m, oferta.PrecioLista!.Monto);
+    }
+
+    [Fact]
+    public void Un_precio_de_lista_que_no_es_mayor_no_cuenta_como_descuento()
+    {
+        var busqueda = NuevaBusqueda();
+
+        var oferta = new Oferta(busqueda.Id, "BATE-12V-60AH", "Frávega", "Batería Elpra",
+            Dinero.Pesos(113000m), "https://www.fravega.com/p/1", precioLista: Dinero.Pesos(113000m));
+
+        Assert.Null(oferta.PrecioLista);
+    }
+
+    [Theory]
+    [InlineData("javascript:alert(1)")]
+    [InlineData("data:text/html,hola")]
+    [InlineData("ftp://www.easy.com.ar/p/1")]
+    public void Una_oferta_con_una_URL_que_no_es_http_se_rechaza(string url)
+    {
+        // La URL termina como enlace en la pagina: con "javascript:" se ejecutaria al hacer clic.
+        var busqueda = NuevaBusqueda();
+
+        Assert.Throws<ExcepcionDominio>(() => new Oferta(busqueda.Id, "BATE-12V-60AH", "Easy",
+            "Batería", Dinero.Pesos(100m), url));
+    }
+
+    [Fact]
+    public void No_se_buscan_precios_de_una_busqueda_sin_piezas()
+    {
+        var busqueda = NuevaBusqueda();
+
+        Assert.Throws<ExcepcionDominio>(() => busqueda.ActualizarOfertas(["BATE-12V-60AH"], ["Easy"], []));
+    }
+
+    [Fact]
     public void No_admite_ofertas_despues_de_fallar()
     {
         var busqueda = NuevaBusqueda();
