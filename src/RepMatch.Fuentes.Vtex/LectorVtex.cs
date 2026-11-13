@@ -41,7 +41,9 @@ public static class LectorVtex
         {
             var titulo = Texto(producto, "productName");
             var url = Texto(producto, "link");
-            if (titulo is null || url is null || !Uri.TryCreate(url, UriKind.Absolute, out _))
+            // Solo enlaces http(s): la URL llega a la pagina como enlace (ver Oferta).
+            if (titulo is null || url is null || !Uri.TryCreate(url, UriKind.Absolute, out var enlace)
+                || (enlace.Scheme != Uri.UriSchemeHttp && enlace.Scheme != Uri.UriSchemeHttps))
                 continue;
 
             if (!EstaEnCategoria(producto, tienda.PrefijosCategoria))

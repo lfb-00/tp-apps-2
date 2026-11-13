@@ -73,6 +73,8 @@ public static class ExtensionesPersistencia
     /// <summary>
     /// Actualiza el esquema y siembra el catalogo. PostgreSQL serializa este trabajo entre hosts;
     /// las bases creadas antes de las migraciones se adoptan solo si tienen el esquema inicial completo.
+    /// Reintenta ante errores transitorios: en docker compose la API suele arrancar antes de que la
+    /// base acepte conexiones.
     /// </summary>
     public static async Task InicializarBaseAsync(
         this IServiceProvider servicios, CancellationToken ct = default)
@@ -102,6 +104,10 @@ public static class ExtensionesPersistencia
             }
             catch (NpgsqlException ex) when (intento < intentosMaximos && ex.IsTransient)
             {
+                // Si la conexion se corto a mitad de la siembra, el SaveChanges fallido deja las
+                // entidades en estado Added: sin limpiar, el reintento repetiria esos INSERT.
+                contexto.ChangeTracker.Clear();
+
                 var espera = TimeSpan.FromSeconds(2 * intento);
                 log.LogWarning(ex, "La base no esta disponible (intento {Intento}/{Max}). Reintento en {Espera}s.",
                     intento, intentosMaximos, espera.TotalSeconds);

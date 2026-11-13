@@ -112,8 +112,12 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
     ports:
       - "${PUERTO_CATALOGO_SOAP:-8082}:8080"
+    # Espera a catalogo-api, que siembra la base primero: con la base vacia, dos hosts sembrando
+    # a la vez chocan con los indices unicos.
     depends_on:
       postgres:
+        condition: service_healthy
+      catalogo-api:
         condition: service_healthy
     networks: [repmatch]
 
@@ -236,10 +240,13 @@ services:
       - claves-web-local:/claves
     ports:
       - "${PUERTO_WEB_LOCAL:-8090}:8080"
+    # Tambien siembra la base: espera a catalogo-api por el mismo motivo que catalogo-soap.
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      catalogo-api:
         condition: service_healthy
     networks: [repmatch]
 

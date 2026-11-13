@@ -111,7 +111,6 @@
             .Where(o => o.Disponible && o.CodigoRepuesto.Equals(CodigoRepuesto, StringComparison.OrdinalIgnoreCase))
             .OrderBy(o => o.Moneda == "ARS" ? 0 : 1)
             .ThenBy(o => o.Moneda)
-            .ThenByDescending(o => o.Coincidencia, StringComparer.Ordinal)
             .ThenBy(o => o.PrecioTotal)
     ];
 

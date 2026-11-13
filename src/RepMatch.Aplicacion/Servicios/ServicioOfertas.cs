@@ -16,8 +16,10 @@ namespace RepMatch.Aplicacion.Servicios;
 /// <summary>
 /// Servicio de Ofertas: el "Servicio de Inventario" de la consigna (issue #4). RepMatch no tiene
 /// stock propio, asi que su inventario son las ofertas de las tiendas: este servicio las pide,
-/// las guarda en la busqueda sin duplicar, marca las que vencieron o desaparecieron y deja el
-/// ranking al dominio (<see cref="Busqueda.OfertasOrdenadasPorPrecio"/>: solo precio, una moneda).
+/// las guarda en la busqueda sin duplicar y marca las que vencieron o desaparecieron. El orden lo
+/// pone la pantalla con el mismo criterio que <see cref="Busqueda.OfertasOrdenadasPorPrecio"/>:
+/// solo precio, una moneda a la vez. Separa coincidencias exactas de probables, pero dentro de
+/// cada grupo no reordena por el tipo de coincidencia.
 ///
 /// Corre aparte de la creacion de la busqueda a proposito. La persona ve primero el diagnostico y
 /// las piezas, y los precios llegan despues: una tienda lenta no demora el diagnostico. Hoy lo

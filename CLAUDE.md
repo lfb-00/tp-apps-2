@@ -158,7 +158,11 @@ scripts/evidencias.sh      regenera docs/evidencias/ (logs + mediciones local vs
   dejó de publicar → no disponible; una tienda caída no toca sus ofertas). La página pide los precios
   **después** de mostrar las piezas: es el comportamiento que tendrá con la cola. El cliente deriva
   por `/derivar`; el mecánico ve enlaces directos (su clic no se le atribuye); sin sesión solo
-  "desde $X en N tiendas". La identidad entre tiendas por EAN es el issue #29, aparte.
+  "desde $X en N tiendas". Si dos tiendas publican el mismo EAN, sus ofertas son coincidencias
+  exactas (#29); las coincidencias por nombre que contradicen el vehículo se descartan
+  (`ValidadorCandidatoOferta`, #30); cada `FuenteVtex` tiene Polly y caché, Redis en compose (#20).
+  La pantalla separa exactas de probables, pero dentro de cada grupo el orden es solo por precio.
+  `Oferta` solo acepta URLs http o https: terminan como enlaces en la página.
 - **Roles y modelo de negocio**: `Cliente.Rol` distingue cliente y mecánico (misma entidad, a
   propósito). El cliente comparte una `Busqueda` con un mecánico, que confirma o corrige el
   diagnóstico (`CodigosRecomendados` queda aparte de `CodigosObjetivo`: es el dato etiquetado de la

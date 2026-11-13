@@ -35,8 +35,12 @@ public class Oferta : EntidadBase
         ExcepcionDominio.SiNulaOVacia(titulo, nameof(titulo));
         ExcepcionDominio.SiNulaOVacia(urlOriginal, nameof(urlOriginal));
         ArgumentNullException.ThrowIfNull(precio);
-        ExcepcionDominio.Si(!Uri.TryCreate(urlOriginal, UriKind.Absolute, out _),
-            $"La URL de la oferta no es absoluta: '{urlOriginal}'.");
+        // Solo http o https: la URL viene de una tienda externa y termina en un enlace de la pagina
+        // (directo para el mecanico) o en la redireccion de /derivar. Una URL "javascript:" tambien
+        // es absoluta y se ejecutaria dentro de RepMatch al hacer clic.
+        ExcepcionDominio.Si(!Uri.TryCreate(urlOriginal, UriKind.Absolute, out var url)
+                || (url.Scheme != Uri.UriSchemeHttp && url.Scheme != Uri.UriSchemeHttps),
+            $"La URL de la oferta tiene que ser http o https: '{urlOriginal}'.");
 
         BusquedaId = busquedaId;
         CodigoRepuesto = codigoRepuesto.Trim().ToUpperInvariant();

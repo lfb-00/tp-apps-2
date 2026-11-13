@@ -66,6 +66,19 @@ public class LectorVtexTests
     }
 
     [Fact]
+    public void Una_publicacion_con_un_enlace_que_no_es_http_se_descarta()
+    {
+        // El enlace termina en la pagina: "javascript:" tambien es una URL absoluta.
+        var json = Grabada("easy-bateria.json").Replace(
+            "https://www.easy.com.ar/bateria-enerbox-tipo-12x65-cb410-1304479/p", "javascript:alert(1)");
+
+        var ofertas = LectorVtex.Leer(json, Easy, Bateria, Bateria.Nombre, esCodigo: false);
+
+        Assert.Equal(2, ofertas.Count);
+        Assert.DoesNotContain(ofertas, o => o.Titulo.Contains("Cb410"));
+    }
+
+    [Fact]
     public void En_Fravega_toma_el_vendedor_con_stock_y_no_el_de_la_tienda()
     {
         var ofertas = LectorVtex.Leer(Grabada("fravega-bateria.json"), Fravega, Bateria, Bateria.Nombre, esCodigo: false);
