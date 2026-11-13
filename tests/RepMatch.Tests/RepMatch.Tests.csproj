@@ -15,6 +15,13 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
   </ItemGroup>
 
+  <!-- CoreWCF.Http (via Catalogo.Soap) arrastra paquetes Microsoft.AspNetCore.* 2.x, uno con una
+       vulnerabilidad conocida (NU1902). Con el framework compartido declarado, NuGet los descarta y
+       se usa el de .NET 10, como ya pasa en Catalogo.Soap, que usa el SDK Web. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
