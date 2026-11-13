@@ -182,6 +182,7 @@ linea_resumen() {
       /^[[:space:]]*Omitido:/ { omitidas = $2 }
       /^[[:space:]]*Failed:/ { fallidas = $2 }
       /^[[:space:]]*Con error:/ { fallidas = $3 }
+      /^[[:space:]]*Incorrecto:/ { fallidas = $2 }
       END {
         printf "Total %d, aprobadas %d, omitidas %d, fallidas %d", total, aprobadas, omitidas, fallidas
       }

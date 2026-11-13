@@ -56,7 +56,9 @@ public static class ExtensionesPersistencia
 
     /// <summary>
     /// Crea el esquema si hace falta y siembra el catalogo. Con Postgres reintenta: en
-    /// docker compose la API suele arrancar antes de que la base acepte conexiones.
+    /// docker compose la API suele arrancar antes de que la base acepte conexiones, y otro host
+    /// puede estar sembrando la misma base (el que pierde choca con los indices unicos y, al
+    /// reintentar, encuentra la semilla ya cargada).
     /// </summary>
     public static async Task InicializarBaseAsync(
         this IServiceProvider servicios, CancellationToken ct = default)
@@ -81,6 +83,11 @@ public static class ExtensionesPersistencia
             }
             catch (Exception ex) when (intento < intentosMaximos)
             {
+                // Un SaveChanges fallido deja las entidades de la semilla en estado Added. Sin
+                // limpiar, cada reintento repetiria el mismo INSERT y chocaria otra vez con los
+                // indices unicos hasta agotar los intentos y tirar el host.
+                contexto.ChangeTracker.Clear();
+
                 var espera = TimeSpan.FromSeconds(2 * intento);
                 log.LogWarning(ex, "La base no esta disponible (intento {Intento}/{Max}). Reintento en {Espera}s.",
                     intento, intentosMaximos, espera.TotalSeconds);

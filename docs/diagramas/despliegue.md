@@ -84,9 +84,12 @@ usuario `app`, sin privilegios de root.
 `postgres` declara un `healthcheck` con `pg_isready` y los servicios .NET que usan la base dependen de
 `condition: service_healthy`; `redis` verifica `redis-cli ping` y la Web espera también a que esté
 saludable. La Web espera además a que `catalogo-api`, `catalogo-soap` e `ia-api` respondan `/salud`:
-sin eso, la API arranca antes de que la base acepte conexiones. Como
-segunda red de seguridad, `ExtensionesPersistencia.InicializarBaseAsync` reintenta hasta diez veces
-con espera creciente.
+sin eso, la API arranca antes de que la base acepte conexiones. `catalogo-soap` y `web-local`
+esperan a `catalogo-api`, que siembra la base primero: con la base vacía, dos hosts sembrando a la
+vez chocan con los índices únicos. Como segunda red de seguridad,
+`ExtensionesPersistencia.InicializarBaseAsync` reintenta hasta diez veces con espera creciente, y
+antes de cada reintento descarta lo que quedó pendiente del intento fallido, así el host que perdió
+la carrera encuentra la semilla ya cargada y sigue.
 
 ### Los modos de ejecución
 
