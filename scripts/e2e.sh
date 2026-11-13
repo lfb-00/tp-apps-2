@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Pruebas de punta a punta (Playwright) contra el entorno completo de docker compose.
 #
-#   bash scripts/e2e.sh              # todo: base limpia, entorno, 4 fases de pruebas, apagado
+#   bash scripts/e2e.sh              # todo: base limpia, entorno, 5 fases de pruebas, apagado
 #   bash scripts/e2e.sh --dejar      # igual, pero deja el entorno levantado al terminar
 #   bash scripts/e2e.sh --docker     # fuerza correr las pruebas dentro de un contenedor
 #   bash scripts/e2e.sh --local      # fuerza correr las pruebas con el SDK de .NET de esta maquina
@@ -16,13 +16,17 @@
 #   2. SinIA        con ia-api frenado: la busqueda tiene que seguir funcionando.
 #   3. SinCatalogo  con catalogo-api frenado (REST: vehiculos): la app no se tiene que caer.
 #   4. SinSoap      con catalogo-soap frenado (SOAP: repuestos): la busqueda avisa y no se cae.
+#   5. SinTiendas   con tienda-simulada frenada: se ven las piezas y un aviso, sin precios.
+#
+# Los precios no salen de las tiendas reales sino de tienda-simulada, que responde con busquedas
+# reales grabadas de easy.com.ar y fravega.com: las pruebas pueden afirmar precios exactos.
 #
 # Corre SIN clave de LLM aunque el .env tenga una: responde el clasificador local, que es
 # determinista, y las pruebas pueden afirmar sistema y piezas.
 #
 # ATENCION: borra la base de datos local de compose (docker compose down -v), salvo --sin-reset.
 #
-# Termina con codigo 0 si las cuatro fases pasan. Capturas, trazas, reportes .trx, la salida de
+# Termina con codigo 0 si las cinco fases pasan. Capturas, trazas, reportes .trx, la salida de
 # cada fase y resumen.txt quedan en tests/RepMatch.E2E/resultados (fuera de git). Con
 # --evidencia, el resumen se copia a docs/evidencias para la entrega: el total de pruebas sale de
 # esa corrida y nadie lo escribe a mano en la documentacion.
@@ -44,7 +48,7 @@ for arg in "$@"; do
     --evidencia) EVIDENCIA=1 ;;
     --docker) MODO="docker" ;;
     --local) MODO="local" ;;
-    -h|--help) sed -n '2,31p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,35p' "$0"; exit 0 ;;
     *) echo "Opcion desconocida: $arg (ver --help)"; exit 2 ;;
   esac
 done
@@ -58,6 +62,10 @@ docker compose version >/dev/null || { echo "Falta docker compose (v2)."; exit 1
 # Puertos del .env, si existe. La clave del LLM se pisa despues a proposito.
 if [ -f .env ]; then set -a; . ./.env; set +a; fi
 export IA_LLM_APIKEY=""
+# La Web busca precios en el simulador, sin cache: la fase SinTiendas tiene que ver la caida.
+export OFERTAS_URL_EASY="http://tienda-simulada:8080/easy"
+export OFERTAS_URL_FRAVEGA="http://tienda-simulada:8080/fravega"
+export OFERTAS_CACHE_MINUTOS=0
 PUERTO_WEB="${PUERTO_WEB:-8080}"
 PUERTO_WEB_LOCAL="${PUERTO_WEB_LOCAL:-8090}"
 PUERTO_CATALOGO_SOAP="${PUERTO_CATALOGO_SOAP:-8082}"
@@ -71,7 +79,7 @@ if [ "$MODO" = "auto" ]; then
 fi
 echo "Las pruebas corren en modo: $MODO"
 
-compose() { docker compose --profile local "$@"; }
+compose() { docker compose --profile local --profile simulacion "$@"; }
 compose_e2e() { docker compose --profile e2e "$@"; }
 
 apagar() {
@@ -89,7 +97,7 @@ if [ "$RESET" -eq 1 ]; then
   compose down -v --remove-orphans
 fi
 
-paso "2/4 Levantando el entorno (web, web-local, catalogo-api, catalogo-soap, ia-api, postgres)"
+paso "2/4 Levantando el entorno (web, web-local, catalogo-api, catalogo-soap, ia-api, tienda-simulada, postgres)"
 compose up --build --wait
 
 paso "3/4 Preparando las pruebas"
@@ -122,7 +130,7 @@ correr() {
   fi
 }
 
-ESTADO_Normal="-"; ESTADO_SinIA="-"; ESTADO_SinCatalogo="-"; ESTADO_SinSoap="-"
+ESTADO_Normal="-"; ESTADO_SinIA="-"; ESTADO_SinCatalogo="-"; ESTADO_SinSoap="-"; ESTADO_SinTiendas="-"
 fallos=0
 fase() {
   local escenario="$1"; shift
@@ -152,22 +160,36 @@ compose stop catalogo-soap
 fase SinSoap --filter "Escenario=SinSoap"
 compose up -d --wait catalogo-soap
 
+compose stop tienda-simulada
+fase SinTiendas --filter "Escenario=SinTiendas"
+compose up -d --wait tienda-simulada
+
 # En modo docker los archivos los escribio root dentro del contenedor: se devuelven al usuario.
 if [ "$MODO" = "docker" ] && command -v id >/dev/null; then
   compose_e2e run --rm --no-deps --entrypoint chown e2e -R "$(id -u):$(id -g)" /resultados >/dev/null 2>&1 || true
 fi
 
-# La linea de resumen de dotnet test de cada fase, en espaniol o en ingles segun el SDK.
+# El resumen de cada fase: VSTest (en ingles o espaniol) y Microsoft.Testing.Platform.
 linea_resumen() {
-  local log="$RESULTADOS/$1.log"
-  local resumen
-  resumen="$(grep -hE '(Correctas!|Con error!|Passed!|Failed!) +- ' "$log" 2>/dev/null \
-    | sed -e 's/^ *//' -e 's/ - [^ ]*\.dll.*$//' | tail -1 || true)"
-  if [ -n "$resumen" ]; then
-    printf '%s' "$resumen"
+  local archivo="$RESULTADOS/$1.log"
+  if grep -qE '^(Total tests:|Pruebas totales:)' "$archivo" 2>/dev/null; then
+    awk '
+      /^Total tests:/ { total = $3 }
+      /^Pruebas totales:/ { total = $3 }
+      /^[[:space:]]*Passed:/ { aprobadas = $2 }
+      /^[[:space:]]*Correcto:/ { aprobadas = $2 }
+      /^[[:space:]]*Skipped:/ { omitidas = $2 }
+      /^[[:space:]]*Omitido:/ { omitidas = $2 }
+      /^[[:space:]]*Failed:/ { fallidas = $2 }
+      /^[[:space:]]*Con error:/ { fallidas = $3 }
+      /^[[:space:]]*Incorrecto:/ { fallidas = $2 }
+      END {
+        printf "Total %d, aprobadas %d, omitidas %d, fallidas %d", total, aprobadas, omitidas, fallidas
+      }
+    ' "$archivo"
   else
-    grep -E '^(Pruebas totales:|Total tests:|[[:space:]]+(Correcto|Incorrecto|Omitido|Error|Passed|Failed|Skipped):)' "$log" \
-      | sed 's/^[[:space:]]*//' | paste -sd ';' -
+    grep -hE '(Correctas!|Con error!|Passed!|Failed!) +- ' "$archivo" 2>/dev/null \
+      | sed -e 's/^ *//' -e 's/ - [^ ]*\.dll.*$//' | tail -1
   fi
 }
 
@@ -177,7 +199,7 @@ linea_resumen() {
   echo
   echo "Fecha:   $(date '+%Y-%m-%d %H:%M %z')"
   echo "Commit:  $(git rev-parse --short HEAD 2>/dev/null || echo 'sin git')"
-  echo "Modo:    pruebas en $MODO, app en docker compose (web con SOAP y REST, y web-local), sin clave de LLM"
+  echo "Modo:    pruebas en $MODO, app en docker compose (web con SOAP y REST, y web-local), sin clave de LLM, precios del simulador de tiendas"
   echo
   echo "| Fase | Estado | Resumen de dotnet test |"
   echo "|---|---|---|"
@@ -185,6 +207,7 @@ linea_resumen() {
   echo "| SinIA (ia-api frenado) | $ESTADO_SinIA | $(linea_resumen SinIA) |"
   echo "| SinCatalogo (catalogo-api frenado) | $ESTADO_SinCatalogo | $(linea_resumen SinCatalogo) |"
   echo "| SinSoap (catalogo-soap frenado) | $ESTADO_SinSoap | $(linea_resumen SinSoap) |"
+  echo "| SinTiendas (tienda-simulada frenada) | $ESTADO_SinTiendas | $(linea_resumen SinTiendas) |"
   echo
   echo "Las omitidas de la fase Normal son las de resiliencia (corren en su fase) y las que"
   echo "documentan errores conocidos (ver tests/RepMatch.E2E/README.md)."

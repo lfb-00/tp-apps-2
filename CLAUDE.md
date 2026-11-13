@@ -41,11 +41,11 @@ Los docs son entregables evaluados tanto como el código. Cada etapa suma sobre 
   capa de servicios**.
 - **Entregable:** app funcional + documentación de patrones aplicados + diagrama de capas.
 
-### Segunda Parte — integración sincrónica y asincrónica (**en curso**: IA y SOAP implementados)
+### Segunda Parte — integración sincrónica y asincrónica (**en curso**: IA, SOAP y API externa VTEX implementados)
 - ≥1 servicio **SOAP** (WSDL + contrato) y ≥2 servicios **REST** (OpenAPI/Swagger).
 - Mensajería con colas (RabbitMQ decidido), productores y consumidores (ej. `BusquedaCreada`).
 - Integración SOA / microservicios ligeros.
-- ≥1 **API externa real** (planeado: eBay y VTEX vía APIs oficiales, nunca scraping).
+- ≥1 **API externa real** (VTEX implementado: Easy y Frávega; eBay pendiente. APIs oficiales, nunca scraping).
 - **Componente de IA** (acá: texto libre del problema → diagnóstico y repuestos
   candidatos), expuesto por REST o invocado asincrónicamente por la cola.
 - **Entregable:** servicios documentados + productores/consumidores + API externa + IA funcional +
@@ -73,13 +73,13 @@ src/
                            interfaces I*Repository e IUnitOfWork. SIN dependencias.
   RepMatch.Common/         Utilidad: Serilog + CorrelacionMiddleware, validación, opciones,
                            ResultadoOperacion<T>, ResultadoMedido/Cronometro. SIN refs internas.
-  RepMatch.Contracts/      DTOs, ICatalogoRepuestos, ICatalogoVehiculos, IDiagnosticador, OpcionesCatalogo,
-                           OpcionesIA. SIN refs internas.
+  RepMatch.Contracts/      DTOs, ICatalogoRepuestos, ICatalogoVehiculos, IDiagnosticador, IFuenteOfertas,
+                           OpcionesCatalogo, OpcionesIA, OpcionesOfertas. SIN refs internas.
   RepMatch.Persistence/    Acceso a datos: RepMatchDbContext, Configuraciones/ (todo el mapeo EF),
                            repositorios, UnitOfWork, DatosSemilla. → Domain, Common
   RepMatch.Aplicacion/     Lógica de negocio: FachadaAplicacion, ServicioClientes, ServicioBusquedas,
                            ServicioMecanicos, ServicioRevisiones, ServicioDerivaciones,
-                           ServicioDiagnostico, DespachadorEventos, ObservadorCompatibilidad,
+                           ServicioDiagnostico, ServicioOfertas, DespachadorEventos, ObservadorCompatibilidad,
                            validadores, mapeadores,
                            CatalogoLocal, CatalogoVehiculosLocal. → Domain, Common, Contracts
   RepMatch.Clientes.Rest/  Adaptadores remotos: CatalogoRemoto, CatalogoVehiculosRemoto y
@@ -90,6 +90,8 @@ src/
   RepMatch.IA/             Componente de IA: DiagnosticadorLlm (Groq/Gemini, API compatible con
                            OpenAI), DiagnosticadorLocal (TF-IDF + k-NN sobre Datos/sintomas.json,
                            embebido), DiagnosticadorConRespaldo, FiltroDatosPersonales. → Common, Contracts
+  RepMatch.Fuentes.Vtex/   API externa: FuenteVtex (un IFuenteOfertas por tienda de Ofertas:Tiendas) y
+                           LectorVtex (JSON del buscador de VTEX → OfertaExternaDto). → Common, Contracts
   RepMatch.Catalogo.Api/   Host REST del catálogo (controllers, OpenAPI en /openapi/v1.json).
                            Siempre resuelve ICatalogoRepuestos con CatalogoLocal e
                            ICatalogoVehiculos con CatalogoVehiculosLocal; IDiagnosticador en proceso.
@@ -103,6 +105,8 @@ tests/RepMatch.Tests/      Dominio/, Persistencia/, Aplicacion/, Presentacion/, 
 tests/RepMatch.E2E/        Pruebas de punta a punta con Playwright contra la app levantada. NO está
                            en RepMatch.slnx a propósito (el `dotnet test` de la raíz corre sin
                            entorno); se corren con scripts/e2e.sh. Ver su README.
+tests/RepMatch.TiendaSimulada/  Simulador de tiendas VTEX para los E2E (respuestas reales grabadas en
+                           tests/fixtures/vtex/). Está en RepMatch.slnx: solo compila, no tiene pruebas.
 docs/                      informe-arquitectura.md, patrones.md, diagramas/*.md (Mermaid), evidencias/
 scripts/evidencias.sh      regenera docs/evidencias/ (logs + mediciones local vs. remoto)
 ```
@@ -140,6 +144,17 @@ scripts/evidencias.sh      regenera docs/evidencias/ (logs + mediciones local vs
   `ServicioBusquedas.CrearAsync` no cambió. `Busqueda.RegistrarDiagnostico` guarda sistema,
   urgencia, causas y fuente. La búsqueda sin sesión usa `FachadaAplicacion.DiagnosticarAsync` y no
   guarda el texto. `FabricaDiagnostico` elige por `IA:Modo`, igual que el catálogo.
+- **Ofertas (el "Inventario")**: `ServicioOfertas` consulta todas las `IFuenteOfertas` en paralelo
+  con un tope global y guarda lo capturado en la `Busqueda` (`ActualizarOfertas`: misma publicación
+  → se actualiza y conserva el `Id`, que puede tener derivaciones; lo que una tienda que respondió
+  dejó de publicar → no disponible; una tienda caída no toca sus ofertas). La página pide los precios
+  **después** de mostrar las piezas: es el comportamiento que tendrá con la cola. El cliente deriva
+  por `/derivar`; el mecánico ve enlaces directos (su clic no se le atribuye); sin sesión solo
+  "desde $X en N tiendas". Si dos tiendas publican el mismo EAN, sus ofertas son coincidencias
+  exactas (#29); las coincidencias por nombre que contradicen el vehículo se descartan
+  (`ValidadorCandidatoOferta`, #30); cada `FuenteVtex` tiene Polly y caché, Redis en compose (#20).
+  La pantalla separa exactas de probables, pero dentro de cada grupo el orden es solo por precio.
+  `Oferta` solo acepta URLs http o https: terminan como enlaces en la página.
 - **Roles y modelo de negocio**: `Cliente.Rol` distingue cliente y mecánico (misma entidad, a
   propósito). El cliente comparte una `Busqueda` con un mecánico, que confirma o corrige el
   diagnóstico (`CodigosRecomendados` queda aparte de `CodigosObjetivo`: es el dato etiquetado de la
@@ -148,7 +163,8 @@ scripts/evidencias.sh      regenera docs/evidencias/ (logs + mediciones local vs
 - **Configuración externalizada**: todo se sobreescribe por variable de entorno (`Seccion__Clave`):
   `Catalogo:Modo` (`Local`/`Remoto`/`Soap`), `Catalogo:UrlBaseRemota`, `Catalogo:UrlSoap`, `IA:Modo`, `IA:UrlBaseRemota`,
   `IA:Llm:*` (`ApiKey` solo por entorno o `.env`, nunca en el repo), `Persistencia:Proveedor`
-  (`InMemory`/`Postgres`), `ConnectionStrings:RepMatch`. Puertos del host en `.env`.
+  (`InMemory`/`Postgres`), `ConnectionStrings:RepMatch`, `Ofertas:*` (tiendas, timeouts, vigencia,
+  cache). Puertos del host en `.env`.
 - **Logging/trazabilidad**: cada host llama `UsarSerilog(nombre)` y `UsarCorrelacion()`; el id de
   correlación viaja Web → Catalogo.Api y Web → IA.Api (es parte de las evidencias).
 - Base: `EnsureCreatedAsync` + `DatosSemilla`, idempotente, con reintentos. **No hay migraciones.**

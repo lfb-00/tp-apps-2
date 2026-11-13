@@ -1,9 +1,11 @@
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using RepMatch.Aplicacion.Eventos;
 using RepMatch.Aplicacion.Fachada;
 using RepMatch.Aplicacion.Servicios;
 using RepMatch.Aplicacion.Validadores;
+using RepMatch.Contracts.Configuracion;
 using RepMatch.Contracts.Dtos;
 
 namespace RepMatch.Aplicacion;
@@ -12,6 +14,8 @@ namespace RepMatch.Aplicacion;
 /// Registro de la capa de logica de negocio. Deliberadamente NO registra
 /// <see cref="Contracts.ICatalogoRepuestos"/> ni <see cref="Contracts.IDiagnosticador"/>: esa
 /// eleccion es del host, que decide con sus fabricas si los resuelve en proceso o por HTTP.
+/// Tampoco registra tiendas (<see cref="Contracts.IFuenteOfertas"/>): las agrega el host con
+/// AgregarFuentesOfertas. Sin tiendas, <see cref="ServicioOfertas"/> responde sin precios.
 /// </summary>
 public static class ExtensionesAplicacion
 {
@@ -35,6 +39,8 @@ public static class ExtensionesAplicacion
         servicios.AddScoped<ServicioRevisiones>();
         servicios.AddScoped<ServicioDerivaciones>();
         servicios.AddScoped<ServicioDiagnostico>();
+        servicios.AddScoped<ServicioOfertas>();
+        servicios.TryAddSingleton(new OpcionesOfertas());
         servicios.AddScoped<FachadaAplicacion>();
 
         servicios.AddScoped<IObservadorEventoDominio, ObservadorCompatibilidad>();

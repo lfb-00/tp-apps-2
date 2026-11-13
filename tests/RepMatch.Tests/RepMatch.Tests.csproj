@@ -26,6 +26,11 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <!-- Respuestas reales de tiendas VTEX, grabadas para probar el adapter sin red. -->
+  <ItemGroup>
+    <None Include="..\fixtures\vtex\*.json" Link="fixtures\vtex\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\src\RepMatch.Domain\RepMatch.Domain.csproj" />
     <ProjectReference Include="..\..\src\RepMatch.Common\RepMatch.Common.csproj" />
@@ -41,6 +46,7 @@
          WebApplicationFactory<Program> de las pruebas de integracion seria ambiguo. -->
     <ProjectReference Include="..\..\src\RepMatch.Web\RepMatch.Web.csproj" Aliases="Web" />
     <ProjectReference Include="..\..\src\RepMatch.IA\RepMatch.IA.csproj" />
+    <ProjectReference Include="..\..\src\RepMatch.Fuentes.Vtex\RepMatch.Fuentes.Vtex.csproj" />
     <!-- Mismo motivo que Web: IA.Api tambien expone su propia clase Program. -->
     <ProjectReference Include="..\..\src\RepMatch.IA.Api\RepMatch.IA.Api.csproj" Aliases="IAApi" />
   </ItemGroup>

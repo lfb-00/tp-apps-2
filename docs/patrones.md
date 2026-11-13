@@ -10,16 +10,18 @@ descartó y cómo se ve en el código real.
 | [Strategy](#strategy-icatalogorepuestos-con-dos-implementaciones) | `src/RepMatch.Contracts/ICatalogoRepuestos.cs`, con `CatalogoLocal`, `CatalogoRemoto` y, desde la Segunda Parte, `CatalogoSoap` |
 | [Repository](#repository-irepository-con-implementaciones-en-persistence) | `src/RepMatch.Domain/Repositorios/` y `src/RepMatch.Persistence/Repositorios/` |
 | [Unit of Work](#unit-of-work-iunitofwork-y-unitofwork) | `src/RepMatch.Domain/Repositorios/IUnitOfWork.cs` y `src/RepMatch.Persistence/UnitOfWork.cs` |
-| [Adapter](#adapter-catalogoremoto) | `src/RepMatch.Clientes.Rest/CatalogoRemoto.cs` y `src/RepMatch.Clientes.Soap/CatalogoSoap.cs` |
+| [Adapter](#adapter-catalogoremoto) | `src/RepMatch.Clientes.Rest/CatalogoRemoto.cs`, `src/RepMatch.Clientes.Soap/CatalogoSoap.cs` y, para la API externa, `src/RepMatch.Fuentes.Vtex/FuenteVtex.cs` |
 | [Observer](#observer-despachador-de-eventos-de-dominio) | `src/RepMatch.Aplicacion/Eventos/` — `IDespachadorEventos`, `DespachadorEventos`, `IObservadorEventoDominio`, `ObservadorCompatibilidad`; los eventos (`BusquedaCreada` y los de la colaboración con el mecánico) en `src/RepMatch.Domain/Eventos/` |
 | [Facade](#facade-fachadaaplicacion) | `src/RepMatch.Aplicacion/Fachada/FachadaAplicacion.cs` |
+| [Circuit Breaker](#circuit-breaker-por-tienda) | `src/RepMatch.Fuentes.Vtex/FuenteVtex.cs` |
 
 El catálogo vehicular y el componente de IA de la Segunda Parte repiten Factory, Strategy y Adapter
-con contratos propios, y el servicio SOAP suma una tercera estrategia al catálogo de repuestos. Se
-describen al final, en [El catálogo vehicular y los mismos
-patrones](#el-catálogo-vehicular-y-los-mismos-patrones), [El componente de IA y los mismos
-patrones](#el-componente-de-ia-y-los-mismos-patrones) y [El servicio SOAP y los mismos
-patrones](#el-servicio-soap-y-los-mismos-patrones).
+con contratos propios, el servicio SOAP suma una tercera estrategia al catálogo de repuestos y las
+tiendas externas son adapters de un contrato nuevo, `IFuenteOfertas`. Se describen al final, en [El
+catálogo vehicular y los mismos patrones](#el-catálogo-vehicular-y-los-mismos-patrones), [El
+componente de IA y los mismos patrones](#el-componente-de-ia-y-los-mismos-patrones), [El servicio
+SOAP y los mismos patrones](#el-servicio-soap-y-los-mismos-patrones) y [Las tiendas externas y los
+mismos patrones](#las-tiendas-externas-y-los-mismos-patrones).
 
 ---
 
@@ -559,6 +561,71 @@ fachada de protocolo sobre `CatalogoLocal`, el mismo que usa `Catalogo.Api`. Por
 remotos devuelven exactamente lo mismo, y `AccesoSoapTests` lo verifica.
 
 Ver [ServicioConsultaCompatibilidad.cs](../src/RepMatch.Catalogo.Soap/ServicioConsultaCompatibilidad.cs).
+
+## Las tiendas externas y los mismos patrones
+
+`IFuenteOfertas` (`src/RepMatch.Contracts/IFuenteOfertas.cs`) es una tienda donde buscar precios: recibe
+una pieza del catálogo y devuelve ofertas ya normalizadas (`OfertaExternaDto`). Es el punto donde la
+aplicación consume la API externa real que pide la Segunda Parte.
+
+Ver [IFuenteOfertas.cs](../src/RepMatch.Contracts/IFuenteOfertas.cs).
+
+**Adapter.** `FuenteVtex` (`src/RepMatch.Fuentes.Vtex/FuenteVtex.cs`) traduce el contrato al buscador
+público de catálogo de VTEX, la plataforma de Easy y Frávega: arma
+`/api/catalog_system/pub/products/search?ft=…&_from=0&_to=9`, acepta el `206 Partial Content` como
+respuesta válida y convierte los errores de la tienda en `HttpRequestException`. `LectorVtex` hace la
+otra mitad de la traducción: del JSON de VTEX a `OfertaExternaDto`, con las reglas que salieron de
+respuestas reales (categorías válidas, primera palabra del título, vendedor con stock en el
+marketplace). Sin el adapter, `ServicioOfertas` tendría que conocer el formato de cada tienda, y
+sumar eBay obligaría a tocarlo.
+
+Ver [FuenteVtex.cs](../src/RepMatch.Fuentes.Vtex/FuenteVtex.cs) y
+[LectorVtex.cs](../src/RepMatch.Fuentes.Vtex/LectorVtex.cs).
+
+**Configuración en lugar de clases.** Una sola clase sirve para todas las tiendas VTEX: cada
+entrada de `Ofertas:Tiendas` (nombre, URL base, moneda, categorías válidas) se registra como otra
+instancia de `FuenteVtex` en `AgregarFuentesOfertas`. Sumar una tienda VTEX es agregar una entrada,
+sin código.
+
+**Varias implementaciones a la vez.** A diferencia del catálogo, donde la Factory enlaza la interfaz
+a una sola estrategia, acá se usan todas juntas: `ServicioOfertas` recibe la lista completa de
+`IFuenteOfertas`, las consulta en paralelo con un tope global de tiempo y sigue con las que
+respondieron. eBay (#17) sería una implementación más en esa lista.
+
+**Repository y Unit of Work.** `ServicioOfertas` guarda lo capturado en la `Busqueda` a través de
+`IBusquedaRepository` y confirma con `IUnitOfWork`, como el resto de los servicios. La regla de no
+duplicar publicaciones y de marcar lo que desapareció vive en el dominio
+(`Busqueda.ActualizarOfertas`), no en el servicio.
+
+**Facade.** `FachadaAplicacion.ObtenerOfertasAsync` (búsqueda guardada, para el dueño o el mecánico
+asignado) y `ResumirPreciosAsync` (búsqueda sin sesión, sin guardar nada) son la única entrada de
+la presentación a los precios.
+
+## Circuit Breaker por tienda
+
+**Dónde vive.** Cada instancia singleton de `FuenteVtex` construye su propio pipeline de Polly:
+timeout por tienda, hasta dos reintentos con espera exponencial y un circuito que abre después de
+tres fallos dentro de 30 segundos durante otros 30 segundos. `IDistributedCache` comparte las
+respuestas entre instancias cuando se configura Redis; sin esa conexión, se registra la caché en
+memoria.
+
+**Qué problema resuelve.** Una API lenta o caída no debe acumular esperas ni bloquear las consultas
+posteriores a esa misma tienda. Cuando el timeout se agota o el circuito ya está abierto,
+`FuenteVtex` lo traduce a `HttpRequestException`, que `ServicioOfertas` convierte en un fallo de esa
+fuente: conserva resultados de las demás y no marca como agotadas sus ofertas anteriores. Los
+fallos de Redis al leer o guardar se registran y la fuente sigue consultando la red.
+
+**Qué pasaría sin él.** Cada solicitud volvería a esperar el timeout completo y podría repetir
+consultas inútiles contra una tienda caída; además, un fallo del circuito o del timeout de Polly
+podría escapar del contrato esperado por `ServicioOfertas` y abortar la agregación completa.
+
+**Código.** `FuenteVtex` configura `AddCircuitBreaker`, `AddRetry` y `AddTimeout`; el límite de
+concurrencia por tienda se mantiene aparte. Compose configura `ConnectionStrings:Redis` y espera a
+que Redis esté saludable antes de iniciar la Web.
+
+Ver [FuenteVtex.cs](../src/RepMatch.Fuentes.Vtex/FuenteVtex.cs),
+[ExtensionesFuentesVtex.cs](../src/RepMatch.Fuentes.Vtex/ExtensionesFuentesVtex.cs) y
+[docker-compose.yml](../docker-compose.yml).
 
 ## Documentación relacionada
 

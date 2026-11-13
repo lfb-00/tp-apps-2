@@ -8,7 +8,8 @@ Caso de la Primera Parte, con el componente de IA de la Segunda: el cliente elig
 garage, describe el problema, y la búsqueda queda guardada con el diagnóstico y los códigos de las
 piezas elegidas. El texto libre se persiste. La elección la hace el observador de `BusquedaCreada`
 a través de `ServicioDiagnostico`: el catálogo da las piezas compatibles y la IA elige entre ellas
-(sección 7). La fachada después arma las piezas completas para mostrarlas.
+(sección 7). La fachada después arma las piezas completas para mostrarlas. Los precios de las
+tiendas se piden en un paso aparte, después de mostrar las piezas (secuencia 9).
 
 ```mermaid
 sequenceDiagram
@@ -245,7 +246,8 @@ El visitante selecciona un vehículo y describe el problema en Home. El texto se
 va a la fachada solo para el diagnóstico: esta consulta devuelve el diagnóstico y las piezas, sin
 crear una `Busqueda`, guardar historial ni despachar `BusquedaCreada`. La carga de los selectores y
 la validación del vehículo usan `ICatalogoVehiculos`, el acceso concreto se elige con la misma
-fábrica que los repuestos. `ServicioDiagnostico` es el mismo de la sección 1.
+fábrica que los repuestos. `ServicioDiagnostico` es el mismo de la sección 1. Después de mostrar las
+piezas, Home pide un resumen de precios sin guardar nada (final de la secuencia 9).
 
 ```mermaid
 sequenceDiagram
@@ -658,3 +660,110 @@ Código de referencia: [CatalogoSoap.cs](../../src/RepMatch.Clientes.Soap/Catalo
 [FabricaCanalSoap.cs](../../src/RepMatch.Clientes.Soap/FabricaCanalSoap.cs),
 [ServicioConsultaCompatibilidad.cs](../../src/RepMatch.Catalogo.Soap/ServicioConsultaCompatibilidad.cs) y
 [IConsultaCompatibilidad.cs](../../src/RepMatch.Catalogo.Soap/Contrato/IConsultaCompatibilidad.cs).
+
+---
+
+## 9. Precios de las tiendas (Servicio de Ofertas)
+
+Los precios llegan en un segundo paso. La página ya mostró el diagnóstico y las piezas (secuencia 1)
+y recién entonces pide las ofertas, con "Buscando precios…" en cada pieza: una tienda lenta no
+demora el diagnóstico. Lo pueden pedir el dueño de la búsqueda y el mecánico con quien la
+compartió. En la página de la consulta se pide lo mismo al abrirla, y también después de que el
+mecánico envía una revisión, para que las piezas que recomendó tengan precio. Con la cola de
+mensajes, el consumidor de `BusquedaCreada` llamará al mismo `ServicioOfertas.ObtenerAsync` y la
+página solo leerá el resultado.
+
+```mermaid
+sequenceDiagram
+    actor Usuario as Cliente o mecánico
+    participant Web as Home o Consulta.razor
+    participant Fachada as FachadaAplicacion
+    participant Ofertas as ServicioOfertas
+    participant Repo as IBusquedaRepository
+    participant Dominio as Busqueda
+    participant Catalogo as ICatalogoRepuestos
+    participant Vehiculos as ICatalogoVehiculos
+    participant Tienda as IFuenteOfertas (FuenteVtex, una por tienda)
+    participant Cache as IDistributedCache
+    participant Vtex as API de catálogo VTEX
+    participant UoW as UnitOfWork
+
+    Web-->>Usuario: piezas con "Buscando precios…"
+    Web->>Fachada: ObtenerOfertasAsync(busquedaId, usuarioId, forzar)
+    Fachada->>Ofertas: ObtenerAsync
+    Ofertas->>Repo: ObtenerPorIdAsync
+    alt no existe o el usuario no es el dueño ni el mecánico asignado
+        Ofertas-->>Web: Falla "La consulta no existe o no es tuya."
+    else búsqueda Fallida o sin piezas
+        Ofertas-->>Web: Exito sin precios
+    else
+        Ofertas->>Dominio: CodigosQueNecesitanPrecios(vigencia)
+        Note over Dominio: propuestas + recomendadas por el mecánico,<br/>nunca consultadas o con precios vencidos<br/>(todas, con "Actualizar precios")
+        alt nada que consultar
+            Ofertas-->>Web: Exito con las ofertas guardadas
+        else hay piezas que consultar
+            Ofertas->>Catalogo: BuscarCompatiblesAsync (nombre y códigos equivalentes)
+            alt falla el catálogo
+                Ofertas-->>Web: Falla "No se pudo consultar el catálogo…"
+            else
+                Ofertas->>Vehiculos: ListarOpcionesAsync
+                alt catálogo vehicular disponible
+                    Vehiculos-->>Ofertas: opciones conocidas
+                else error HTTP o timeout
+                    Vehiculos-->>Ofertas: excepción capturada
+                    Note over Ofertas: registra el fallo y valida sin opciones conocidas
+                end
+                par cada tienda y cada pieza, con tope global de tiempo
+                    Ofertas->>Tienda: BuscarAsync(pieza)
+                    loop códigos equivalentes y después el nombre
+                        Tienda->>Cache: GetAsync(término normalizado)
+                        alt respuesta en caché
+                            Cache-->>Tienda: JSON y fecha original de captura
+                            Note over Tienda: reutiliza la respuesta sin rejuvenecer el precio
+                        else cache miss o caché no disponible
+                            Note over Tienda: Polly aplica timeout por tienda, hasta dos reintentos<br/>y circuito independiente; fallos de Redis se registran
+                            Tienda->>Vtex: GET /api/catalog_system/pub/products/search?ft=…&_from=0&_to=9
+                            alt 200 o 206
+                                Vtex-->>Tienda: productos (JSON)
+                                Tienda->>Cache: SetAsync(JSON, CacheMinutos)
+                                opt Redis no disponible
+                                    Note over Tienda: registra el fallo y conserva la respuesta de red
+                                end
+                            else error, timeout o circuito abierto
+                                Tienda-->>Ofertas: HttpRequestException / TaskCanceledException
+                                Note over Ofertas: la tienda queda en TiendasSinRespuesta<br/>las demás siguen
+                            end
+                        end
+                    end
+                    Note over Tienda: LectorVtex: categoría válida, primera palabra o código,<br/>vendedor con stock más barato, EAN
+                    Tienda-->>Ofertas: ofertas normalizadas
+                end
+                Note over Ofertas: EAN compartido entre tiendas se clasifica como exacto;<br/>ValidadorCandidatoOferta descarta contradicciones por nombre
+                Ofertas->>Dominio: ActualizarOfertas(códigos, tiendas que respondieron, capturas)
+                Note over Dominio: misma publicación: actualiza precio (mismo Id, la derivación sigue válida)<br/>nueva: la agrega<br/>no apareció en una tienda que respondió: no disponible<br/>tienda sin respuesta: sus ofertas quedan como estaban
+                Ofertas->>UoW: ConfirmarAsync
+                Ofertas-->>Fachada: Exito(búsqueda con ofertas, TiendasSinRespuesta)
+                Fachada-->>Web: OfertasBusquedaDto
+            end
+        end
+    end
+    alt rol cliente
+        Web-->>Usuario: ofertas por pieza, de la más barata a la más cara, "Ir a la tienda" → /derivar/{ofertaId}
+    else rol mecánico
+        Web-->>Usuario: las mismas ofertas con enlace directo a la tienda (sin derivación a su nombre)
+    end
+    opt alguna tienda no respondió
+        Web-->>Usuario: aviso "No pudimos consultar …"
+    end
+```
+
+Sin sesión, `Home` llama a `FachadaAplicacion.ResumirPreciosAsync(piezas)`: consulta las tiendas
+igual, pero no guarda nada y solo devuelve el precio más bajo y en cuántas tiendas está cada pieza,
+con un "Ingresá para ver dónde". Sin búsqueda guardada no hay oferta guardada, y sin oferta no hay
+derivación que registrar.
+
+Código de referencia: [ServicioOfertas.cs](../../src/RepMatch.Aplicacion/Servicios/ServicioOfertas.cs),
+[Busqueda.cs](../../src/RepMatch.Domain/Entidades/Busqueda.cs),
+[FuenteVtex.cs](../../src/RepMatch.Fuentes.Vtex/FuenteVtex.cs),
+[LectorVtex.cs](../../src/RepMatch.Fuentes.Vtex/LectorVtex.cs) y
+[PreciosPieza.razor](../../src/RepMatch.Web/Components/PreciosPieza.razor).

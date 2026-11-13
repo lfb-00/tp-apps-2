@@ -58,27 +58,30 @@ Sobre esa base se agregaron los roles cliente y mecánico, la revisión del diag
 de derivaciones del modelo de negocio.
 De la Segunda Parte ya están el **componente de IA** (diagnóstico del texto libre, expuesto por REST
 en `RepMatch.IA.Api`, secciones 6.7 y 7) y el **servicio SOAP** del catálogo (`RepMatch.Catalogo.Soap`,
-con WSDL, secciones 4 y 6.8), que la Web usa en cada búsqueda. La mensajería y los adaptadores a
-tiendas externas corresponden a las entregas siguientes, y la arquitectura está preparada para
-recibirlos sin rediseño (sección 7).
+con WSDL, secciones 4 y 6.8), que la Web usa en cada búsqueda, y la **API externa real**: el
+Servicio de Ofertas consulta los precios en Easy y Frávega con la API pública de VTEX
+(`RepMatch.Fuentes.Vtex`, sección 6.9). La mensajería y el adaptador de eBay corresponden a las
+entregas siguientes, y la arquitectura está preparada para recibirlos sin rediseño (sección 7).
 
 ---
 
 ## 2. Componentes construidos
 
-La consigna pide un mínimo de tres componentes reutilizables independientes. Se construyeron ocho
-(los seis del TP Inicial y, de la Segunda Parte, el de IA y el cliente SOAP):
+La consigna pide un mínimo de tres componentes reutilizables independientes. Se construyeron nueve
+(los seis del TP Inicial y, de la Segunda Parte, el de IA, el cliente SOAP y el adaptador de tiendas
+VTEX):
 
 | # | Componente | Tipo pedido por la consigna | Responsabilidad |
 |---|---|---|---|
 | 1 | `RepMatch.Domain` | **Dominio** | Entidades, value objects, eventos de dominio e interfaces de repositorio |
 | 2 | `RepMatch.Persistence` | **Acceso a datos** | `DbContext`, mapeos, repositorios y unidad de trabajo sobre EF Core |
 | 3 | `RepMatch.Common` | **Utilidad** | Validación, logging, configuración externalizada, `ResultadoOperacion<T>`, medición de latencia y correlación |
-| 4 | `RepMatch.Contracts` | Contratos | DTOs, `ICatalogoRepuestos`, `ICatalogoVehiculos`, `IDiagnosticador`, `OpcionesCatalogo` y `OpcionesIA` |
-| 5 | `RepMatch.Aplicacion` | Lógica de negocio | `FachadaAplicacion`, `ServicioClientes`, `ServicioBusquedas`, `ServicioMecanicos`, `ServicioRevisiones`, `ServicioDerivaciones`, `ServicioDiagnostico`, `DespachadorEventos`, `ObservadorCompatibilidad`, mapeadores, validadores y los catálogos locales de repuestos y vehículos |
+| 4 | `RepMatch.Contracts` | Contratos | DTOs, `ICatalogoRepuestos`, `ICatalogoVehiculos`, `IDiagnosticador`, `IFuenteOfertas`, `OpcionesCatalogo`, `OpcionesIA` y `OpcionesOfertas` |
+| 5 | `RepMatch.Aplicacion` | Lógica de negocio | `FachadaAplicacion`, `ServicioClientes`, `ServicioBusquedas`, `ServicioMecanicos`, `ServicioRevisiones`, `ServicioDerivaciones`, `ServicioDiagnostico`, `ServicioOfertas`, `DespachadorEventos`, `ObservadorCompatibilidad`, mapeadores, validadores y los catálogos locales de repuestos y vehículos |
 | 6 | `RepMatch.Clientes.Rest` | Adaptador remoto | `CatalogoRemoto`, `CatalogoVehiculosRemoto`, `DiagnosticadorRemoto` y propagación de correlación |
 | 7 | `RepMatch.IA` | Componente de IA | `DiagnosticadorLlm` (adapter del LLM), `DiagnosticadorLocal` (clasificador TF-IDF + k-NN), `DiagnosticadorConRespaldo`, filtro de datos personales y el corpus de síntomas |
 | 8 | `RepMatch.Clientes.Soap` | Adaptador SOAP | `CatalogoSoap`, el proxy generado con `dotnet-svcutil` desde el WSDL de `Catalogo.Soap` y la propagación de correlación |
+| 9 | `RepMatch.Fuentes.Vtex` | Adaptador de API externa | `FuenteVtex` (una instancia por tienda configurada), `LectorVtex` (traduce la respuesta del buscador de VTEX) y su registro `AgregarFuentesOfertas` |
 
 Más cuatro hosts ejecutables: `RepMatch.Web` (presentación), `RepMatch.Catalogo.Api` (host REST del
 componente de catálogo), `RepMatch.Catalogo.Soap` (host SOAP del mismo componente, con CoreWCF) y
@@ -99,19 +102,19 @@ materializan así:
 | Cliente | `Cliente` | Igual: quien busca, con su garage de vehículos. La misma entidad representa al mecánico, con `Rol = Mecanico`, datos de taller y plan. |
 | Producto | `Repuesto` + `Oferta` | `Repuesto` es la pieza como concepto (código canónico, equivalencias, tabla de compatibilidad). `Oferta` es esa pieza publicada por una tienda a un precio. **Separarlos es lo que hace posible comparar la misma pieza entre sitios distintos**, que es el corazón de la aplicación. |
 | Pedido | `Busqueda` | El agregado que atraviesa el sistema: vehículo + texto libre + estado + resultados. Cumple el mismo rol estructural que un pedido, pero lo que se "despacha" es la consulta a las tiendas. |
-| Inventario | _(no aplica)_ | RepMatch no gestiona stock; ver la nota debajo de la tabla. |
+| Inventario | `ServicioOfertas` | RepMatch no tiene stock propio: su "inventario" son las ofertas de las tiendas. Ver la nota debajo de la tabla. |
 
-**Sobre el Servicio de Inventario.** RepMatch no tiene inventario. El catálogo propio
+**Sobre el Servicio de Inventario.** RepMatch no tiene inventario propio. El catálogo
 (`IRepuestoRepository`) guarda las piezas y sus tablas de compatibilidad —qué repuesto le entra a
-qué vehículo—, pero no cantidades ni precios. En la Segunda Parte, los adaptadores a tiendas
-consultarán precio y disponibilidad en el momento de cada búsqueda, y cada resultado quedará
-guardado como una `Oferta`: una foto del precio, el envío, la tienda y un indicador de
-disponibilidad, con su fecha `CapturadaEn`. Es un registro de la búsqueda, no stock. Hoy `Oferta` y
-`Busqueda.RegistrarOfertas` existen en el dominio, pero nadie las alimenta todavía. Mantener un
-inventario propio implicaría almacenar datos de terceros, sincronizarlos continuamente y asumir la
-responsabilidad de su exactitud, lo que contradice el modelo de negocio de un comparador. Si la
-consigna menciona un "Servicio de Inventario" como ejemplo, en este dominio ese rol lo cumplirá el
-catálogo de repuestos combinado con las consultas a las tiendas.
+qué vehículo—, pero no cantidades ni precios. El equivalente es `ServicioOfertas`: consulta precio y
+disponibilidad en las tiendas en el momento de la búsqueda y guarda cada resultado como una
+`Oferta`, una foto del precio, la tienda, el vendedor y la disponibilidad, con su fecha
+`CapturadaEn`. Con eso hace lo que haría un servicio de inventario sobre datos de terceros: no
+duplica publicaciones (la misma publicación de la misma tienda se actualiza), marca como no
+disponible lo que una tienda dejó de publicar, vuelve a consultar cuando los precios vencen
+(`Ofertas:VigenciaMinutos`) y arma el ranking por precio total sin mezclar monedas. Mantener stock
+propio implicaría almacenar datos de terceros, sincronizarlos todo el tiempo y responder por su
+exactitud, lo que contradice el modelo de negocio de un comparador.
 
 ---
 
@@ -155,8 +158,8 @@ Las referencias de proyectos y el uso de sus tipos muestran estas decisiones:
 
 Las páginas usan `FachadaAplicacion` para clientes, mecánicos, búsquedas y repuestos. Agrupa
 los métodos de `ServicioClientes`, `ServicioBusquedas`, `ServicioMecanicos`, `ServicioRevisiones`,
-`ServicioDerivaciones`, `ServicioDiagnostico`, `ICatalogoRepuestos` e `ICatalogoVehiculos` en una
-superficie única y estable. Los permisos por rol se chequean en esos servicios —quién puede ver una consulta,
+`ServicioDerivaciones`, `ServicioDiagnostico`, `ServicioOfertas`, `ICatalogoRepuestos` e
+`ICatalogoVehiculos` en una superficie única y estable. Los permisos por rol se chequean en esos servicios —quién puede ver una consulta,
 compartirla o revisarla, y el límite del plan—, no en las páginas: la presentación solo decide qué
 mostrar. Las páginas no conocen qué servicio interno maneja cada operación, ni si el
 catálogo está en proceso o detrás de una API: esa decisión queda encapsulada. Además, `BuscarAsync`
@@ -165,6 +168,14 @@ las piezas compatibles—, coordinación que no le corresponde hacer a ninguna p
 consultó el catálogo para decidir los códigos; la fachada lo vuelve a consultar para traer el detalle
 de esas piezas. La búsqueda sin sesión usa `DiagnosticarAsync`, que valida el vehículo y devuelve
 diagnóstico y piezas sin crear una `Busqueda`.
+
+Los precios llegan en un segundo paso, a propósito. La página muestra el diagnóstico y las piezas
+apenas vuelve `BuscarAsync`, con "Buscando precios…" en cada pieza, y recién entonces pide
+`ObtenerOfertasAsync`: una tienda lenta no demora el diagnóstico. Es también el comportamiento que va
+a tener con la cola de mensajes, cuando el consumidor de `BusquedaCreada` sea quien busque los
+precios y la página solo los lea. Sin sesión, `ResumirPreciosAsync` devuelve "desde cuánto y en
+cuántas tiendas" sin guardar nada: ver dónde y derivar requiere una búsqueda guardada, que es de
+donde sale la comisión.
 
 `SelectorVehiculo.razor` inyecta directamente `ICatalogoVehiculos` para obtener las opciones.
 La fábrica selecciona este contrato entre `CatalogoVehiculosLocal` y `CatalogoVehiculosRemoto`.
@@ -333,6 +344,9 @@ completas y comprueba que los modelos de la semilla tengan piezas compatibles.
 `tests/RepMatch.Tests/IA/` hace lo mismo con el componente de IA: hospeda `IA.Api` en memoria, sin
 clave de LLM, y compara su respuesta con la del cliente remoto; prueba el clasificador local sobre
 un conjunto fijo de síntomas y el adapter del LLM con respuestas grabadas, sin red.
+`tests/RepMatch.Tests/Ofertas/` prueba el adaptador VTEX con respuestas reales grabadas de Easy y
+Frávega (`tests/fixtures/vtex/`) y `ServicioOfertas` con tiendas simuladas: tienda caída, tope
+global de tiempo, deduplicación, vencimiento, permisos por rol y piezas recomendadas por el mecánico.
 `tests/RepMatch.Tests/Integracion/AccesoSoapTests.cs` cubre el camino SOAP: hospeda
 `Catalogo.Soap` en memoria, lo consume con el proxy generado desde el WSDL y verifica que devuelva
 lo mismo que el catálogo en proceso, que el WSDL publique las cuatro operaciones y que una caída
@@ -349,17 +363,20 @@ real. Las mismas pruebas corren sin el SDK con `docker compose --profile test ru
 
 `tests/RepMatch.E2E` recorre la aplicación con un navegador real (Playwright) contra el entorno
 completo de docker compose, como lo haría una persona: registro e ingreso, búsquedas con y sin
-sesión, el componente de IA, garage, perfil, la colaboración entre cliente y mecánico, la vista
-de celular y los permisos (páginas sin sesión, rol equivocado, consultas ajenas). Prueba los
+sesión, el componente de IA, los precios de las tiendas con los tres roles, garage, perfil, la
+colaboración entre cliente y mecánico, la vista de celular y los permisos (páginas sin sesión, rol equivocado, consultas ajenas). Prueba los
 errores además del camino feliz, y cualquier prueba falla si la Web muestra el cartel de error
 inesperado.
 
 `bash scripts/e2e.sh` lo hace todo: arranca de una base limpia, levanta la Web principal (repuestos
-por SOAP, vehículos e IA por REST) y la Web en modo Local, y corre cuatro fases. La primera tiene
+por SOAP, vehículos e IA por REST) y la Web en modo Local, y corre cinco fases. La primera tiene
 todo arriba, así que cada búsqueda prueba también el camino SOAP. Las otras frenan `ia-api`,
-`catalogo-api` y `catalogo-soap`, para comprobar que la búsqueda sigue sin IA y que la app no se
-cae sin catálogo REST ni SOAP. Corre sin clave de LLM para que el diagnóstico sea determinista. Con
-`--evidencia` deja el resumen de las cuatro fases en `docs/evidencias/09-pruebas-e2e.txt`.
+`catalogo-api`, `catalogo-soap` y `tienda-simulada`, para comprobar que la búsqueda sigue sin IA,
+que la app no se cae sin catálogo REST ni SOAP y que sin tiendas se ven las piezas con un aviso.
+Corre sin clave de LLM para que el diagnóstico sea determinista, y con los precios de
+`tienda-simulada`, que responde con búsquedas reales grabadas de Easy y Frávega: así las pruebas
+pueden afirmar precios exactos sin depender de lo que publiquen ese día. Con `--evidencia` deja el
+resumen de las cinco fases en `docs/evidencias/09-pruebas-e2e.txt`.
 
 Las pruebas que encontraron errores reales quedan omitidas con la causa explicada, hasta que se
 corrijan. La lista está en [`tests/RepMatch.E2E/README.md`](../tests/RepMatch.E2E/README.md).
@@ -376,8 +393,8 @@ Se relevaron las fuentes reales disponibles antes de comprometer el diseño:
 |---|---|---|
 | MercadoLibre `sites/MLA/search` | **HTTP 403 forbidden** sin token — cerraron la búsqueda pública | ❌ Descartada |
 | `argautopartes.com.ar` (Tiendanube) | `robots.txt` con `Disallow: /search/` | ❌ Descartada |
-| **VTEX `easy.com.ar`** | HTTP 206 con autopartes reales y precio, endpoint público, permitido por `robots.txt` | ✅ Adoptada |
-| **VTEX `fravega.com`** | HTTP 206, mismo contrato | ✅ Adoptada |
+| **VTEX `easy.com.ar`** | HTTP 206 con autopartes reales y precio, endpoint público, permitido por `robots.txt` | ✅ Implementada |
+| **VTEX `fravega.com`** | HTTP 206, mismo contrato | ✅ Implementada |
 | **eBay Browse API** | API oficial, OAuth2 client_credentials, 5000 llamadas/día, filtros de compatibilidad vehicular | ✅ Adoptada |
 | **NHTSA vPIC** | HTTP 200, sin API key, sin rate limit | ✅ Adoptada |
 
@@ -466,6 +483,46 @@ La consigna pide al menos un servicio SOAP con WSDL y contrato. Las decisiones:
   opciones de vehículo y el diagnóstico por REST. Cada búsqueda de la demo usa los dos protocolos,
   y el correlation id permite seguirla en los logs de los tres procesos (sección 5.3).
 
+### 6.9 Precios de las tiendas: lo que mostró la API real
+
+El adaptador se diseñó a partir de respuestas reales de Easy y Frávega, grabadas en
+`tests/fixtures/vtex/`:
+
+- **Las tiendas generalistas tienen pocos repuestos.** Del catálogo semilla, Easy publica baterías
+  de auto y casi nada más; Frávega vende sobre todo accesorios. La pantalla lo dice ("Ninguna tienda
+  conectada la publica por ahora") en vez de mostrar una lista vacía. eBay (#17) es la fuente
+  pensada para dar profundidad.
+- **Buscar por nombre trae basura.** "Batería" devuelve taladros y pilas; "pastillas de freno", las
+  pastillas para encender el fuego. Cada tienda configura sus categorías válidas
+  (`PrefijosCategoria`: `/Automotor/` en Easy) y, en la búsqueda por nombre, el título tiene que
+  empezar con la misma palabra que la pieza. La aplicación descarta coincidencias probables que
+  contradicen los datos disponibles del vehículo: modelo, marca, año, posición o sistema. Si la
+  publicación no trae esos datos, no se presume incompatibilidad; queda como probable y se advierte
+  ("verificá que sea la medida de tu auto"). En la búsqueda por código equivalente, el código debe
+  aparecer en la publicación.
+- **Frávega es un marketplace.** Cada producto trae varios vendedores y el de la propia tienda suele
+  estar sin stock: se toma el vendedor disponible más barato y se muestra quién vende.
+- **La búsqueda no informa el costo de envío.** Obtenerlo requiere simular la compra con un código
+  postal. El precio se muestra como de referencia y la pantalla aclara que el envío se calcula en la
+  tienda; `Oferta.PrecioTotal` ya lo suma cuando una fuente lo informe.
+- **Identidad por EAN.** Si distintas tiendas publican el mismo EAN, sus ofertas se clasifican como
+  coincidencias exactas de la misma pieza; se mantienen separadas porque son publicaciones y precios
+  distintos.
+- **Uso responsable y resiliente de las APIs.** Cada fuente limita pedidos simultáneos
+  (`PedidosSimultaneos`), cachea respuestas por término (`CacheMinutos`) y tiene timeout, reintentos
+  y circuito independiente. En Compose la caché es Redis compartida; sin `ConnectionStrings:Redis`
+  se usa caché distribuida en memoria. Además, `ServicioOfertas` aplica un tope global
+  (`TimeoutGlobalSegundos`): si una tienda falla, se muestran las demás y no se marcan como agotadas
+  las ofertas guardadas de la tienda que no respondió. Los fallos de caché se registran y la consulta
+  continúa por red.
+
+Cada rol ve los precios de una forma distinta. El **cliente** ve las ofertas de cada pieza y sale a
+la tienda por `/derivar`, que registra la comisión. El **mecánico** ve las mismas ofertas con enlace
+directo a la tienda: si pasara por `/derivar`, su propio clic contaría como una derivación atribuida
+a él. Si corrige el diagnóstico, también se buscan los precios de las piezas que recomendó, para que
+el cliente pueda comprarlas. **Sin sesión** se ve "desde $X en N tiendas" con un "Ingresá para ver
+dónde".
+
 ---
 
 ## 7. Cómo esta arquitectura recibe las entregas siguientes
@@ -475,8 +532,9 @@ La consigna pide al menos un servicio SOAP con WSDL y contrato. Las decisiones:
 | **Primera** | Patrones formalizados, fachada, eventos de dominio internos | `DespachadorEventos` publica `BusquedaCreada` a `ObservadorCompatibilidad`. Las operaciones pasan por `FachadaAplicacion`; `SelectorVehiculo` consulta `ICatalogoVehiculos` directamente | Dominio, contratos |
 | **Segunda** *(implementado)* | SOAP `ConsultaCompatibilidad` (CoreWCF + WSDL) | `Catalogo.Soap` publica el servicio; `CatalogoSoap` es la tercera implementación de `ICatalogoRepuestos`, elegida con `Catalogo:Modo=Soap` (sección 6.8) | Presentación, lógica de negocio, interfaz del catálogo |
 | **Segunda** | REST documentados con OpenAPI | `Catalogo.Api` e `IA.Api` publican `/openapi/v1.json` | — |
-| **Segunda** | RabbitMQ, productores y consumidores | Implementación de `IDespachadorEventos` sobre `IEventBus`; `BusquedaCreada`, `BusquedaCompartida` (aviso al mecánico) y `DerivacionATienda` (conteo de comisiones) ya existen como eventos de dominio | Entidades |
-| **Segunda** | Adaptadores a eBay y VTEX | Nueva interfaz `IFuenteOfertas`, consumida por `search-api` | Catálogo, dominio |
+| **Segunda** | RabbitMQ, productores y consumidores | Implementación de `IDespachadorEventos` sobre `IEventBus`; `BusquedaCreada`, `BusquedaCompartida` (aviso al mecánico) y `DerivacionATienda` (conteo de comisiones) ya existen como eventos de dominio. El consumidor de `BusquedaCreada` y `DiagnosticoValidado` llama a `ServicioOfertas.ObtenerAsync`, el mismo método que hoy dispara la página | Entidades, la pantalla de precios |
+| **Segunda** *(implementado)* | Servicio de Ofertas y API externa (VTEX: Easy y Frávega) | `IFuenteOfertas` en `Contracts`; `FuenteVtex` en `RepMatch.Fuentes.Vtex`, una instancia resiliente por tienda; `ServicioOfertas` agrega resultados, clasifica EAN y valida coincidencias por nombre (sección 6.9) | `ServicioBusquedas.CrearAsync`, catálogo |
+| **Segunda** | Adaptador a eBay | Otra implementación de `IFuenteOfertas`, en USD; el ranking no mezcla monedas | `ServicioOfertas`, presentación |
 | **Segunda** *(implementado)* | Componente de IA (texto libre → repuestos) | `ObservadorCompatibilidad` usa `ServicioDiagnostico`, que le pasa `Busqueda.TextoLibre` y las piezas compatibles a `IDiagnosticador` (local o remota contra `IA.Api`, por `IA:Modo`) | `ServicioBusquedas.CrearAsync`; en la presentación solo se agregó la tarjeta del diagnóstico |
 | **Integrador** | Métricas de IA, pruebas de carga, despliegue | `DiagnosticoValidado` trae, por cada revisión, los códigos propuestos y los que recomendó el mecánico: el dataset etiquetado para medir exactitud | — |
 | **Integrador** | Pruebas funcionales | Ya existe `tests/RepMatch.E2E` (sección 5.5): cada pantalla nueva suma sus pruebas ahí y `scripts/e2e.sh` las corre contra el entorno completo | — |
@@ -511,7 +569,12 @@ dotnet run --project src/RepMatch.IA.Api --urls http://localhost:5083
 dotnet run --project src/RepMatch.Web --urls http://localhost:5080
 ```
 
-La Web sola alcanza: por defecto resuelve catálogo e IA en proceso. Para el modo SOAP, con
+La Web sola alcanza: por defecto resuelve catálogo e IA en proceso. Los precios salen de las
+tiendas reales, así que necesitan internet; sin conexión la búsqueda funciona igual y avisa que no
+pudo consultar las tiendas. Para trabajar sin red está el simulador:
+`dotnet run --project tests/RepMatch.TiendaSimulada --urls http://localhost:5084`, con la Web
+arrancada con `Ofertas__Tiendas__0__UrlBase=http://localhost:5084/easy` y
+`Ofertas__Tiendas__1__UrlBase=http://localhost:5084/fravega`. Para el modo SOAP, con
 `Catalogo.Api` y `Catalogo.Soap` levantados, se arranca la Web con `Catalogo__Modo=Soap`. La
 evidencia de los tres caminos se genera con `bash scripts/evidencias.sh`.
 
@@ -534,7 +597,7 @@ quedan demostrados apenas se levanta el entorno.
 | Requisito de la consigna | Dónde está |
 |---|---|
 | Entorno configurado (.NET 10, contenedores) | `docker-compose.yml`, `src/*/Dockerfile` |
-| ≥3 componentes reutilizables independientes | 6 componentes en esa entrega, 8 hoy — sección 2 |
+| ≥3 componentes reutilizables independientes | 6 componentes en esa entrega, 9 hoy — sección 2 |
 | Aplicación multicapa | Sección 3 |
 | Gestión de dependencias (NuGet) | `RepMatch.slnx`, `*.csproj` |
 | Acceso local y remoto entre componentes | Sección 4 |
@@ -551,7 +614,7 @@ quedan demostrados apenas se levanta el entorno.
 |---|---|
 | Aplicación sobre framework empresarial | `src/RepMatch.Web`, `src/RepMatch.Catalogo.Api` |
 | Patrones Factory, Repository, Strategy, Observer, Facade | [`docs/patrones.md`](patrones.md) |
-| Servicios de negocio e integración por eventos | `ServicioClientes`, `ServicioBusquedas`, `ServicioMecanicos`, `ServicioRevisiones`, `ServicioDerivaciones`, `ObservadorCompatibilidad` |
-| Servicio de Inventario | No existe como módulo separado porque RepMatch no almacena stock. El catálogo interno cubre la compatibilidad de piezas; en la Segunda Parte, disponibilidad y precio se consultarán en el momento de cada búsqueda a las APIs de las tiendas. Justificación ampliada en la nota "Sobre el Servicio de Inventario" de la sección 2. |
+| Servicios de negocio e integración por eventos | `ServicioClientes`, `ServicioBusquedas`, `ServicioMecanicos`, `ServicioRevisiones`, `ServicioDerivaciones`, `ServicioOfertas`, `ObservadorCompatibilidad` |
+| Servicio de Inventario | `ServicioOfertas`: como RepMatch no almacena stock, su inventario son las ofertas de las tiendas, consultadas en cada búsqueda, sin duplicar y con vencimiento. Justificación en la nota "Sobre el Servicio de Inventario" de la sección 2. |
 | Diagrama de arquitectura en capas | [`docs/diagramas/capas.md`](diagramas/capas.md) |
 | Diagramas de secuencia (búsquedas, login, alta de vehículo, catálogo, eliminación de cuenta y diagnóstico por IA) | [`docs/diagramas/secuencia.md`](diagramas/secuencia.md) |

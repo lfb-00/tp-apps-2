@@ -17,7 +17,8 @@ public sealed class FachadaAplicacion(
     ServicioMecanicos mecanicos,
     ServicioRevisiones revisiones,
     ServicioDerivaciones derivaciones,
-    ServicioDiagnostico diagnostico)
+    ServicioDiagnostico diagnostico,
+    ServicioOfertas ofertas)
 {
     public Task<IReadOnlyList<MecanicoDto>> ListarMecanicosAsync(
         string? provincia = null, CancellationToken ct = default) =>
@@ -55,6 +56,19 @@ public sealed class FachadaAplicacion(
     /// <summary>Registra la salida a la tienda y devuelve la URL a la que redirigir.</summary>
     public Task<ResultadoOperacion<string>> DerivarAsync(Guid ofertaId, CancellationToken ct = default) =>
         derivaciones.DerivarAsync(ofertaId, ct);
+
+    /// <summary>
+    /// Precios de una busqueda guardada, para el duenio o el mecanico con quien la compartio. La
+    /// pantalla lo llama despues de mostrar las piezas: los precios tardan mas que el diagnostico.
+    /// </summary>
+    public Task<ResultadoOperacion<OfertasBusquedaDto>> ObtenerOfertasAsync(
+        Guid busquedaId, Guid usuarioId, bool forzar = false, CancellationToken ct = default) =>
+        ofertas.ObtenerAsync(busquedaId, usuarioId, forzar, ct);
+
+    /// <summary>"Desde $X en N tiendas" para la busqueda sin sesion. No guarda nada.</summary>
+    public Task<ResumenPreciosBusquedaDto> ResumirPreciosAsync(
+        IReadOnlyList<RepuestoDto> piezas, VehiculoDto vehiculo, CancellationToken ct = default) =>
+        ofertas.ResumirAsync(piezas, vehiculo, ct);
 
     public Task<IReadOnlyList<ClienteDto>> ListarClientesAsync(CancellationToken ct = default) =>
         clientes.ListarAsync(ct);

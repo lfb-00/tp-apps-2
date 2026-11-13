@@ -16,7 +16,7 @@ Como la aplicación es un comparador y no un e-shop, esos tres conceptos se mate
 |---|---|---|
 | Cliente | `Cliente` | Igual: quien usa el comparador, con su garage de vehículos. La misma entidad representa al mecánico, distinguido por `Rol`. |
 | Producto | `Repuesto` + `Oferta` | `Repuesto` es la pieza como concepto (código canónico, equivalencias, compatibilidad); `Oferta` es esa pieza publicada por una tienda concreta a un precio concreto. Separarlos es lo que permite comparar la misma pieza entre sitios. |
-| Pedido | `Busqueda` | El agregado de la consulta: vehículo, texto libre, estado, diagnóstico de la IA y códigos objetivo. `Oferta` es el tipo preparado para el resultado de una tienda; esta entrega no captura ofertas. |
+| Pedido | `Busqueda` | El agregado de la consulta: vehículo, texto libre, estado, diagnóstico de la IA y códigos objetivo. `Oferta` es lo que trae una tienda; `ServicioOfertas` las captura y las guarda en la búsqueda. |
 
 ## Modelo de dominio
 
@@ -137,6 +137,8 @@ classDiagram
         +IReadOnlyCollection~string~ CausasProbables
         +string? FuenteDiagnostico
         +IReadOnlyCollection~Oferta~ Ofertas
+        +DateTimeOffset? PreciosConsultadosEn
+        +IReadOnlyCollection~string~ CodigosConPrecios
         +Guid? MecanicoId
         +DateTimeOffset? CompartidaEn
         +bool? DiagnosticoConfirmado
@@ -146,6 +148,8 @@ classDiagram
         +RegistrarDiagnostico(sistema, urgencia, causas, fuente)
         +AsignarCodigosObjetivo(codigos)
         +RegistrarOfertas(ofertas)
+        +ActualizarOfertas(codigos, tiendasQueRespondieron, capturadas)
+        +CodigosQueNecesitanPrecios(vigencia) IReadOnlyList~string~
         +Fallar(motivo)
         +OfertasOrdenadasPorPrecio(moneda) IReadOnlyList~Oferta~
         +CompartirCon(mecanicoId)
@@ -163,9 +167,18 @@ classDiagram
         +Dinero? CostoEnvio
         +string UrlOriginal
         +bool Disponible
+        +Dinero? PrecioLista
+        +CoincidenciaOferta Coincidencia
+        +string? Marca
+        +string? Ean
+        +string? ReferenciaTienda
+        +string? Vendedor
         +DateTimeOffset CapturadaEn
         +Dinero PrecioTotal
         +EstaVencida(antiguedadMaxima) bool
+        +EsLaMismaPublicacionQue(otra) bool
+        +ActualizarCon(captura)
+        +MarcarNoDisponible(consultadaEn)
     }
 
     class Derivacion {
@@ -261,6 +274,13 @@ classDiagram
         Pro
     }
 
+    class CoincidenciaOferta {
+        <<enumeration>>
+        ProbablePorNombre
+        ExactoPorCodigo
+        ExactoPorEan
+    }
+
     class ExcepcionDominio {
         <<exception>>
         +Si(condicion, mensaje)$
@@ -302,7 +322,8 @@ classDiagram
     Busqueda ..> BusquedaCompartida : CompartirCon
     Busqueda ..> DiagnosticoValidado : RegistrarRevision
     Derivacion ..> DerivacionATienda : registra al crearse
-    Oferta *-- "1..2" Dinero : precio / envio
+    Oferta *-- "1..3" Dinero : precio / lista / envio
+    Oferta --> CoincidenciaOferta
     Dinero ..> ExcepcionDominio : monedas distintas
 ```
 
@@ -317,20 +338,28 @@ ARS (tiendas VTEX argentinas) y en USD (eBay). Sumarlas sin cotización daría u
 así que el tipo lo prohíbe y lanza `ExcepcionDominio`.
 
 **`Oferta.PrecioTotal` incluye el envío.** `OfertasOrdenadasPorPrecio` ordena por ese total y
-rechaza mezclar monedas. La aplicación no llama `RegistrarOfertas` ni ese ranking: la colección de
-ofertas queda vacía. Las pruebas de dominio y de persistencia sí ejercen el método.
+rechaza mezclar monedas. Las tiendas VTEX no informan el envío en la búsqueda, así que hoy el total
+es el precio; el día que una fuente lo informe, el ranking ya lo considera.
+
+**Las ofertas se actualizan, no se reemplazan.** `ServicioOfertas` le pasa a
+`Busqueda.ActualizarOfertas` lo que capturó. Si es la misma publicación de la misma tienda
+(`EsLaMismaPublicacionQue`: referencia de la tienda, si no EAN, si no URL), `ActualizarCon` pisa el
+precio y conserva el `Id`, porque una `Derivacion` puede apuntar a esa oferta. Lo que una tienda que
+respondió dejó de publicar queda `MarcarNoDisponible`. `CodigosConPrecios` y `PreciosConsultadosEn`
+evitan volver a preguntar mientras los precios estén vigentes.
 
 **Estados que la aplicación alcanza.** El constructor deja la búsqueda en `Pendiente`.
-`AsignarCodigosObjetivo` pasa a `Diagnosticada` y `Fallar` a `Fallida`. `Completada` solo la asigna
-`RegistrarOfertas`. `Borrador` existe en la enumeración, pero ningún método lo asigna.
+`AsignarCodigosObjetivo` pasa a `Diagnosticada` y `Fallar` a `Fallida`. `Completada` la asignan
+`RegistrarOfertas` y `ActualizarOfertas`, cuando se consultaron los precios. `Borrador` existe en la enumeración, pero ningún método lo asigna.
 
 **El diagnóstico va aparte de los códigos.** `RegistrarDiagnostico` guarda lo que leyó la IA
 (sistema, `NivelUrgencia`, causas y fuente) y `AsignarCodigosObjetivo` las piezas elegidas. Van
 separados porque un diagnóstico puede no traer piezas del catálogo (un problema de embrague) y aun
 así sirve. Si la IA no respondió, la búsqueda no tiene diagnóstico.
 
-**Tipos declarados que la aplicación todavía no usa.** `Oferta.EstaVencida` no lo llama nadie. Se
-dibuja porque está en el componente, aunque hoy no lo use ningún flujo.
+**Tipos declarados que la aplicación todavía no usa.** `Oferta.EstaVencida` no lo llama nadie: el
+vencimiento se decide por búsqueda (`PreciosConsultadosEn`), no por oferta. Se dibuja porque está en
+el componente.
 
 **Las invariantes se rompen con `ExcepcionDominio`.** Todas las entidades y value objects la lanzan
 desde sus constructores y métodos (`Si`, `SiNulaOVacia`); en el diagrama se dibuja una sola
@@ -405,6 +434,8 @@ classDiagram
             +ObtenerBandejaAsync(mecanicoId) ResultadoOperacion~BandejaMecanicoDto~
             +CambiarPlanAsync(mecanicoId, plan) ResultadoOperacion~ClienteDto~
             +DerivarAsync(ofertaId) ResultadoOperacion~string~
+            +ObtenerOfertasAsync(busquedaId, usuarioId, forzar) ResultadoOperacion~OfertasBusquedaDto~
+            +ResumirPreciosAsync(piezas) ResumenPreciosBusquedaDto
         }
     }
 
@@ -445,6 +476,15 @@ classDiagram
 
         class ServicioDerivaciones {
             +DerivarAsync(ofertaId) ResultadoOperacion~string~
+        }
+
+        class ServicioOfertas {
+            +ObtenerAsync(busquedaId, usuarioId, forzar) ResultadoOperacion~OfertasBusquedaDto~
+            +ResumirAsync(piezas) ResumenPreciosBusquedaDto
+        }
+
+        class ValidadorCandidatoOferta {
+            +MotivoRechazo(oferta, pieza, vehiculo, opciones) string?
         }
     }
 
@@ -498,6 +538,20 @@ classDiagram
         class CatalogoSoap {
             <<Strategy / Adapter>>
             -FabricaCanalSoap fabrica
+        }
+
+        class IFuenteOfertas {
+            <<interface>>
+            +string Nombre
+            +BuscarAsync(consulta) IReadOnlyList~OfertaExternaDto~
+        }
+
+        class FuenteVtex {
+            <<Adapter>>
+            -OpcionesTiendaVtex tienda
+            -IHttpClientFactory fabrica
+            -IDistributedCache cache
+            -ResiliencePipeline resiliencia
         }
     }
 
@@ -578,6 +632,7 @@ classDiagram
     FachadaAplicacion --> ServicioRevisiones
     FachadaAplicacion --> ServicioDerivaciones
     FachadaAplicacion --> ServicioDiagnostico
+    FachadaAplicacion --> ServicioOfertas
 
     FabricaCatalogo ..> CatalogoLocal : registra
     FabricaCatalogo ..> CatalogoRemoto : registra
@@ -617,6 +672,11 @@ classDiagram
     ServicioRevisiones --> IDerivacionRepository : cuenta derivaciones
     ServicioDerivaciones --> IBusquedaRepository
     ServicioDerivaciones --> IDerivacionRepository
+    ServicioOfertas --> IBusquedaRepository
+    ServicioOfertas --> ICatalogoRepuestos : nombre y equivalencias
+    ServicioOfertas --> "0..*" IFuenteOfertas : todas en paralelo
+    ServicioOfertas --> ValidadorCandidatoOferta : filtra contradicciones
+    IFuenteOfertas <|.. FuenteVtex
 
     IClienteRepository <|.. ClienteRepository
     IBusquedaRepository <|.. BusquedaRepository
@@ -630,6 +690,7 @@ classDiagram
     ServicioMecanicos --> IUnitOfWork
     ServicioRevisiones --> IUnitOfWork
     ServicioDerivaciones --> IUnitOfWork
+    ServicioOfertas --> IUnitOfWork
     IUnitOfWork <|.. UnitOfWork
 
     style FachadaAplicacion fill:#fce7f3,stroke:#be185d,stroke-width:2px,color:#111
@@ -639,6 +700,7 @@ classDiagram
     style ServicioRevisiones fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
     style ServicioDerivaciones fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
     style ServicioDiagnostico fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
+    style ServicioOfertas fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
     style FabricaCatalogo fill:#fee2e2,stroke:#b91c1c,stroke-width:2px,color:#111
     style ICatalogoRepuestos fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#111
     style IDiagnosticador fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#111
@@ -647,6 +709,8 @@ classDiagram
     style CatalogoVehiculosLocal fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#111
     style CatalogoRemoto fill:#ede9fe,stroke:#6d28d9,stroke-width:2px,color:#111
     style CatalogoSoap fill:#ede9fe,stroke:#6d28d9,stroke-width:2px,color:#111
+    style IFuenteOfertas fill:#ede9fe,stroke:#6d28d9,stroke-width:2px,color:#111
+    style FuenteVtex fill:#ede9fe,stroke:#6d28d9,stroke-width:2px,color:#111
     style CatalogoVehiculosRemoto fill:#ede9fe,stroke:#6d28d9,stroke-width:2px,color:#111
     style IDespachadorEventos fill:#fef3c7,stroke:#b45309,stroke-width:2px,color:#111
     style DespachadorEventos fill:#fef3c7,stroke:#b45309,stroke-width:2px,color:#111
@@ -670,7 +734,7 @@ classDiagram
 |---|---|---|---|
 | Factory | Rojo | `FabricaCatalogo.AgregarCatalogo`; `FabricaDiagnostico.AgregarDiagnostico` repite el patrón para `IDiagnosticador` y no se dibuja | `RepMatch.Web` |
 | Strategy | Azul | `ICatalogoRepuestos` / `ICatalogoVehiculos` con sus implementaciones `*Local` y `*Remoto`; `IDiagnosticador`, cuyas implementaciones (`DiagnosticadorLlm`, `DiagnosticadorLocal`, `DiagnosticadorConRespaldo` en `RepMatch.IA` y `DiagnosticadorRemoto`) se describen en [patrones.md](../patrones.md#el-componente-de-ia-y-los-mismos-patrones) y no se dibujan | `Contracts`, `Aplicacion`, `Clientes.Rest`, `IA` |
-| Adapter | Violeta | `CatalogoRemoto`, `CatalogoVehiculosRemoto` (HTTP → contrato); `CatalogoSoap` (SOAP → contrato, Segunda Parte) | `RepMatch.Clientes.Rest`, `RepMatch.Clientes.Soap` |
+| Adapter | Violeta | `CatalogoRemoto`, `CatalogoVehiculosRemoto` (HTTP → contrato); `CatalogoSoap` (SOAP → contrato, Segunda Parte); `FuenteVtex` (API pública de las tiendas VTEX → `IFuenteOfertas`, Segunda Parte) | `RepMatch.Clientes.Rest`, `RepMatch.Clientes.Soap`, `RepMatch.Fuentes.Vtex` |
 | Repository | Verde | `I*Repository` (interfaces) y `*Repository` (EF Core) | `Domain` y `Persistence` |
 | Unit of Work | Turquesa | `IUnitOfWork` / `UnitOfWork` | `Domain` y `Persistence` |
 | Observer | Ámbar | `IDespachadorEventos`, `DespachadorEventos`, `IObservadorEventoDominio`, `ObservadorCompatibilidad`; los eventos (`BusquedaCreada`, `BusquedaCompartida`, `DiagnosticoValidado`, `DerivacionATienda`) están en el modelo de dominio | `Aplicacion` y `Domain` |
@@ -695,6 +759,7 @@ separados no se ven:
 | `ServicioMecanicos` | `Cliente` | Cambia datos del taller y plan de un mecánico. |
 | `ServicioRevisiones` | `Busqueda` | Comparte, retira y registra la revisión; chequea rol y límite del plan antes de llamar al dominio. |
 | `ServicioDerivaciones` | `Busqueda` | Pide a la búsqueda la `Derivacion` de una oferta y la guarda. |
+| `ServicioOfertas` | `Busqueda`, `Oferta` | Crea las `Oferta` de lo que trajeron las tiendas y se las pasa a `ActualizarOfertas`. |
 | `CatalogoLocal`, `CatalogoVehiculosLocal` | `Repuesto`, `ConfiguracionVehiculo` | Las estrategias locales leen entidades y las traducen a DTOs. Las remotas no tocan el dominio: solo ven DTOs. |
 | `IDespachadorEventos`, `IObservadorEventoDominio` | `IEventoDominio` | El Observer trabaja sobre el contrato de evento del dominio, no sobre eventos concretos. |
 | `ObservadorCompatibilidad` | `BusquedaCreada`, `Busqueda` | Reacciona al evento, pide a `ServicioDiagnostico` las piezas y el diagnóstico, y completa la búsqueda con `RegistrarDiagnostico` y `AsignarCodigosObjetivo` o la cierra con `Fallar`. |
@@ -820,6 +885,8 @@ classDiagram
             +IReadOnlyCollection~string~ CausasProbables
             +string? FuenteDiagnostico
             +IReadOnlyCollection~Oferta~ Ofertas
+            +DateTimeOffset? PreciosConsultadosEn
+            +IReadOnlyCollection~string~ CodigosConPrecios
             +Guid? MecanicoId
             +DateTimeOffset? CompartidaEn
             +bool? DiagnosticoConfirmado
@@ -829,6 +896,8 @@ classDiagram
             +RegistrarDiagnostico(sistema, urgencia, causas, fuente)
             +AsignarCodigosObjetivo(codigos)
             +RegistrarOfertas(ofertas)
+            +ActualizarOfertas(codigos, tiendasQueRespondieron, capturadas)
+            +CodigosQueNecesitanPrecios(vigencia) IReadOnlyList~string~
             +Fallar(motivo)
             +OfertasOrdenadasPorPrecio(moneda) IReadOnlyList~Oferta~
             +CompartirCon(mecanicoId)
@@ -846,9 +915,18 @@ classDiagram
             +Dinero? CostoEnvio
             +string UrlOriginal
             +bool Disponible
+            +Dinero? PrecioLista
+            +CoincidenciaOferta Coincidencia
+            +string? Marca
+            +string? Ean
+            +string? ReferenciaTienda
+            +string? Vendedor
             +DateTimeOffset CapturadaEn
             +Dinero PrecioTotal
             +EstaVencida(antiguedadMaxima) bool
+            +EsLaMismaPublicacionQue(otra) bool
+            +ActualizarCon(captura)
+            +MarcarNoDisponible(consultadaEn)
         }
 
         class Derivacion {
@@ -944,6 +1022,13 @@ classDiagram
             Pro
         }
 
+        class CoincidenciaOferta {
+            <<enumeration>>
+            ProbablePorNombre
+            ExactoPorCodigo
+            ExactoPorEan
+        }
+
         class ExcepcionDominio {
             <<exception>>
             +Si(condicion, mensaje)$
@@ -985,7 +1070,8 @@ classDiagram
     Busqueda ..> BusquedaCompartida : CompartirCon
     Busqueda ..> DiagnosticoValidado : RegistrarRevision
     Derivacion ..> DerivacionATienda : registra al crearse
-    Oferta *-- "1..2" Dinero : precio / envio
+    Oferta *-- "1..3" Dinero : precio / lista / envio
+    Oferta --> CoincidenciaOferta
     Dinero ..> ExcepcionDominio : monedas distintas
 
     namespace Facade {
@@ -1004,6 +1090,8 @@ classDiagram
             +ObtenerBandejaAsync(mecanicoId) ResultadoOperacion~BandejaMecanicoDto~
             +CambiarPlanAsync(mecanicoId, plan) ResultadoOperacion~ClienteDto~
             +DerivarAsync(ofertaId) ResultadoOperacion~string~
+            +ObtenerOfertasAsync(busquedaId, usuarioId, forzar) ResultadoOperacion~OfertasBusquedaDto~
+            +ResumirPreciosAsync(piezas) ResumenPreciosBusquedaDto
         }
     }
 
@@ -1044,6 +1132,15 @@ classDiagram
 
         class ServicioDerivaciones {
             +DerivarAsync(ofertaId) ResultadoOperacion~string~
+        }
+
+        class ServicioOfertas {
+            +ObtenerAsync(busquedaId, usuarioId, forzar) ResultadoOperacion~OfertasBusquedaDto~
+            +ResumirAsync(piezas) ResumenPreciosBusquedaDto
+        }
+
+        class ValidadorCandidatoOferta {
+            +MotivoRechazo(oferta, pieza, vehiculo, opciones) string?
         }
     }
 
@@ -1097,6 +1194,20 @@ classDiagram
         class CatalogoSoap {
             <<Strategy / Adapter>>
             -FabricaCanalSoap fabrica
+        }
+
+        class IFuenteOfertas {
+            <<interface>>
+            +string Nombre
+            +BuscarAsync(consulta) IReadOnlyList~OfertaExternaDto~
+        }
+
+        class FuenteVtex {
+            <<Adapter>>
+            -OpcionesTiendaVtex tienda
+            -IHttpClientFactory fabrica
+            -IDistributedCache cache
+            -ResiliencePipeline resiliencia
         }
     }
 
@@ -1184,6 +1295,7 @@ classDiagram
     FachadaAplicacion --> ServicioRevisiones
     FachadaAplicacion --> ServicioDerivaciones
     FachadaAplicacion --> ServicioDiagnostico
+    FachadaAplicacion --> ServicioOfertas
 
     FabricaCatalogo ..> CatalogoLocal : registra
     FabricaCatalogo ..> CatalogoRemoto : registra
@@ -1223,6 +1335,11 @@ classDiagram
     ServicioRevisiones --> IDerivacionRepository : cuenta derivaciones
     ServicioDerivaciones --> IBusquedaRepository
     ServicioDerivaciones --> IDerivacionRepository
+    ServicioOfertas --> IBusquedaRepository
+    ServicioOfertas --> ICatalogoRepuestos : nombre y equivalencias
+    ServicioOfertas --> "0..*" IFuenteOfertas : todas en paralelo
+    ServicioOfertas --> ValidadorCandidatoOferta : filtra contradicciones
+    IFuenteOfertas <|.. FuenteVtex
 
     IClienteRepository <|.. ClienteRepository
     IBusquedaRepository <|.. BusquedaRepository
@@ -1236,6 +1353,7 @@ classDiagram
     ServicioMecanicos --> IUnitOfWork
     ServicioRevisiones --> IUnitOfWork
     ServicioDerivaciones --> IUnitOfWork
+    ServicioOfertas --> IUnitOfWork
     IUnitOfWork <|.. UnitOfWork
 
     IClienteRepository ..> Cliente : persiste
@@ -1262,6 +1380,7 @@ classDiagram
     style ServicioRevisiones fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
     style ServicioDerivaciones fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
     style ServicioDiagnostico fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
+    style ServicioOfertas fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111
     style FabricaCatalogo fill:#fee2e2,stroke:#b91c1c,stroke-width:2px,color:#111
     style ICatalogoRepuestos fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#111
     style IDiagnosticador fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#111
@@ -1270,6 +1389,8 @@ classDiagram
     style CatalogoVehiculosLocal fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#111
     style CatalogoRemoto fill:#ede9fe,stroke:#6d28d9,stroke-width:2px,color:#111
     style CatalogoSoap fill:#ede9fe,stroke:#6d28d9,stroke-width:2px,color:#111
+    style IFuenteOfertas fill:#ede9fe,stroke:#6d28d9,stroke-width:2px,color:#111
+    style FuenteVtex fill:#ede9fe,stroke:#6d28d9,stroke-width:2px,color:#111
     style CatalogoVehiculosRemoto fill:#ede9fe,stroke:#6d28d9,stroke-width:2px,color:#111
     style IDespachadorEventos fill:#fef3c7,stroke:#b45309,stroke-width:2px,color:#111
     style DespachadorEventos fill:#fef3c7,stroke:#b45309,stroke-width:2px,color:#111
