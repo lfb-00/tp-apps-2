@@ -1,5 +1,7 @@
 using System.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -72,7 +74,8 @@ public static class ExtensionesPersistencia
 
     /// <summary>
     /// Actualiza el esquema y siembra el catalogo. PostgreSQL serializa este trabajo entre hosts;
-    /// las bases creadas antes de las migraciones se adoptan solo si tienen el esquema inicial completo.
+    /// las bases creadas antes de las migraciones se adoptan solo si tienen el esquema inicial completo
+    /// (todas sus tablas y columnas); una base mas vieja falla con un mensaje que pide recrearla.
     /// Reintenta ante errores transitorios: en docker compose la API suele arrancar antes de que la
     /// base acepte conexiones.
     /// </summary>
@@ -190,6 +193,36 @@ public static class ExtensionesPersistencia
         var migracionInicial = contexto.Database.GetMigrations().FirstOrDefault()
             ?? throw new InvalidOperationException("No hay una migracion inicial para adoptar el esquema existente.");
 
+        // Las ocho tablas existen desde antes de las ofertas: una base de esa epoca las tiene todas,
+        // pero no las columnas que se sumaron despues. Adoptarla igual dejaria la app fallando con
+        // "column does not exist" en la primera consulta. Se comparan columnas, no solo tablas.
+        var esperadas = ColumnasEsquemaInicial(contexto, migracionInicial);
+        comando.CommandText = """
+            SELECT table_name, column_name
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+            """;
+        var existentes = new HashSet<(string Tabla, string Columna)>();
+        await using (var lector = await comando.ExecuteReaderAsync(ct))
+        {
+            while (await lector.ReadAsync(ct))
+                existentes.Add((lector.GetString(0), lector.GetString(1)));
+        }
+
+        var columnasFaltantes = esperadas
+            .SelectMany(tabla => tabla.Value.Select(columna => (Tabla: tabla.Key, Columna: columna)))
+            .Where(columna => !existentes.Contains(columna))
+            .Select(columna => $"{columna.Tabla}.{columna.Columna}")
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        if (columnasFaltantes.Length > 0)
+        {
+            throw new InvalidOperationException(
+                "La base PostgreSQL es de una version anterior al esquema inicial de las migraciones y no se " +
+                $"puede adoptar. Faltan columnas: {string.Join(", ", columnasFaltantes)}. " +
+                "Hay que recrearla (docker compose down -v).");
+        }
+
         comando.CommandText = """
             CREATE TABLE IF NOT EXISTS "__EFMigrationsHistory" (
                 "MigrationId" character varying(150) NOT NULL,
@@ -219,6 +252,31 @@ public static class ExtensionesPersistencia
 
         log.LogWarning(
             "Se adopto el esquema PostgreSQL existente como migracion inicial; las migraciones pendientes actualizaran las tablas nuevas.");
+    }
+
+    /// <summary>
+    /// Columnas que crea la migracion inicial en cada una de sus tablas, leidas del modelo de esa
+    /// migracion (su TargetModel) y no del modelo actual: asi la lista no se mantiene a mano y no
+    /// cambia cuando una migracion posterior agregue columnas, que la propia migracion va a crear.
+    /// </summary>
+    private static Dictionary<string, string[]> ColumnasEsquemaInicial(
+        RepMatchDbContext contexto, string migracionInicial)
+    {
+        var ensamblado = contexto.GetService<IMigrationsAssembly>();
+        var migracion = ensamblado.CreateMigration(
+            ensamblado.Migrations[migracionInicial], contexto.Database.ProviderName!);
+        var modelo = contexto.GetService<IModelRuntimeInitializer>().Initialize(
+            migracion.TargetModel
+                ?? throw new InvalidOperationException($"La migracion {migracionInicial} no tiene modelo."),
+            designTime: true,
+            validationLogger: null);
+
+        return modelo.GetRelationalModel().Tables
+            .Where(tabla => TablasEsquemaInicial.Contains(tabla.Name))
+            .ToDictionary(
+                tabla => tabla.Name,
+                tabla => tabla.Columns.Select(columna => columna.Name).ToArray(),
+                StringComparer.Ordinal);
     }
 
     private static async Task EjecutarBloqueoAdvisoryAsync(
