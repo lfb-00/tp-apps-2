@@ -25,9 +25,36 @@ public sealed class CorrelacionMiddleware(RequestDelegate siguiente)
         contexto.Response.Headers[NombreCabecera] = correlationId;
 
         using (LogContext.PushProperty("CorrelationId", correlationId))
+        using (ContextoCorrelacion.Establecer(correlationId))
         {
             await siguiente(contexto);
         }
+    }
+}
+
+/// <summary>
+/// El correlation id de la operacion en curso, para el codigo que no ve el HttpContext (la capa
+/// de aplicacion cuando publica un mensaje a la cola). Fluye con la ejecucion asincronica, igual
+/// que el contexto de log de Serilog: lo que se loguea y lo que se publica llevan el mismo id.
+/// </summary>
+public static class ContextoCorrelacion
+{
+    private static readonly AsyncLocal<string?> _actual = new();
+
+    public static string? Actual => _actual.Value;
+
+    /// <summary>Lo fija hasta que se descarte el valor devuelto. Lo usan el middleware y el
+    /// consumidor de la cola, que recibe el id en el mensaje.</summary>
+    public static IDisposable Establecer(string? correlationId)
+    {
+        var anterior = _actual.Value;
+        _actual.Value = correlationId;
+        return new Restaurar(anterior);
+    }
+
+    private sealed class Restaurar(string? anterior) : IDisposable
+    {
+        public void Dispose() => _actual.Value = anterior;
     }
 }
 

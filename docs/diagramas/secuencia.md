@@ -767,3 +767,70 @@ Código de referencia: [ServicioOfertas.cs](../../src/RepMatch.Aplicacion/Servic
 [FuenteVtex.cs](../../src/RepMatch.Fuentes.Vtex/FuenteVtex.cs),
 [LectorVtex.cs](../../src/RepMatch.Fuentes.Vtex/LectorVtex.cs) y
 [PreciosPieza.razor](../../src/RepMatch.Web/Components/PreciosPieza.razor).
+
+---
+
+## 10. Publicación y consumo por la cola
+
+Con el ejemplo de "Ir a la tienda": la redirección no espera a la cola y el registro de la comisión
+lo hace el worker después. Los otros eventos (`busqueda.creada`, `busqueda.compartida`,
+`diagnostico.validado`) se publican igual, desde sus servicios. La topología está en el [flujo de
+mensajes](mensajes.md).
+
+```mermaid
+sequenceDiagram
+    actor Usuario as Cliente
+    participant Web as GET /derivar/{ofertaId}
+    participant Deriv as ServicioDerivaciones
+    participant UoW as UnitOfWork
+    participant Despacho as DespachadorEventos
+    participant Pub as PublicadorEventos
+    participant Bus as BusRabbitMq
+    participant MQ as RabbitMQ (repmatch.eventos)
+    participant Cons as ConsumidorComisiones (worker)
+    participant Com as ServicioComisiones
+    participant BD as PostgreSQL
+
+    Usuario->>Web: Ir a la tienda
+    Web->>Deriv: DerivarAsync(ofertaId)
+    Deriv->>UoW: ConfirmarAsync (guarda la Derivacion)
+    Deriv->>Despacho: DespacharAsync(DerivacionATienda)
+    Despacho->>Pub: ObservarAsync (último observador)
+    Pub->>Bus: PublicarAsync(derivacion.tienda, correlation id)
+    alt broker disponible
+        Bus->>MQ: publicar persistente
+        MQ-->>Bus: confirmación (publisher confirm)
+    else broker caído o sin confirmar
+        Bus-->>Pub: excepción
+        Note over Pub: warning en el log: la operación sigue<br/>por 30 s no se intenta conectar de nuevo
+    end
+    Deriv-->>Web: URL de la tienda
+    Web-->>Usuario: 302 a la tienda
+
+    MQ->>Cons: entrega desde repmatch.comisiones
+    Note over Cons: lee el sobre y pone el correlation id en el log
+    alt no se puede leer
+        Cons->>MQ: nack sin reencolar → repmatch.comisiones.dlq
+    else
+        Cons->>Com: RegistrarDerivacionAsync(mensaje)
+        Com->>BD: ¿ya procesado? (mensajes_procesados)
+        alt primera vez
+            Com->>BD: suma a comisiones_tienda + marca procesado (una transacción)
+            Cons->>MQ: ack
+        else ya procesado
+            Note over Com: se ignora la segunda entrega
+            Cons->>MQ: ack
+        else falla
+            alt primer intento
+                Cons->>MQ: nack reencolando
+            else ya se reintentó
+                Cons->>MQ: nack sin reencolar → DLQ
+            end
+        end
+    end
+```
+
+Código de referencia: [PublicadorEventos.cs](../../src/RepMatch.Aplicacion/Eventos/PublicadorEventos.cs),
+[BusRabbitMq.cs](../../src/RepMatch.Mensajeria/BusRabbitMq.cs),
+[ConsumidorRabbitMq.cs](../../src/RepMatch.Mensajeria/ConsumidorRabbitMq.cs) y
+[ServicioComisiones.cs](../../src/RepMatch.Aplicacion/Servicios/ServicioComisiones.cs).

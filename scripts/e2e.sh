@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Pruebas de punta a punta (Playwright) contra el entorno completo de docker compose.
 #
-#   bash scripts/e2e.sh              # todo: base limpia, entorno, 5 fases de pruebas, apagado
+#   Windows PowerShell: .\scripts\bash.ps1 scripts\e2e.sh
+#   bash scripts/e2e.sh              # todo: base limpia, entorno, 6 fases de pruebas, apagado
 #   bash scripts/e2e.sh --dejar      # igual, pero deja el entorno levantado al terminar
 #   bash scripts/e2e.sh --docker     # fuerza correr las pruebas dentro de un contenedor
 #   bash scripts/e2e.sh --local      # fuerza correr las pruebas con el SDK de .NET de esta maquina
@@ -17,6 +18,7 @@
 #   3. SinCatalogo  con catalogo-api frenado (REST: vehiculos): la app no se tiene que caer.
 #   4. SinSoap      con catalogo-soap frenado (SOAP: repuestos): la busqueda avisa y no se cae.
 #   5. SinTiendas   con tienda-simulada frenada: se ven las piezas y un aviso, sin precios.
+#   6. SinCola      con rabbitmq frenado: buscar, compartir y salir a la tienda siguen andando.
 #
 # Los precios no salen de las tiendas reales sino de tienda-simulada, que responde con busquedas
 # reales grabadas de easy.com.ar y fravega.com: las pruebas pueden afirmar precios exactos.
@@ -24,9 +26,9 @@
 # Corre SIN clave de LLM aunque el .env tenga una: responde el clasificador local, que es
 # determinista, y las pruebas pueden afirmar sistema y piezas.
 #
-# ATENCION: borra la base de datos local de compose (docker compose down -v), salvo --sin-reset.
+# Usa un proyecto, puertos y volumenes propios: el reset solo borra datos de prueba.
 #
-# Termina con codigo 0 si las cinco fases pasan. Capturas, trazas, reportes .trx, la salida de
+# Termina con codigo 0 si las seis fases pasan. Capturas, trazas, reportes .trx, la salida de
 # cada fase y resumen.txt quedan en tests/RepMatch.E2E/resultados (fuera de git). Con
 # --evidencia, el resumen se copia a docs/evidencias para la entrega: el total de pruebas sale de
 # esa corrida y nadie lo escribe a mano en la documentacion.
@@ -48,7 +50,7 @@ for arg in "$@"; do
     --evidencia) EVIDENCIA=1 ;;
     --docker) MODO="docker" ;;
     --local) MODO="local" ;;
-    -h|--help) sed -n '2,35p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,36p' "$0"; exit 0 ;;
     *) echo "Opcion desconocida: $arg (ver --help)"; exit 2 ;;
   esac
 done
@@ -59,16 +61,24 @@ aviso() { printf '\033[1;33m%s\033[0m\n' "$*"; }
 command -v docker >/dev/null || { echo "Falta docker en el PATH."; exit 1; }
 docker compose version >/dev/null || { echo "Falta docker compose (v2)."; exit 1; }
 
-# Puertos del .env, si existe. La clave del LLM se pisa despues a proposito.
+# Carga secretos locales, pero las pruebas tienen puertos y almacenamiento aislados.
 if [ -f .env ]; then set -a; . ./.env; set +a; fi
 export IA_LLM_APIKEY=""
+export COMPOSE_PROJECT_NAME="${E2E_COMPOSE_PROJECT_NAME:-repmatch-e2e}"
+export REPMATCH_CONTAINER_PREFIX="${COMPOSE_PROJECT_NAME}-"
 # La Web busca precios en el simulador, sin cache: la fase SinTiendas tiene que ver la caida.
 export OFERTAS_URL_EASY="http://tienda-simulada:8080/easy"
 export OFERTAS_URL_FRAVEGA="http://tienda-simulada:8080/fravega"
 export OFERTAS_CACHE_MINUTOS=0
-PUERTO_WEB="${PUERTO_WEB:-8080}"
-PUERTO_WEB_LOCAL="${PUERTO_WEB_LOCAL:-8090}"
-PUERTO_CATALOGO_SOAP="${PUERTO_CATALOGO_SOAP:-8082}"
+export PUERTO_WEB="${E2E_PUERTO_WEB:-18080}"
+export PUERTO_WEB_LOCAL="${E2E_PUERTO_WEB_LOCAL:-18090}"
+export PUERTO_CATALOGO="${E2E_PUERTO_CATALOGO:-18081}"
+export PUERTO_CATALOGO_SOAP="${E2E_PUERTO_CATALOGO_SOAP:-18082}"
+export PUERTO_IA="${E2E_PUERTO_IA:-18083}"
+export PUERTO_POSTGRES="${E2E_PUERTO_POSTGRES:-15432}"
+export PUERTO_RABBITMQ="${E2E_PUERTO_RABBITMQ:-25672}"
+export PUERTO_RABBITMQ_UI="${E2E_PUERTO_RABBITMQ_UI:-25673}"
+export PUERTO_WORKER="${E2E_PUERTO_WORKER:-18085}"
 
 if [ "$MODO" = "auto" ]; then
   if command -v dotnet >/dev/null && dotnet --list-sdks 2>/dev/null | grep -q '^10\.'; then
@@ -79,13 +89,13 @@ if [ "$MODO" = "auto" ]; then
 fi
 echo "Las pruebas corren en modo: $MODO"
 
-compose() { docker compose --profile local --profile simulacion "$@"; }
-compose_e2e() { docker compose --profile e2e "$@"; }
+compose() { docker compose --project-name "$COMPOSE_PROJECT_NAME" --profile local --profile simulacion "$@"; }
+compose_e2e() { docker compose --project-name "$COMPOSE_PROJECT_NAME" --profile e2e "$@"; }
 
 apagar() {
   if [ "$DEJAR" -eq 0 ]; then
     paso "Apagando el entorno"
-    compose down >/dev/null 2>&1 || true
+    compose down -v --remove-orphans
   else
     aviso "El entorno queda levantado: Web http://localhost:$PUERTO_WEB · Local http://localhost:$PUERTO_WEB_LOCAL"
   fi
@@ -93,11 +103,11 @@ apagar() {
 trap apagar EXIT
 
 if [ "$RESET" -eq 1 ]; then
-  paso "1/4 Base limpia (docker compose down -v)"
+  paso "1/4 Volumenes de prueba limpios ($COMPOSE_PROJECT_NAME)"
   compose down -v --remove-orphans
 fi
 
-paso "2/4 Levantando el entorno (web, web-local, catalogo-api, catalogo-soap, ia-api, tienda-simulada, postgres)"
+paso "2/4 Levantando el entorno (web, web-local, catalogo-api, catalogo-soap, ia-api, rabbitmq, worker, tienda-simulada, postgres)"
 compose up --build --wait
 
 paso "3/4 Preparando las pruebas"
@@ -117,7 +127,7 @@ correr() {
   if [ "$MODO" = "local" ]; then
     E2E_ESCENARIO="$escenario" \
     E2E_URL_WEB="http://localhost:$PUERTO_WEB" \
-    E2E_URL_WEB_LOCAL="http://localhost:$PUERTO_WEB_LOCAL"     E2E_URL_CATALOGO_SOAP="http://localhost:$PUERTO_CATALOGO_SOAP" \
+    E2E_URL_WEB_LOCAL="http://localhost:$PUERTO_WEB_LOCAL"     E2E_URL_CATALOGO_SOAP="http://localhost:$PUERTO_CATALOGO_SOAP"     E2E_URL_WORKER="http://localhost:$PUERTO_WORKER"     E2E_URL_RABBITMQ="http://localhost:$PUERTO_RABBITMQ_UI"     E2E_RABBITMQ_USUARIO="${RABBITMQ_USUARIO:-repmatch}"     E2E_RABBITMQ_CONTRASENA="${RABBITMQ_CONTRASENA:-repmatch}" \
     E2E_RESULTADOS="$RESULTADOS" \
       dotnet test "$PROYECTO" -c Release --no-build --nologo \
         --results-directory "$RESULTADOS" \
@@ -130,7 +140,7 @@ correr() {
   fi
 }
 
-ESTADO_Normal="-"; ESTADO_SinIA="-"; ESTADO_SinCatalogo="-"; ESTADO_SinSoap="-"; ESTADO_SinTiendas="-"
+ESTADO_Normal="-"; ESTADO_SinIA="-"; ESTADO_SinCatalogo="-"; ESTADO_SinSoap="-"; ESTADO_SinTiendas="-"; ESTADO_SinCola="-"
 fallos=0
 fase() {
   local escenario="$1"; shift
@@ -163,6 +173,10 @@ compose up -d --wait catalogo-soap
 compose stop tienda-simulada
 fase SinTiendas --filter "Escenario=SinTiendas"
 compose up -d --wait tienda-simulada
+
+compose stop rabbitmq
+fase SinCola --filter "Escenario=SinCola"
+compose up -d --wait rabbitmq
 
 # En modo docker los archivos los escribio root dentro del contenedor: se devuelven al usuario.
 if [ "$MODO" = "docker" ] && command -v id >/dev/null; then
@@ -208,6 +222,7 @@ linea_resumen() {
   echo "| SinCatalogo (catalogo-api frenado) | $ESTADO_SinCatalogo | $(linea_resumen SinCatalogo) |"
   echo "| SinSoap (catalogo-soap frenado) | $ESTADO_SinSoap | $(linea_resumen SinSoap) |"
   echo "| SinTiendas (tienda-simulada frenada) | $ESTADO_SinTiendas | $(linea_resumen SinTiendas) |"
+  echo "| SinCola (rabbitmq frenado) | $ESTADO_SinCola | $(linea_resumen SinCola) |"
   echo
   echo "Las omitidas de la fase Normal son las de resiliencia (corren en su fase) y las que"
   echo "documentan errores conocidos (ver tests/RepMatch.E2E/README.md)."

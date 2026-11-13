@@ -11,6 +11,8 @@
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.11" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="Testcontainers.PostgreSql" Version="4.16.0" />
+    <PackageReference Include="Testcontainers.RabbitMq" Version="4.16.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
   </ItemGroup>
@@ -47,6 +49,9 @@
     <ProjectReference Include="..\..\src\RepMatch.Web\RepMatch.Web.csproj" Aliases="Web" />
     <ProjectReference Include="..\..\src\RepMatch.IA\RepMatch.IA.csproj" />
     <ProjectReference Include="..\..\src\RepMatch.Fuentes.Vtex\RepMatch.Fuentes.Vtex.csproj" />
+    <ProjectReference Include="..\..\src\RepMatch.Mensajeria\RepMatch.Mensajeria.csproj" />
+    <!-- Mismo motivo que Web: el worker tambien expone su propia clase Program. -->
+    <ProjectReference Include="..\..\src\RepMatch.Notificaciones.Worker\RepMatch.Notificaciones.Worker.csproj" Aliases="Worker" />
     <!-- Mismo motivo que Web: IA.Api tambien expone su propia clase Program. -->
     <ProjectReference Include="..\..\src\RepMatch.IA.Api\RepMatch.IA.Api.csproj" Aliases="IAApi" />
   </ItemGroup>

@@ -15,6 +15,8 @@ COPY src/RepMatch.Aplicacion/RepMatch.Aplicacion.csproj         src/RepMatch.Apl
 COPY src/RepMatch.Clientes.Rest/RepMatch.Clientes.Rest.csproj   src/RepMatch.Clientes.Rest/
 COPY src/RepMatch.Clientes.Soap/RepMatch.Clientes.Soap.csproj   src/RepMatch.Clientes.Soap/
 COPY src/RepMatch.IA/RepMatch.IA.csproj                         src/RepMatch.IA/
+COPY src/RepMatch.Mensajeria/RepMatch.Mensajeria.csproj           src/RepMatch.Mensajeria/
+COPY src/RepMatch.Notificaciones.Worker/RepMatch.Notificaciones.Worker.csproj src/RepMatch.Notificaciones.Worker/
 COPY src/RepMatch.Fuentes.Vtex/RepMatch.Fuentes.Vtex.csproj     src/RepMatch.Fuentes.Vtex/
 COPY src/RepMatch.IA.Api/RepMatch.IA.Api.csproj                 src/RepMatch.IA.Api/
 COPY src/RepMatch.Catalogo.Api/RepMatch.Catalogo.Api.csproj     src/RepMatch.Catalogo.Api/
@@ -27,7 +29,7 @@ COPY src/ src/
 COPY tests/ tests/
 RUN dotnet build tests/RepMatch.Tests/RepMatch.Tests.csproj -c Release --no-restore
 
-# Las pruebas no tocan la red ni la base: usan el proveedor InMemory y hospedan
-# Catalogo.Api en memoria con WebApplicationFactory.
+# La mayoria de las pruebas usa InMemory y WebApplicationFactory. Las de integracion
+# levantan PostgreSQL y RabbitMQ con Testcontainers via el socket de Docker montado por Compose.
 ENTRYPOINT ["dotnet", "test", "tests/RepMatch.Tests/RepMatch.Tests.csproj", \
             "-c", "Release", "--no-build", "--nologo"]
