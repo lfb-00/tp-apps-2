@@ -1,4 +1,4 @@
-# Informe de arquitectura — TP Inicial y Primera Parte
+# Informe de arquitectura — TP Inicial, Primera y Segunda Parte
 
 **RepMatch** — Meta-buscador de repuestos automotrices con diagnóstico asistido por IA
 Desarrollo de Aplicaciones II · UADE · Mg. Christian Parkinson
@@ -735,3 +735,17 @@ quedan demostrados apenas se levanta el entorno.
 | Servicio de Inventario | `ServicioOfertas`: como RepMatch no almacena stock, su inventario son las ofertas de las tiendas, consultadas en cada búsqueda, sin duplicar y con vencimiento. Justificación en la nota "Sobre el Servicio de Inventario" de la sección 2. |
 | Diagrama de arquitectura en capas | [`docs/diagramas/capas.md`](diagramas/capas.md) |
 | Diagramas de secuencia (búsquedas, login, alta de vehículo, catálogo, eliminación de cuenta y diagnóstico por IA) | [`docs/diagramas/secuencia.md`](diagramas/secuencia.md) |
+
+## 11. Entregables de la Segunda Parte
+
+| Requisito de la consigna | Dónde está |
+|---|---|
+| ≥1 servicio SOAP (WSDL + contrato) | `src/RepMatch.Catalogo.Soap` (contrato `IConsultaCompatibilidad`) y su cliente `src/RepMatch.Clientes.Soap`, sección 6.8. WSDL en [`10-wsdl.xml`](evidencias/10-wsdl.xml) y [`11-wsdl-tipos.xsd`](evidencias/11-wsdl-tipos.xsd); la Web lo usa en cada búsqueda ([`13-web-modo-soap.log`](evidencias/13-web-modo-soap.log)) |
+| ≥2 servicios REST (OpenAPI) | `src/RepMatch.Catalogo.Api`, `src/RepMatch.IA.Api` y `src/RepMatch.Notificaciones.Worker`. Contratos en [`05-openapi.json`](evidencias/05-openapi.json), [`15-openapi-ia.json`](evidencias/15-openapi-ia.json) y [`16-openapi-worker.json`](evidencias/16-openapi-worker.json) |
+| Mensajería con colas | RabbitMQ (`src/RepMatch.Mensajeria`): exchange topic, colas `repmatch.comisiones` y `repmatch.actividad` con DLQ, secciones 6.5 y 6.10, [`docs/diagramas/mensajes.md`](diagramas/mensajes.md) |
+| Integración SOA / microservicios ligeros | Hosts independientes en Docker Compose (Web, Catálogo REST, Catálogo SOAP, IA, Worker), [`docs/diagramas/componentes.md`](diagramas/componentes.md) y [`docs/diagramas/despliegue.md`](diagramas/despliegue.md) |
+| Productores y consumidores de mensajes | Productor `PublicadorEventos` (`BusquedaCreada`, `BusquedaCompartida`, `DiagnosticoValidado`, `DerivacionTienda`); consumidores `ConsumidorComisiones` y `ConsumidorActividad`, sección 6.10. Recorrido en [`20-productor-catalogo-api.log`](evidencias/20-productor-catalogo-api.log), [`21-consumidor-worker.log`](evidencias/21-consumidor-worker.log) y [`22-colas-rabbitmq.json`](evidencias/22-colas-rabbitmq.json) |
+| ≥1 API externa real | API pública de VTEX en Easy y Frávega (`src/RepMatch.Fuentes.Vtex`), secciones 6.1 y 6.9, [`23-vtex-tiendas.json`](evidencias/23-vtex-tiendas.json) |
+| Componente de IA | Clasificación de la urgencia a partir del texto libre del cliente, junto con el sistema afectado, las causas probables y las piezas recomendadas entre las compatibles: LLM con respaldo local (`src/RepMatch.IA`), sección 6.7. Respuesta en [`17-respuesta-ia.json`](evidencias/17-respuesta-ia.json) |
+| IA expuesta por REST o por la cola | REST: `POST /api/diagnostico` en `src/RepMatch.IA.Api` |
+| Evidencias de prueba | Secciones 5.4 a 5.7: pruebas automatizadas, de punta a punta, de carga y evidencias de integración |
