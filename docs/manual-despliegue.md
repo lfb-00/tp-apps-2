@@ -171,8 +171,8 @@ fallo de publicación queda en el log.
 | Evidencias local vs. remoto | `bash scripts/evidencias.sh` | SDK de .NET 10 |
 
 Las pruebas de punta a punta y las evidencias de integración usan su propio proyecto de Compose
-(`repmatch-e2e`, `repmatch-evidencias`), con otros puertos y volúmenes: al terminar borran solo sus
-volúmenes, no los del entorno principal. En Windows, cada script se corre con
+(`repmatch-e2e`, `repmatch-evidencias`), con otros puertos, nombres de contenedor y volúmenes:
+pueden correr con el entorno principal levantado y al terminar borran solo sus volúmenes. En Windows, cada script se corre con
 `.\scripts\bash.ps1 scripts\<nombre>.sh`.
 
 ## 9. Problemas frecuentes

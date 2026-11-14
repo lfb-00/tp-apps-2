@@ -132,14 +132,14 @@ En Windows, desde PowerShell, usá el lanzador que selecciona Git Bash automáti
 El lanzador también acepta las opciones del script. Por ejemplo, para reutilizar los volúmenes de
 prueba:
 
+```powershell
+.\scripts\bash.ps1 scripts\e2e.sh --sin-reset
 ```
 
 E2E usa el proyecto Compose `repmatch-e2e`, nombres de contenedor con ese prefijo y puertos
 alternativos (Web `18080`, Web Local `18090`, API `18081`, SOAP `18082`, IA `18083`, PostgreSQL
 `15432`, RabbitMQ `25672`/UI `25673` y Worker `18085`). Se pueden cambiar con variables
-`E2E_PUERTO_*`; el proyecto puede cambiarse con `E2E_COMPOSE_PROJECT_NAME`.powershell
-.\scripts\bash.ps1 scripts\e2e.sh --sin-reset
-```
+`E2E_PUERTO_*`; el proyecto puede cambiarse con `E2E_COMPOSE_PROJECT_NAME`.
 
 Requiere Git for Windows; evita que `bash` resuelva por error al puente de WSL y
 configura `MSYS_NO_PATHCONV` para que Docker reciba las rutas sin conversiones de Git Bash.
