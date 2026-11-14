@@ -531,9 +531,10 @@ la cola. Se tomaron cuatro decisiones:
 
 La exactitud se valida con `ValidacionIATests` sobre 60 casos etiquetados a mano, escritos aparte
 del corpus del clasificador, contra los mínimos de [`docs/requerimientos.md`](requerimientos.md)
-(RNF-IA-01 a RNF-IA-03). La primera medición del clasificador local cumple la urgencia y la latencia,
-pero acierta el sistema en el 76,7 % de los casos, por debajo del 80 % pedido; la causa y el
-arreglo están en esa misma página. La validación del LLM real se habilita con
+(RNF-IA-01 a RNF-IA-03). La primera medición del clasificador local acertó el sistema en el 76,7 %
+de los casos, por debajo del 80 % pedido. Con el corpus ampliado sube a 81,7 %, pero queda una
+subestimación grave de urgencia por resolver; el detalle está en esa misma página. La validación
+del LLM real se habilita con
 `REPMATCH_VALIDAR_LLM=1`, porque gasta cuota del proveedor.
 
 ### 6.8 SOAP: un contrato formal sobre el mismo catálogo

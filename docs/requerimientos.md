@@ -67,26 +67,33 @@ corre por defecto porque gasta cuota: se habilita con `REPMATCH_VALIDAR_LLM=1` y
 
 | Id | Requerimiento | Verificación | Medición |
 |---|---|---|---|
-| RNF-IA-01 | **Exactitud mínima:** el sistema correcto en al menos el 80 % de los casos del conjunto de validación. Incluye no diagnosticar los textos que no son síntomas. | `ValidacionIATests` | Clasificador local, 2026-11-14: **76,7 % — no cumple** (ver abajo). LLM: sin medir. |
-| RNF-IA-02 | **Urgencia:** en al menos el 80 % de los síntomas, la urgencia a un nivel o menos de la del mecánico (Baja, Media, Alta, Crítica), y **ningún** caso Alta o Crítica clasificado como Baja. | `ValidacionIATests` | Clasificador local, 2026-11-14: 98,1 % y 0 subestimaciones — cumple. |
+| RNF-IA-01 | **Exactitud mínima:** el sistema correcto en al menos el 80 % de los casos del conjunto de validación. Incluye no diagnosticar los textos que no son síntomas. | `ValidacionIATests` | Clasificador local, 2026-11-14, con el corpus ampliado: 81,7 % — cumple (antes, 76,7 %; ver abajo). LLM: sin medir. |
+| RNF-IA-02 | **Urgencia:** en al menos el 80 % de los síntomas, la urgencia a un nivel o menos de la del mecánico (Baja, Media, Alta, Crítica), y **ningún** caso Alta o Crítica clasificado como Baja. | `ValidacionIATests` | Clasificador local, 2026-11-14, con el corpus ampliado: 98,1 %, pero **1 subestimación — no cumple** (ver abajo). |
 | RNF-IA-03 | **Latencia:** el clasificador local responde con p95 menor a 50 ms. El LLM se abandona a los 4 s (`IA:Llm:TimeoutSegundos`) y responde el clasificador local; la Web espera a `IA.Api` hasta 10 s (`IA:TimeoutSegundos`). | `ValidacionIATests`, `DiagnosticoLocalTests.Responde_en_menos_de_50_ms`, `scripts/carga.sh` | Local: p95 de 0,1 ms en la validación y 2,04 ms con 10 usuarios concurrentes ([`carga.md`](evidencias/carga.md)). |
 | RNF-IA-04 | **Siempre hay respuesta:** sin clave, con error de red, timeout o una respuesta fuera del esquema, responde el clasificador local y la respuesta lo indica en `fuente`. Si la IA no responde, quedan todas las piezas compatibles. | `DiagnosticoLlmTests`, `BusquedaConIATests.Si_la_IA_esta_caida_la_busqueda_sale_por_compatibilidad`, `ResilienciaTests.Con_la_IA_caida_la_busqueda_sin_sesion_muestra_todas_las_compatibles` | — |
 | RNF-IA-05 | **Solo piezas reales:** la IA elige entre las piezas compatibles que le pasa el catálogo; un código que no está en esa lista se descarta. | `DiagnosticoLlmTests.Interpreta_una_respuesta_valida_y_descarta_codigos_inventados`, `DiagnosticoLocalTests.Solo_devuelve_codigos_de_los_candidatos` | — |
 | RNF-IA-06 | **Privacidad:** el texto sale hacia el proveedor sin mails ni teléfonos; los logs registran su largo y no su contenido; los mensajes de la cola llevan ids y datos del vehículo, nunca el texto; sin sesión, el texto no se guarda. | `DiagnosticoLocalTests.Saca_mails_y_telefonos_pero_no_anios_ni_kilometros`, `DiagnosticoLlmTests.Llama_al_proveedor_con_la_clave_y_sin_datos_de_contacto`. Por diseño: `DiagnosticadorConRespaldo` (log con `texto=N caracteres`, evidencia `20`) y los contratos de `EventosIntegracion`, sin campo de texto (evidencia `21`). | — |
 
-### Estado de RNF-IA-01
+### Estado de RNF-IA-01 y RNF-IA-02
 
-La primera medición del clasificador local dio 76,7 %: 46 de 60. Los errores se concentran en los
-sistemas con una o dos frases en el corpus (`src/RepMatch.IA/Datos/sintomas.json`): Dirección (1),
-Escape (1), Transmisión (2) y Neumáticos (2). Con k = 4 vecinos, esos sistemas pierden la votación
-contra Frenos y Motor, que tienen 9 y 11 frases. La urgencia, las subestimaciones y la latencia
-cumplen con margen.
+La primera medición del clasificador local dio 76,7 % de exactitud de sistema: 46 de 60. Los
+errores se concentraban en los sistemas con una o dos frases en el corpus
+(`src/RepMatch.IA/Datos/sintomas.json`): Dirección (1), Escape (1), Transmisión (2) y Neumáticos
+(2). Con k = 4 vecinos, esos sistemas perdían la votación contra Frenos y Motor, que tienen 9 y 11
+frases.
 
-La prueba del clasificador local quedó con `Skip` y la causa en un comentario, como el resto de
-las pruebas que encontraron un error real. Se cierra ampliando el corpus en esos sistemas y
-sacando el `Skip`. Para no ajustar el clasificador al conjunto de validación, las frases nuevas
-tienen que escribirse sin copiar las de la validación; la prueba
-`El_conjunto_de_validacion_no_repite_frases_del_corpus` impide que se repitan textualmente.
+Se sumaron 20 frases, 5 por cada uno de esos sistemas, escritas desde los síntomas típicos y sin
+copiar la validación. La exactitud de sistema subió a 81,7 % (49 de 60) y cumple RNF-IA-01, pero
+apareció una subestimación grave: "suena un golpeteo fuerte adentro del motor" (Alta) ahora sale
+como Escape con urgencia Baja, porque comparte "suena" y "fuerte" con la frase nueva "suena mas
+fuerte el escape cuando acelero". RNF-IA-02 no se cumple hasta corregirlo.
+
+La prueba del clasificador local sigue con `Skip` y la causa en un comentario, como el resto de
+las pruebas que encontraron un error real. Ojo al corregir: cada ajuste del corpus hecho mirando
+los errores de la validación la vuelve menos independiente. Para que la medición siga valiendo,
+conviene sumar casos nuevos al conjunto de validación, escritos por alguien que no haya visto el
+corpus, y volver a medir. La prueba `El_conjunto_de_validacion_no_repite_frases_del_corpus`
+impide que se repitan frases textualmente.
 
 El mínimo aplica también al LLM, que es el que responde en producción cuando hay clave; el
 clasificador local es su respaldo y su línea base.

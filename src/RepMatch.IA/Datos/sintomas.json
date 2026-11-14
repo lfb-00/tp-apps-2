@@ -40,9 +40,32 @@
   { "frase": "el amortiguador esta mojado pierde aceite", "sistema": "Suspension", "urgencia": "Media", "causa": "Amortiguador roto", "repuestos": ["amortiguador"] },
 
   { "frase": "la direccion esta dura cuesta doblar", "sistema": "Direccion", "urgencia": "Media", "causa": "Falta de fluido o falla de la bomba de dirección", "repuestos": [] },
+  { "frase": "la direccion hidraulica hace un zumbido al girar", "sistema": "Direccion", "urgencia": "Media", "causa": "Falta de fluido o bomba de dirección gastada", "repuestos": [] },
+  { "frase": "tiene juego el volante y las ruedas tardan en responder", "sistema": "Direccion", "urgencia": "Alta", "causa": "Cremallera o extremos de dirección con juego", "repuestos": [] },
+  { "frase": "pierde liquido de direccion abajo del motor", "sistema": "Direccion", "urgencia": "Media", "causa": "Pérdida en mangueras o en la bomba de dirección", "repuestos": [] },
+  { "frase": "se pone pesado doblar en las maniobras", "sistema": "Direccion", "urgencia": "Media", "causa": "Falta de fluido o falla de la bomba de dirección", "repuestos": [] },
+  { "frase": "el volante no vuelve solo al centro despues de doblar", "sistema": "Direccion", "urgencia": "Media", "causa": "Extremos de dirección gastados o desalineación", "repuestos": [] },
+
   { "frase": "el volante vibra en ruta a alta velocidad", "sistema": "Neumaticos", "urgencia": "Baja", "causa": "Ruedas desbalanceadas", "repuestos": [] },
   { "frase": "las cubiertas se gastan desparejas", "sistema": "Neumaticos", "urgencia": "Baja", "causa": "Falta de alineación", "repuestos": [] },
+  { "frase": "tengo una goma pinchada que se desinfla", "sistema": "Neumaticos", "urgencia": "Media", "causa": "Pinchadura o válvula dañada", "repuestos": [] },
+  { "frase": "el auto se desvia solo en linea recta", "sistema": "Neumaticos", "urgencia": "Baja", "causa": "Falta de alineación", "repuestos": [] },
+  { "frase": "las cubiertas tienen poco dibujo y patinan con lluvia", "sistema": "Neumaticos", "urgencia": "Media", "causa": "Neumáticos gastados", "repuestos": [] },
+  { "frase": "tiene un globo en el costado de la goma", "sistema": "Neumaticos", "urgencia": "Alta", "causa": "Neumático dañado, riesgo de reventón", "repuestos": [] },
+  { "frase": "vibra todo el auto a partir de cierta velocidad", "sistema": "Neumaticos", "urgencia": "Baja", "causa": "Ruedas desbalanceadas", "repuestos": [] },
+
   { "frase": "cuesta pasar los cambios", "sistema": "Transmision", "urgencia": "Media", "causa": "Embrague gastado o regulación del cable", "repuestos": [] },
   { "frase": "patina el embrague en subida", "sistema": "Transmision", "urgencia": "Media", "causa": "Embrague gastado", "repuestos": [] },
-  { "frase": "hace mucho ruido el escape", "sistema": "Escape", "urgencia": "Baja", "causa": "Silenciador o caño de escape roto", "repuestos": [] }
+  { "frase": "el pedal de embrague quedo duro", "sistema": "Transmision", "urgencia": "Media", "causa": "Cable o placa de embrague gastados", "repuestos": [] },
+  { "frase": "hace ruido la caja al cambiar de marcha", "sistema": "Transmision", "urgencia": "Media", "causa": "Sincronizados de la caja gastados", "repuestos": [] },
+  { "frase": "se escapa la marcha y vuelve a punto muerto", "sistema": "Transmision", "urgencia": "Alta", "causa": "Desgaste interno de la caja de cambios", "repuestos": [] },
+  { "frase": "huele a quemado despues de arrancar en subida", "sistema": "Transmision", "urgencia": "Media", "causa": "Embrague patinando", "repuestos": [] },
+  { "frase": "el embrague engancha muy arriba", "sistema": "Transmision", "urgencia": "Media", "causa": "Embrague gastado", "repuestos": [] },
+
+  { "frase": "hace mucho ruido el escape", "sistema": "Escape", "urgencia": "Baja", "causa": "Silenciador o caño de escape roto", "repuestos": [] },
+  { "frase": "el escape petardea al desacelerar", "sistema": "Escape", "urgencia": "Baja", "causa": "Pérdida en el múltiple o en el escape", "repuestos": [] },
+  { "frase": "algo cuelga debajo del auto y roza el piso", "sistema": "Escape", "urgencia": "Media", "causa": "Soporte del escape cortado", "repuestos": [] },
+  { "frase": "huele a gases de escape adentro del auto", "sistema": "Escape", "urgencia": "Alta", "causa": "Pérdida de gases del escape (riesgo de monóxido)", "repuestos": [] },
+  { "frase": "suena mas fuerte el escape cuando acelero", "sistema": "Escape", "urgencia": "Baja", "causa": "Silenciador perforado", "repuestos": [] },
+  { "frase": "el escape golpea contra la carroceria", "sistema": "Escape", "urgencia": "Baja", "causa": "Gomas de soporte del escape gastadas", "repuestos": [] }
 ]

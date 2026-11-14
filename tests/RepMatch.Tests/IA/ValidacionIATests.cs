@@ -87,12 +87,12 @@ public class ValidacionIATests(ITestOutputHelper salida)
         Assert.True(CargarCasos().Count >= 50, "El conjunto de validacion tiene que tener al menos 50 casos.");
     }
 
-    // Encontro un error real: en la medicion del 2026-11-14 el clasificador local acierta el sistema
-    // en el 76,7 % de los casos (minimo 80 %). Falla sobre todo en los sistemas con una o dos frases
-    // en el corpus (Direccion, Escape, Transmision, Neumaticos), que pierden contra Frenos y Motor
-    // por cantidad de vecinos. Urgencia (98,1 %), subestimaciones (0) y latencia cumplen. Al
-    // ampliar el corpus de esos sistemas, sacar el Skip.
-    [Fact(Skip = "Exactitud de sistema del clasificador local 76,7 % < 80 % (RNF-IA-01): corpus desbalanceado.")]
+    // Encontro un error real. Primera medicion (2026-11-14): sistema 76,7 % (minimo 80 %), por los
+    // sistemas con una o dos frases en el corpus. Con 20 frases nuevas en Direccion, Neumaticos,
+    // Transmision y Escape el sistema sube a 81,7 %, pero aparece una subestimacion grave (RNF-IA-02):
+    // "suena un golpeteo fuerte adentro del motor" (Alta) sale como Escape (Baja), porque comparte
+    // "suena" y "fuerte" con "suena mas fuerte el escape cuando acelero". Al corregirlo, sacar el Skip.
+    [Fact(Skip = "1 subestimacion grave (RNF-IA-02): un golpeteo de motor (Alta) sale como Escape (Baja).")]
     public async Task El_clasificador_local_cumple_la_exactitud_minima()
     {
         var local = new DiagnosticadorLocal(ClasificadorSintomas.CargarCorpusIncluido());
