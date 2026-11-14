@@ -87,7 +87,9 @@ Cuentas de la semilla (contraseña `repMatch123!`): `blofaro@uade.edu.ar` (clien
 
 ## Arranque rápido — solo hace falta Docker
 
-No necesitás .NET ni PostgreSQL instalados: el SDK vive dentro de la imagen de build.
+No necesitás .NET ni PostgreSQL instalados: el SDK vive dentro de la imagen de build. El paso a
+paso completo (requisitos, configuración, verificación, operación y problemas frecuentes) está en
+el [manual de despliegue](docs/manual-despliegue.md).
 
 ```bash
 docker compose up --build --wait
@@ -376,6 +378,7 @@ Y los puertos del host, vía `.env` (ver `.env.example`): `PUERTO_WEB`, `PUERTO_
 
 - [Informe de arquitectura](docs/informe-arquitectura.md)
 - [Requerimientos funcionales y no funcionales, incluidos los de IA](docs/requerimientos.md)
+- [Manual de despliegue](docs/manual-despliegue.md)
 - [Patrones de diseño aplicados](docs/patrones.md)
 - [Diagrama de clases](docs/diagramas/clases.md)
 - [Diagrama de componentes](docs/diagramas/componentes.md)
