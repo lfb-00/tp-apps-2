@@ -1,0 +1,34 @@
+[
+  {
+    "cola": "repmatch.actividad",
+    "consumidores": 1,
+    "mensajes_pendientes": 0,
+    "publicados": 1,
+    "entregados": 1,
+    "confirmados": 1
+  },
+  {
+    "cola": "repmatch.actividad.dlq",
+    "consumidores": 0,
+    "mensajes_pendientes": 0,
+    "publicados": 0,
+    "entregados": 0,
+    "confirmados": 0
+  },
+  {
+    "cola": "repmatch.comisiones",
+    "consumidores": 1,
+    "mensajes_pendientes": 0,
+    "publicados": 0,
+    "entregados": 0,
+    "confirmados": 0
+  },
+  {
+    "cola": "repmatch.comisiones.dlq",
+    "consumidores": 0,
+    "mensajes_pendientes": 0,
+    "publicados": 0,
+    "entregados": 0,
+    "confirmados": 0
+  }
+]

@@ -115,6 +115,8 @@ tests/RepMatch.TiendaSimulada/  Simulador de tiendas VTEX para los E2E (respuest
                            tests/fixtures/vtex/). Está en RepMatch.slnx: solo compila, no tiene pruebas.
 docs/                      informe-arquitectura.md, patrones.md, diagramas/*.md (Mermaid), evidencias/
 scripts/evidencias.sh      regenera docs/evidencias/ (logs + mediciones local vs. remoto)
+scripts/evidencias-integracion.sh  evidencias 15-23: OpenAPI de IA y Worker, respuesta de la IA,
+                           evento por RabbitMQ y consulta a VTEX (Compose aislado, sin SDK)
 ```
 
 ### Ideas centrales que no hay que romper
@@ -199,6 +201,7 @@ docker compose up --build --wait                                       # web 808
 docker compose --profile test run --rm tests                           # pruebas sin SDK
 docker compose --profile local up --build web-local                    # Web en modo Local (8090)
 bash scripts/evidencias.sh                                             # regenera docs/evidencias/
+bash scripts/evidencias-integracion.sh                                 # evidencias 15-23 (IA, cola, VTEX), solo Docker
 bash scripts/e2e.sh                                                    # Playwright: Compose aislado, 6 fases, apaga (borra volúmenes E2E)
 ```
 

@@ -423,6 +423,33 @@ incluye el costo de HTTP de RabbitMQ y no equivale a medir el productor `BusRabb
 reproducible, los percentiles, errores y resúmenes JSON están en
 [`docs/evidencias/carga.md`](evidencias/carga.md).
 
+### 5.7 Evidencias de integración
+
+`bash scripts/evidencias-integracion.sh` (en Windows PowerShell,
+`.\scripts\bash.ps1 scripts\evidencias-integracion.sh`) genera las evidencias de la Segunda Parte
+que no cubre la sección 5.1. No necesita el SDK de .NET: levanta `catalogo-api`, `ia-api`,
+`rabbitmq` y `worker` con Docker Compose en un proyecto propio (`repmatch-evidencias`, con puertos y
+volúmenes aparte) y lo baja al terminar, borrando solo sus volúmenes.
+
+| Archivo | Qué muestra |
+|---|---|
+| [`15-openapi-ia.json`](evidencias/15-openapi-ia.json) | Contrato OpenAPI de `IA.Api` (`POST /api/diagnostico`) |
+| [`16-openapi-worker.json`](evidencias/16-openapi-worker.json) | Contrato OpenAPI del Worker (`GET /api/comisiones`) |
+| [`17-respuesta-ia.json`](evidencias/17-respuesta-ia.json) | Solicitud y respuesta del componente de IA: texto libre y piezas candidatas del catálogo → sistema, urgencia, causas y códigos elegidos entre los candidatos |
+| [`18-ia-api.log`](evidencias/18-ia-api.log) | Log de `IA.Api` durante esa llamada |
+| [`19-busqueda-creada.json`](evidencias/19-busqueda-creada.json) | `POST /api/busquedas` en `Catalogo.Api`, que emite `BusquedaCreada` |
+| [`20-productor-catalogo-api.log`](evidencias/20-productor-catalogo-api.log) | Productor: `PublicadorEventos` y `BusRabbitMq` publican `busqueda.creada` |
+| [`21-consumidor-worker.log`](evidencias/21-consumidor-worker.log) | Consumidor: `ConsumidorActividad` recibe el mismo mensaje, con el mismo id de correlación (`evidencia-cola`) |
+| [`22-colas-rabbitmq.json`](evidencias/22-colas-rabbitmq.json) | Estado de las colas según la API de administración de RabbitMQ: publicados, entregados, confirmados y pendientes, también en las DLQ |
+| [`23-vtex-tiendas.json`](evidencias/23-vtex-tiendas.json) | Consulta directa a la API pública de VTEX en Easy y Frávega, con los campos que lee `LectorVtex` |
+
+Si `IA_LLM_APIKEY` está definida (entorno o `.env`), la IA responde con el LLM; si no, con el
+clasificador local, y `17-respuesta-ia.json` lo dice en `fuente`. La cola `repmatch.comisiones`
+queda vacía: `derivacion.tienda` se emite cuando un cliente con sesión deriva a una tienda desde la
+Web, y ese recorrido lo cubren las pruebas de punta a punta (sección 5.5). VTEX se consulta
+directo porque la Web pide los precios desde la página, sin un endpoint que el script pueda llamar;
+la integración de `FuenteVtex` la verifican sus pruebas y las de punta a punta.
+
 ---
 
 ## 6. Decisiones de diseño y sus fundamentos

@@ -100,7 +100,11 @@ docker compose up --build --wait
 - PostgreSQL → `localhost:5432`
 
 La misma consulta por los dos caminos queda en `docs/evidencias/` (la genera
-`scripts/evidencias.sh` pegándole a `GET /evidencia/catalogo`).
+`scripts/evidencias.sh` pegándole a `GET /evidencia/catalogo`). Las evidencias de integración de la
+Segunda Parte (contratos OpenAPI de la IA y del Worker, una respuesta de la IA, un evento que
+recorre RabbitMQ y una consulta a la API de VTEX) las genera `scripts/evidencias-integracion.sh`,
+que solo necesita Docker (en Windows, `.\scripts\bash.ps1 scripts\evidencias-integracion.sh`).
+Detalle en la sección 5.7 del [informe](docs/informe-arquitectura.md).
 
 Las pruebas, también sin instalar nada:
 
@@ -268,6 +272,7 @@ tests/RepMatch.TiendaSimulada/ simulador de tiendas VTEX para las pruebas de pun
 tests/fixtures/vtex/        respuestas reales grabadas de Easy y Frávega
 docs/                        diagramas, informe y evidencias
 scripts/evidencias.sh        genera las evidencias del entregable
+scripts/evidencias-integracion.sh  evidencias de IA, RabbitMQ y VTEX (solo Docker)
 ```
 
 ## Acceso local vs. remoto

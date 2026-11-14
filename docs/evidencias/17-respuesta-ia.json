@@ -1,0 +1,72 @@
+{
+  "solicitud": {
+    "texto": "Cuando freno escucho un chirrido metalico y el pedal vibra un poco",
+    "vehiculo": {
+      "marca": "Volkswagen",
+      "modelo": "Gol",
+      "anio": 2015,
+      "motor": "1.6"
+    },
+    "candidatos": [
+      {
+        "codigo": "AMOR-VW-GOL-DEL",
+        "nombre": "Amortiguador delantero",
+        "sistema": "Suspension"
+      },
+      {
+        "codigo": "BATE-12V-60AH",
+        "nombre": "Bateria 12V 60Ah",
+        "sistema": "Electrico"
+      },
+      {
+        "codigo": "BOMB-AGUA-VW-16",
+        "nombre": "Bomba de agua",
+        "sistema": "Refrigeracion"
+      },
+      {
+        "codigo": "BUJI-VW-GOL-16",
+        "nombre": "Juego de bujias",
+        "sistema": "Motor"
+      },
+      {
+        "codigo": "DISC-VW-GOL-256",
+        "nombre": "Discos de freno delanteros 256mm",
+        "sistema": "Frenos"
+      },
+      {
+        "codigo": "FILT-ACE-VW-16",
+        "nombre": "Filtro de aceite motor 1.6",
+        "sistema": "Motor"
+      },
+      {
+        "codigo": "PAST-VW-GOL-DEL",
+        "nombre": "Pastillas de freno delanteras",
+        "sistema": "Frenos"
+      }
+    ]
+  },
+  "respuesta": {
+    "sistema": "Frenos",
+    "urgencia": "Alta",
+    "causas": [
+      {
+        "causa": "Pastillas cristalizadas o desgastadas",
+        "confianza": 0.3
+      },
+      {
+        "causa": "Pastillas de freno gastadas",
+        "confianza": 0.3
+      },
+      {
+        "causa": "Discos de freno alabeados",
+        "confianza": 0.22
+      }
+    ],
+    "codigos": [
+      "PAST-VW-GOL-DEL",
+      "DISC-VW-GOL-256"
+    ],
+    "fuente": "fallback-local",
+    "latenciaMs": 6
+  }
+}

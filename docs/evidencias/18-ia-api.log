@@ -1,0 +1,10 @@
+[16:28:18 INF] [IA.Api] [] IA.Api escuchando. LLM: sin clave, solo clasificador local
+[16:28:18 INF] [IA.Api] [] Now listening on: http://[::]:8080
+[16:28:18 INF] [IA.Api] [] Application started. Press Ctrl+C to shut down.
+[16:28:18 INF] [IA.Api] [] Hosting environment: Development
+[16:28:18 INF] [IA.Api] [] Content root path: /app
+[16:28:22 INF] [IA.Api] [6407ded05b45] HTTP GET /salud responded 200 in 29.7349 ms
+[16:28:33 INF] [IA.Api] [9f7cb9c0b0fb] HTTP GET /salud responded 200 in 0.8109 ms
+[16:28:34 INF] [IA.Api] [07e52ec4a29e] HTTP GET /openapi/v1.json responded 200 in 116.3271 ms
+[16:28:35 INF] [IA.Api] [evidencia-ia] Diagnostico fuente=fallback-local sistema=Frenos urgencia=Alta codigos=2 candidatos=7 texto=66 caracteres latencia=6 ms
+[16:28:35 INF] [IA.Api] [evidencia-ia] HTTP POST /api/diagnostico responded 200 in 62.1308 ms
