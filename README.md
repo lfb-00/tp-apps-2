@@ -375,6 +375,7 @@ Y los puertos del host, vía `.env` (ver `.env.example`): `PUERTO_WEB`, `PUERTO_
 ## Documentación
 
 - [Informe de arquitectura](docs/informe-arquitectura.md)
+- [Requerimientos funcionales y no funcionales, incluidos los de IA](docs/requerimientos.md)
 - [Patrones de diseño aplicados](docs/patrones.md)
 - [Diagrama de clases](docs/diagramas/clases.md)
 - [Diagrama de componentes](docs/diagramas/componentes.md)

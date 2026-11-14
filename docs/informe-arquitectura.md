@@ -529,6 +529,13 @@ la cola. Se tomaron cuatro decisiones:
   (`FiltroDatosPersonales`), y los logs registran el largo del texto, no su contenido. En la
   búsqueda sin sesión el texto se diagnostica pero no se guarda.
 
+La exactitud se valida con `ValidacionIATests` sobre 60 casos etiquetados a mano, escritos aparte
+del corpus del clasificador, contra los mínimos de [`docs/requerimientos.md`](requerimientos.md)
+(RNF-IA-01 a RNF-IA-03). La primera medición del clasificador local cumple la urgencia y la latencia,
+pero acierta el sistema en el 76,7 % de los casos, por debajo del 80 % pedido; la causa y el
+arreglo están en esa misma página. La validación del LLM real se habilita con
+`REPMATCH_VALIDAR_LLM=1`, porque gasta cuota del proveedor.
+
 ### 6.8 SOAP: un contrato formal sobre el mismo catálogo
 
 La consigna pide al menos un servicio SOAP con WSDL y contrato. Las decisiones:
@@ -651,7 +658,7 @@ Las decisiones:
 | **Segunda** *(implementado)* | Servicio de Ofertas y API externa (VTEX: Easy y Frávega) | `IFuenteOfertas` en `Contracts`; `FuenteVtex` en `RepMatch.Fuentes.Vtex`, con caché distribuida y resiliencia por tienda; `ServicioOfertas` agrega resultados, clasifica EAN y valida coincidencias por nombre (sección 6.9) | `ServicioBusquedas.CrearAsync`, catálogo |
 | **Segunda** | Adaptador a eBay | Otra implementación de `IFuenteOfertas`, en USD; el ranking no mezcla monedas | `ServicioOfertas`, presentación |
 | **Segunda** *(implementado)* | Componente de IA (texto libre → repuestos) | `ObservadorCompatibilidad` usa `ServicioDiagnostico`, que le pasa `Busqueda.TextoLibre` y las piezas compatibles a `IDiagnosticador` (local o remota contra `IA.Api`, por `IA:Modo`) | `ServicioBusquedas.CrearAsync`; en la presentación solo se agregó la tarjeta del diagnóstico |
-| **Integrador** | Métricas de exactitud de IA y despliegue | `DiagnosticoValidado` trae, por cada revisión, los códigos propuestos y los que recomendó el mecánico: el dataset etiquetado para medir exactitud | — |
+| **Integrador** *(requerimientos y validación implementados)* | Requerimientos y métricas de exactitud de IA | [`docs/requerimientos.md`](requerimientos.md) fija los mínimos y `ValidacionIATests` los mide sobre un conjunto etiquetado fijo (sección 6.7). En producción, `DiagnosticoValidado` trae por cada revisión los códigos propuestos y los que recomendó el mecánico: el dataset para seguir midiendo con datos reales | `IDiagnosticador`, `DiagnosticadorConRespaldo` |
 | **Integrador** *(pruebas implementadas)* | Pruebas funcionales, de integración y de carga | `tests/RepMatch.E2E`, `FlujoDistribuidoTests` con Testcontainers y `tests/carga` con k6; secciones 5.4–5.6 | — |
 
 El punto de extensión quedó en el evento: `ServicioBusquedas.CrearAsync` persiste la búsqueda y

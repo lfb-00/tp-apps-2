@@ -113,7 +113,8 @@ tests/RepMatch.E2E/        Pruebas de punta a punta con Playwright contra la app
                            entorno); se corren con scripts/e2e.sh. Ver su README.
 tests/RepMatch.TiendaSimulada/  Simulador de tiendas VTEX para los E2E (respuestas reales grabadas en
                            tests/fixtures/vtex/). Está en RepMatch.slnx: solo compila, no tiene pruebas.
-docs/                      informe-arquitectura.md, patrones.md, diagramas/*.md (Mermaid), evidencias/
+docs/                      informe-arquitectura.md, requerimientos.md (RF, RNF y mínimos de IA),
+                           patrones.md, diagramas/*.md (Mermaid), evidencias/
 scripts/evidencias.sh      regenera docs/evidencias/ (logs + mediciones local vs. remoto)
 scripts/evidencias-integracion.sh  evidencias 15-23: OpenAPI de IA y Worker, respuesta de la IA,
                            evento por RabbitMQ y consulta a VTEX (Compose aislado, sin SDK)
