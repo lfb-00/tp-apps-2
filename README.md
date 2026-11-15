@@ -87,7 +87,9 @@ Cuentas de la semilla (contraseña `repMatch123!`): `blofaro@uade.edu.ar` (clien
 
 ## Arranque rápido — solo hace falta Docker
 
-No necesitás .NET ni PostgreSQL instalados: el SDK vive dentro de la imagen de build.
+No necesitás .NET ni PostgreSQL instalados: el SDK vive dentro de la imagen de build. El paso a
+paso completo (requisitos, configuración, verificación, operación y problemas frecuentes) está en
+el [manual de despliegue](docs/manual-despliegue.md).
 
 ```bash
 docker compose up --build --wait
@@ -130,14 +132,14 @@ En Windows, desde PowerShell, usá el lanzador que selecciona Git Bash automáti
 El lanzador también acepta las opciones del script. Por ejemplo, para reutilizar los volúmenes de
 prueba:
 
+```powershell
+.\scripts\bash.ps1 scripts\e2e.sh --sin-reset
 ```
 
 E2E usa el proyecto Compose `repmatch-e2e`, nombres de contenedor con ese prefijo y puertos
 alternativos (Web `18080`, Web Local `18090`, API `18081`, SOAP `18082`, IA `18083`, PostgreSQL
 `15432`, RabbitMQ `25672`/UI `25673` y Worker `18085`). Se pueden cambiar con variables
-`E2E_PUERTO_*`; el proyecto puede cambiarse con `E2E_COMPOSE_PROJECT_NAME`.powershell
-.\scripts\bash.ps1 scripts\e2e.sh --sin-reset
-```
+`E2E_PUERTO_*`; el proyecto puede cambiarse con `E2E_COMPOSE_PROJECT_NAME`.
 
 Requiere Git for Windows; evita que `bash` resuelva por error al puente de WSL y
 configura `MSYS_NO_PATHCONV` para que Docker reciba las rutas sin conversiones de Git Bash.
@@ -376,6 +378,7 @@ Y los puertos del host, vía `.env` (ver `.env.example`): `PUERTO_WEB`, `PUERTO_
 
 - [Informe de arquitectura](docs/informe-arquitectura.md)
 - [Requerimientos funcionales y no funcionales, incluidos los de IA](docs/requerimientos.md)
+- [Manual de despliegue](docs/manual-despliegue.md)
 - [Patrones de diseño aplicados](docs/patrones.md)
 - [Diagrama de clases](docs/diagramas/clases.md)
 - [Diagrama de componentes](docs/diagramas/componentes.md)

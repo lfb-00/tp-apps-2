@@ -52,7 +52,7 @@ derivación y el plan Pro del mecánico, sin cobro real.
 | RNF-06 | Configuración | Toda la configuración se puede sobreescribir por variables de entorno (`Seccion__Clave`) sin recompilar: modos de catálogo e IA, proveedor de base, tiendas, timeouts y broker. | README, sección "Configuración"; `docker-compose.yml` |
 | RNF-07 | Seguridad | Contraseñas guardadas con BCrypt; la clave del LLM solo por entorno o `.env`, fuera del repositorio; las ofertas solo aceptan URLs http o https, porque terminan como enlaces. | `ServicioClientes` (BCrypt), `.gitignore`, `DominioTests` |
 | RNF-08 | Integración | Las tiendas se consultan solo por sus APIs públicas oficiales, nunca por scraping. | Sección 6.1 del informe; `FuenteVtex` usa `api/catalog_system/pub/products/search` (evidencia `23`) |
-| RNF-09 | Portabilidad | Se levanta completa en un laboratorio con solo Docker (`docker compose up --build --wait`); también corre sin Docker con base en memoria. | Sección 8 del informe; pruebas en Docker con `docker compose --profile test run --rm tests` |
+| RNF-09 | Portabilidad | Se levanta completa en un laboratorio con solo Docker (`docker compose up --build --wait`); también corre sin Docker con base en memoria. | [Manual de despliegue](manual-despliegue.md); pruebas en Docker con `docker compose --profile test run --rm tests` |
 | RNF-10 | Mantenibilidad | La solución compila sin advertencias; dominio, utilidades y contratos no dependen de otros proyectos de la solución. | `dotnet build`; sección 2 del informe |
 
 ## Requerimientos del componente de IA

@@ -670,6 +670,10 @@ ahora llena `CodigosObjetivo` con las piezas compatibles que eligió el diagnós
 
 ## 8. Cómo ejecutar
 
+El procedimiento completo para un entorno de laboratorio (requisitos, configuración, verificación,
+operación y problemas frecuentes) está en el [manual de despliegue](manual-despliegue.md). Esta
+sección resume los comandos.
+
 ### Sin Docker
 
 ```bash
