@@ -17,7 +17,7 @@ namespace RepMatch.E2E.Pruebas;
 public sealed class ColaTests(NavegadorFixture fixture, ITestOutputHelper salida) : PruebaE2E(fixture, salida)
 {
     private const string TextoBateria = "no arranca hace clic clic al girar la llave";
-    private const string CodigoBateria = "BATE-12V-60AH";
+    private const string CodigoBateria = "BATE-12V-50AH";
 
     private static HttpClient Rabbit()
     {

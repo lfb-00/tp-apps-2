@@ -16,7 +16,7 @@ namespace RepMatch.E2E.Pruebas;
 public sealed class IATests(NavegadorFixture fixture, ITestOutputHelper salida) : PruebaE2E(fixture, salida)
 {
     /// <summary>Piezas de la semilla que le entran a un Gol 2015 1.6, de todos los sistemas.</summary>
-    private const int PiezasCompatiblesGol = 7;
+    private const int PiezasCompatiblesGol = 11;
 
     [Fact]
     public async Task Sin_sesion_un_sintoma_de_frenos_muestra_el_diagnostico_y_solo_piezas_de_frenos()
@@ -36,29 +36,29 @@ public sealed class IATests(NavegadorFixture fixture, ITestOutputHelper salida) 
     public async Task Con_sesion_el_diagnostico_trae_urgencia_y_la_pieza_que_corresponde()
     {
         await ClienteConGolAsync(Pagina);
-        await BuscarConSesionAsync(Pagina, "pierde agua y se calienta cuando esta parado en el transito");
+        await BuscarConSesionAsync(Pagina, "no arranca hace clic clic al girar la llave");
 
-        await Expect(TarjetaIA(Pagina)).ToContainTextAsync("Probablemente: refrigeración");
+        await Expect(TarjetaIA(Pagina)).ToContainTextAsync("Probablemente: eléctrico");
         await Expect(TarjetaIA(Pagina).Locator(".etiqueta")).ToHaveTextAsync("Urgencia alta");
-        await Expect(Piezas(Pagina).GetByRole(AriaRole.Heading, new() { Name = "Bomba de agua" })).ToBeVisibleAsync();
+        await Expect(Piezas(Pagina).GetByRole(AriaRole.Heading, new() { Name = "Bateria 12V 50Ah" })).ToBeVisibleAsync();
     }
 
     [Fact]
     public async Task El_diagnostico_queda_guardado_en_la_consulta()
     {
         await ClienteConGolAsync(Pagina);
-        var id = await BuscarConSesionAsync(Pagina, "pierde agua y se calienta cuando esta parado en el transito");
+        var id = await BuscarConSesionAsync(Pagina, "no arranca hace clic clic al girar la llave");
 
         await IrAsync($"/consultas/{id}");
         var tarjeta = Pagina.Locator(".tarjeta").First;
-        await Expect(tarjeta).ToContainTextAsync("Refrigeración");
+        await Expect(tarjeta).ToContainTextAsync("Eléctrico");
         await Expect(tarjeta).ToContainTextAsync("urgencia alta");
-        await Expect(tarjeta.Locator(".lista-piezas")).ToContainTextAsync("BOMB-AGUA-VW-16");
+        await Expect(tarjeta.Locator(".lista-piezas")).ToContainTextAsync("BATE-12V-50AH");
 
         // Y sobrevive a una recarga: viene de la base, no del estado de la pantalla.
         await Pagina.ReloadAsync();
         await EsperarListaAsync(Pagina);
-        await Expect(Pagina.Locator(".tarjeta").First).ToContainTextAsync("Refrigeración");
+        await Expect(Pagina.Locator(".tarjeta").First).ToContainTextAsync("Eléctrico");
     }
 
     [Fact]
@@ -73,10 +73,11 @@ public sealed class IATests(NavegadorFixture fixture, ITestOutputHelper salida) 
     [Fact]
     public async Task Un_problema_sin_piezas_en_el_catalogo_lo_dice_y_muestra_todas_las_compatibles()
     {
-        await BuscarSinSesionAsync(Pagina, "patina el embrague cuando subo una cuesta");
+        // El Gol no tiene piezas de refrigeracion con fuente (docs/catalogo-fuentes.md).
+        await BuscarSinSesionAsync(Pagina, "pierde agua y se calienta cuando esta parado en el transito");
 
-        await Expect(TarjetaIA(Pagina)).ToContainTextAsync("Probablemente: transmisión");
-        await Expect(TarjetaIA(Pagina)).ToContainTextAsync("Todavía no tenemos piezas de transmisión");
+        await Expect(TarjetaIA(Pagina)).ToContainTextAsync("Probablemente: refrigeración");
+        await Expect(TarjetaIA(Pagina)).ToContainTextAsync("Todavía no tenemos piezas de refrigeración");
         await Expect(Piezas(Pagina)).ToHaveCountAsync(PiezasCompatiblesGol);
     }
 

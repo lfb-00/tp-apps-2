@@ -17,7 +17,7 @@ public sealed class OfertasTests(NavegadorFixture fixture, ITestOutputHelper sal
     /// <summary>El clasificador local lo lleva a Electrico y a la bateria del Gol.</summary>
     private const string TextoBateria = "no arranca hace clic clic al girar la llave";
     private const string TextoFrenos = "chilla al frenar como un metal que raspa";
-    private const string Bateria = "BATE-12V-60AH";
+    private const string Bateria = "BATE-12V-50AH";
 
     private static ILocator Precios(IPage pagina, string codigo) =>
         pagina.Locator($".precios[data-codigo='{codigo}']");

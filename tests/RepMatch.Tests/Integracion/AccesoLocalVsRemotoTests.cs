@@ -59,7 +59,7 @@ public class AccesoLocalVsRemotoTests : IClassFixture<WebApplicationFactory<Prog
         { "Volkswagen", "Gol", 2015, null },
         { "Peugeot", "208", 2019, null },
         { "Toyota", "Corolla", 2018, "1.8" },
-        { "Ford", "Ka", 2016, null }   // sin repuestos catalogados: los dos deben devolver vacio
+        { "Ford", "Ranger", 2015, "2.2 TDCi" }   // diesel: el filtro aplica por motor
     };
 
     [Theory]
@@ -94,7 +94,8 @@ public class AccesoLocalVsRemotoTests : IClassFixture<WebApplicationFactory<Prog
 
         Assert.Equal(local, remoto);
         Assert.Equal(7, local.Select(o => o.Marca).Distinct().Count());
-        Assert.All(local.GroupBy(o => o.Marca), grupo => Assert.True(grupo.Select(o => o.Modelo).Distinct().Count() >= 3));
+        // Diez familias: solo los modelos con repuestos con fuente (docs/catalogo-fuentes.md).
+        Assert.Equal(10, local.Select(o => (o.Marca, o.Modelo)).Distinct().Count());
         Assert.All(local, o =>
         {
             Assert.True(o.AnioDesde <= o.AnioHasta);
