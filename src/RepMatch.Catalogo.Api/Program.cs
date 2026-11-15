@@ -13,7 +13,7 @@ builder.UsarSerilog("Catalogo.Api");
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
-builder.Services.AddProblemDetails();
+builder.Services.AgregarProblemDetails();
 
 // Capa de datos y capa de logica de negocio, ambas registradas desde su propio componente.
 builder.Services.AgregarPersistencia(builder.Configuration);

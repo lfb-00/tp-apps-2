@@ -10,7 +10,7 @@ builder.UsarSerilog("IA.Api");
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
-builder.Services.AddProblemDetails();
+builder.Services.AgregarProblemDetails();
 
 // Este servicio ES el componente de IA: siempre diagnostica en proceso.
 builder.Services.AgregarDiagnosticoIA(builder.Configuration);
