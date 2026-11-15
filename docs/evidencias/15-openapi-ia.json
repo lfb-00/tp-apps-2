@@ -1,0 +1,280 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "RepMatch.IA.Api | v1",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:28083/"
+    }
+  ],
+  "paths": {
+    "/salud": {
+      "get": {
+        "tags": [
+          "RepMatch.IA.Api"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/diagnostico": {
+      "post": {
+        "tags": [
+          "Diagnostico"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudDiagnosticoDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudDiagnosticoDto"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudDiagnosticoDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiagnosticoDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CandidatoDiagnosticoDto": {
+        "required": [
+          "codigo",
+          "nombre",
+          "sistema"
+        ],
+        "type": "object",
+        "properties": {
+          "codigo": {
+            "maxLength": 60,
+            "minLength": 1,
+            "type": "string"
+          },
+          "nombre": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "sistema": {
+            "maxLength": 30,
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      },
+      "CausaProbableDto": {
+        "required": [
+          "causa",
+          "confianza"
+        ],
+        "type": "object",
+        "properties": {
+          "causa": {
+            "type": "string"
+          },
+          "confianza": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "DiagnosticoDto": {
+        "required": [
+          "sistema",
+          "urgencia",
+          "fuente",
+          "latenciaMs"
+        ],
+        "type": "object",
+        "properties": {
+          "sistema": {
+            "type": "string"
+          },
+          "urgencia": {
+            "type": "string"
+          },
+          "causas": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CausaProbableDto"
+            }
+          },
+          "codigos": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "fuente": {
+            "type": "string"
+          },
+          "latenciaMs": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "SolicitudDiagnosticoDto": {
+        "required": [
+          "texto",
+          "vehiculo"
+        ],
+        "type": "object",
+        "properties": {
+          "texto": {
+            "maxLength": 500,
+            "minLength": 5,
+            "type": "string"
+          },
+          "vehiculo": {
+            "$ref": "#/components/schemas/VehiculoDto"
+          },
+          "candidatos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CandidatoDiagnosticoDto"
+            }
+          }
+        }
+      },
+      "ValidationProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "instance": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "VehiculoDto": {
+        "required": [
+          "marca",
+          "modelo",
+          "anio"
+        ],
+        "type": "object",
+        "properties": {
+          "marca": {
+            "maxLength": 50,
+            "minLength": 1,
+            "type": "string"
+          },
+          "modelo": {
+            "maxLength": 50,
+            "minLength": 1,
+            "type": "string"
+          },
+          "anio": {
+            "maximum": 2100,
+            "minimum": 1950,
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "motor": {
+            "maxLength": 50,
+            "minLength": 0,
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "RepMatch.IA.Api"
+    },
+    {
+      "name": "Diagnostico"
+    }
+  ]
+}

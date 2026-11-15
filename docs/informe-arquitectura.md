@@ -1,4 +1,4 @@
-# Informe de arquitectura — TP Inicial y Primera Parte
+# Informe de arquitectura — TP Inicial, Primera y Segunda Parte
 
 **RepMatch** — Meta-buscador de repuestos automotrices con diagnóstico asistido por IA
 Desarrollo de Aplicaciones II · UADE · Mg. Christian Parkinson
@@ -423,6 +423,33 @@ incluye el costo de HTTP de RabbitMQ y no equivale a medir el productor `BusRabb
 reproducible, los percentiles, errores y resúmenes JSON están en
 [`docs/evidencias/carga.md`](evidencias/carga.md).
 
+### 5.7 Evidencias de integración
+
+`bash scripts/evidencias-integracion.sh` (en Windows PowerShell,
+`.\scripts\bash.ps1 scripts\evidencias-integracion.sh`) genera las evidencias de la Segunda Parte
+que no cubre la sección 5.1. No necesita el SDK de .NET: levanta `catalogo-api`, `ia-api`,
+`rabbitmq` y `worker` con Docker Compose en un proyecto propio (`repmatch-evidencias`, con puertos y
+volúmenes aparte) y lo baja al terminar, borrando solo sus volúmenes.
+
+| Archivo | Qué muestra |
+|---|---|
+| [`15-openapi-ia.json`](evidencias/15-openapi-ia.json) | Contrato OpenAPI de `IA.Api` (`POST /api/diagnostico`) |
+| [`16-openapi-worker.json`](evidencias/16-openapi-worker.json) | Contrato OpenAPI del Worker (`GET /api/comisiones`) |
+| [`17-respuesta-ia.json`](evidencias/17-respuesta-ia.json) | Solicitud y respuesta del componente de IA: texto libre y piezas candidatas del catálogo → sistema, urgencia, causas y códigos elegidos entre los candidatos |
+| [`18-ia-api.log`](evidencias/18-ia-api.log) | Log de `IA.Api` durante esa llamada |
+| [`19-busqueda-creada.json`](evidencias/19-busqueda-creada.json) | `POST /api/busquedas` en `Catalogo.Api`, que emite `BusquedaCreada` |
+| [`20-productor-catalogo-api.log`](evidencias/20-productor-catalogo-api.log) | Productor: `PublicadorEventos` y `BusRabbitMq` publican `busqueda.creada` |
+| [`21-consumidor-worker.log`](evidencias/21-consumidor-worker.log) | Consumidor: `ConsumidorActividad` recibe el mismo mensaje, con el mismo id de correlación (`evidencia-cola`) |
+| [`22-colas-rabbitmq.json`](evidencias/22-colas-rabbitmq.json) | Estado de las colas según la API de administración de RabbitMQ: publicados, entregados, confirmados y pendientes, también en las DLQ |
+| [`23-vtex-tiendas.json`](evidencias/23-vtex-tiendas.json) | Consulta directa a la API pública de VTEX en Easy y Frávega, con los campos que lee `LectorVtex` |
+
+Si `IA_LLM_APIKEY` está definida (entorno o `.env`), la IA responde con el LLM; si no, con el
+clasificador local, y `17-respuesta-ia.json` lo dice en `fuente`. La cola `repmatch.comisiones`
+queda vacía: `derivacion.tienda` se emite cuando un cliente con sesión deriva a una tienda desde la
+Web, y ese recorrido lo cubren las pruebas de punta a punta (sección 5.5). VTEX se consulta
+directo porque la Web pide los precios desde la página, sin un endpoint que el script pueda llamar;
+la integración de `FuenteVtex` la verifican sus pruebas y las de punta a punta.
+
 ---
 
 ## 6. Decisiones de diseño y sus fundamentos
@@ -501,6 +528,14 @@ la cola. Se tomaron cuatro decisiones:
 - **Privacidad.** El texto sale hacia el proveedor sin mails ni teléfonos
   (`FiltroDatosPersonales`), y los logs registran el largo del texto, no su contenido. En la
   búsqueda sin sesión el texto se diagnostica pero no se guarda.
+
+La exactitud se valida con `ValidacionIATests` sobre 60 casos etiquetados a mano, escritos aparte
+del corpus del clasificador, contra los mínimos de [`docs/requerimientos.md`](requerimientos.md)
+(RNF-IA-01 a RNF-IA-03). La primera medición del clasificador local acertó el sistema en el 76,7 %
+de los casos, por debajo del 80 % pedido. Con el corpus ampliado sube a 81,7 %, pero queda una
+subestimación grave de urgencia por resolver; el detalle está en esa misma página. La validación
+del LLM real se habilita con
+`REPMATCH_VALIDAR_LLM=1`, porque gasta cuota del proveedor.
 
 ### 6.8 SOAP: un contrato formal sobre el mismo catálogo
 
@@ -624,7 +659,7 @@ Las decisiones:
 | **Segunda** *(implementado)* | Servicio de Ofertas y API externa (VTEX: Easy y Frávega) | `IFuenteOfertas` en `Contracts`; `FuenteVtex` en `RepMatch.Fuentes.Vtex`, con caché distribuida y resiliencia por tienda; `ServicioOfertas` agrega resultados, clasifica EAN y valida coincidencias por nombre (sección 6.9) | `ServicioBusquedas.CrearAsync`, catálogo |
 | **Segunda** | Adaptador a eBay | Otra implementación de `IFuenteOfertas`, en USD; el ranking no mezcla monedas | `ServicioOfertas`, presentación |
 | **Segunda** *(implementado)* | Componente de IA (texto libre → repuestos) | `ObservadorCompatibilidad` usa `ServicioDiagnostico`, que le pasa `Busqueda.TextoLibre` y las piezas compatibles a `IDiagnosticador` (local o remota contra `IA.Api`, por `IA:Modo`) | `ServicioBusquedas.CrearAsync`; en la presentación solo se agregó la tarjeta del diagnóstico |
-| **Integrador** | Métricas de exactitud de IA y despliegue | `DiagnosticoValidado` trae, por cada revisión, los códigos propuestos y los que recomendó el mecánico: el dataset etiquetado para medir exactitud | — |
+| **Integrador** *(requerimientos y validación implementados)* | Requerimientos y métricas de exactitud de IA | [`docs/requerimientos.md`](requerimientos.md) fija los mínimos y `ValidacionIATests` los mide sobre un conjunto etiquetado fijo (sección 6.7). En producción, `DiagnosticoValidado` trae por cada revisión los códigos propuestos y los que recomendó el mecánico: el dataset para seguir midiendo con datos reales | `IDiagnosticador`, `DiagnosticadorConRespaldo` |
 | **Integrador** *(pruebas implementadas)* | Pruebas funcionales, de integración y de carga | `tests/RepMatch.E2E`, `FlujoDistribuidoTests` con Testcontainers y `tests/carga` con k6; secciones 5.4–5.6 | — |
 
 El punto de extensión quedó en el evento: `ServicioBusquedas.CrearAsync` persiste la búsqueda y
@@ -708,3 +743,17 @@ quedan demostrados apenas se levanta el entorno.
 | Servicio de Inventario | `ServicioOfertas`: como RepMatch no almacena stock, su inventario son las ofertas de las tiendas, consultadas en cada búsqueda, sin duplicar y con vencimiento. Justificación en la nota "Sobre el Servicio de Inventario" de la sección 2. |
 | Diagrama de arquitectura en capas | [`docs/diagramas/capas.md`](diagramas/capas.md) |
 | Diagramas de secuencia (búsquedas, login, alta de vehículo, catálogo, eliminación de cuenta y diagnóstico por IA) | [`docs/diagramas/secuencia.md`](diagramas/secuencia.md) |
+
+## 11. Entregables de la Segunda Parte
+
+| Requisito de la consigna | Dónde está |
+|---|---|
+| ≥1 servicio SOAP (WSDL + contrato) | `src/RepMatch.Catalogo.Soap` (contrato `IConsultaCompatibilidad`) y su cliente `src/RepMatch.Clientes.Soap`, sección 6.8. WSDL en [`10-wsdl.xml`](evidencias/10-wsdl.xml) y [`11-wsdl-tipos.xsd`](evidencias/11-wsdl-tipos.xsd); la Web lo usa en cada búsqueda ([`13-web-modo-soap.log`](evidencias/13-web-modo-soap.log)) |
+| ≥2 servicios REST (OpenAPI) | `src/RepMatch.Catalogo.Api`, `src/RepMatch.IA.Api` y `src/RepMatch.Notificaciones.Worker`. Contratos en [`05-openapi.json`](evidencias/05-openapi.json), [`15-openapi-ia.json`](evidencias/15-openapi-ia.json) y [`16-openapi-worker.json`](evidencias/16-openapi-worker.json) |
+| Mensajería con colas | RabbitMQ (`src/RepMatch.Mensajeria`): exchange topic, colas `repmatch.comisiones` y `repmatch.actividad` con DLQ, secciones 6.5 y 6.10, [`docs/diagramas/mensajes.md`](diagramas/mensajes.md) |
+| Integración SOA / microservicios ligeros | Hosts independientes en Docker Compose (Web, Catálogo REST, Catálogo SOAP, IA, Worker), [`docs/diagramas/componentes.md`](diagramas/componentes.md) y [`docs/diagramas/despliegue.md`](diagramas/despliegue.md) |
+| Productores y consumidores de mensajes | Productor `PublicadorEventos` (`BusquedaCreada`, `BusquedaCompartida`, `DiagnosticoValidado`, `DerivacionTienda`); consumidores `ConsumidorComisiones` y `ConsumidorActividad`, sección 6.10. Recorrido en [`20-productor-catalogo-api.log`](evidencias/20-productor-catalogo-api.log), [`21-consumidor-worker.log`](evidencias/21-consumidor-worker.log) y [`22-colas-rabbitmq.json`](evidencias/22-colas-rabbitmq.json) |
+| ≥1 API externa real | API pública de VTEX en Easy y Frávega (`src/RepMatch.Fuentes.Vtex`), secciones 6.1 y 6.9, [`23-vtex-tiendas.json`](evidencias/23-vtex-tiendas.json) |
+| Componente de IA | Clasificación de la urgencia a partir del texto libre del cliente, junto con el sistema afectado, las causas probables y las piezas recomendadas entre las compatibles: LLM con respaldo local (`src/RepMatch.IA`), sección 6.7. Respuesta en [`17-respuesta-ia.json`](evidencias/17-respuesta-ia.json) |
+| IA expuesta por REST o por la cola | REST: `POST /api/diagnostico` en `src/RepMatch.IA.Api` |
+| Evidencias de prueba | Secciones 5.4 a 5.7: pruebas automatizadas, de punta a punta, de carga y evidencias de integración |

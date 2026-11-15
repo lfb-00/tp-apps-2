@@ -1,0 +1,11 @@
+[16:28:29 INF] [Worker] [] Worker iniciado. Broker: rabbitmq:5672
+[16:28:29 INF] [Worker] [] Now listening on: http://[::]:8080
+[16:28:29 INF] [Worker] [] Application started. Press Ctrl+C to shut down.
+[16:28:29 INF] [Worker] [] Hosting environment: Development
+[16:28:29 INF] [Worker] [] Content root path: /app
+[16:28:29 INF] [Worker] [] Conectado a RabbitMQ en rabbitmq:5672 como RepMatch consumidor repmatch.actividad
+[16:28:29 INF] [Worker] [] Escuchando la cola repmatch.actividad (#)
+[16:28:29 INF] [Worker] [] Escuchando la cola repmatch.comisiones (derivacion.tienda)
+[16:28:34 INF] [Worker] [ef3c34d780fc] HTTP GET /salud responded 200 in 18.7613 ms
+[16:28:35 INF] [Worker] [3287c2f1f5c9] HTTP GET /openapi/v1.json responded 200 in 44.6644 ms
+[16:28:36 INF] [Worker] [evidencia-cola] Evento busqueda.creada v1 a68c6901-0f41-4735-a9d3-ee3180e86d04 ocurrido 2026-11-14T16:28:36.0265837+00:00: {"busquedaId":"9b153815-50f7-43c2-8ce1-6fa748973185","clienteId":"e302d508-fb79-48a5-8351-d36ddc79b507","marca":"Volkswagen","modelo":"Gol","anio":2015,"motor":"1.6"}

@@ -1,0 +1,33 @@
+{
+  "id": "9b153815-50f7-43c2-8ce1-6fa748973185",
+  "clienteId": "e302d508-fb79-48a5-8351-d36ddc79b507",
+  "vehiculo": {
+    "marca": "Volkswagen",
+    "modelo": "Gol",
+    "anio": 2015,
+    "motor": "1.6"
+  },
+  "textoLibre": "Cuando freno escucho un chirrido metalico y el pedal vibra un poco",
+  "estado": "Diagnosticada",
+  "fechaCreacion": "2026-11-14T16:28:36.026417+00:00",
+  "motivoFalla": null,
+  "codigosObjetivo": [
+    "PAST-VW-GOL-DEL",
+    "DISC-VW-GOL-256"
+  ],
+  "diagnostico": {
+    "sistema": "Frenos",
+    "urgencia": "Alta",
+    "causas": [
+      "Pastillas cristalizadas o desgastadas",
+      "Pastillas de freno gastadas",
+      "Discos de freno alabeados"
+    ],
+    "fuente": "fallback-local"
+  },
+  "ofertas": [],
+  "preciosConsultadosEn": null,
+  "mecanicoId": null,
+  "compartidaEn": null,
+  "revision": null
+}

@@ -1,0 +1,24 @@
+[16:28:24 ERR] [Catalogo.Api] [] Failed executing DbCommand (8ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT "MigrationId", "ProductVersion"
+FROM "__EFMigrationsHistory"
+ORDER BY "MigrationId";
+[16:28:25 INF] [Catalogo.Api] [] Base de datos lista (proveedor Npgsql.EntityFrameworkCore.PostgreSQL).
+[16:28:25 INF] [Catalogo.Api] [] Catalogo.Api escuchando
+[16:28:26 INF] [Catalogo.Api] [] Now listening on: http://[::]:8080
+[16:28:26 INF] [Catalogo.Api] [] Application started. Press Ctrl+C to shut down.
+[16:28:26 INF] [Catalogo.Api] [] Hosting environment: Development
+[16:28:26 INF] [Catalogo.Api] [] Content root path: /app
+[16:28:28 INF] [Catalogo.Api] [98f45da5c9f9] HTTP GET /salud responded 200 in 19.5959 ms
+[16:28:35 INF] [Catalogo.Api] [00fde5360f9b] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[16:28:35 INF] [Catalogo.Api] [00fde5360f9b] HTTP GET /api/repuestos/compatibles responded 200 in 217.5708 ms
+[16:28:35 INF] [Catalogo.Api] [75d3dd6bf575] HTTP GET /api/clientes responded 200 in 120.7128 ms
+[16:28:36 INF] [Catalogo.Api] [evidencia-cola] Evento BusquedaCreada observado por ObservadorCompatibilidad
+[16:28:36 INF] [Catalogo.Api] [evidencia-cola] Catalogo[Local] compatibilidad Volkswagen Gol 2015 (1.6) sistema=(todos) -> 7 repuestos
+[16:28:36 INF] [Catalogo.Api] [evidencia-cola] Diagnostico fuente=fallback-local sistema=Frenos urgencia=Alta codigos=2 candidatos=7 texto=66 caracteres latencia=6 ms
+[16:28:36 INF] [Catalogo.Api] [evidencia-cola] IA[Local] fuente=fallback-local sistema=Frenos eligio 2 de 7 piezas para Volkswagen Gol 2015 (1.6)
+[16:28:36 INF] [Catalogo.Api] [evidencia-cola] Búsqueda 9b153815-50f7-43c2-8ce1-6fa748973185 completada: estado Diagnosticada, 2 códigos, diagnóstico fallback-local
+[16:28:36 INF] [Catalogo.Api] [evidencia-cola] Evento BusquedaCreada observado por PublicadorEventos
+[16:28:36 INF] [Catalogo.Api] [evidencia-cola] Conectado a RabbitMQ en rabbitmq:5672 como RepMatch publicador
+[16:28:36 INF] [Catalogo.Api] [evidencia-cola] Publicado busqueda.creada v1 mensaje a68c6901-0f41-4735-a9d3-ee3180e86d04
+[16:28:36 INF] [Catalogo.Api] [evidencia-cola] Búsqueda 9b153815-50f7-43c2-8ce1-6fa748973185 registrada. Estado Diagnosticada
+[16:28:36 INF] [Catalogo.Api] [evidencia-cola] HTTP POST /api/busquedas responded 201 in 325.8826 ms

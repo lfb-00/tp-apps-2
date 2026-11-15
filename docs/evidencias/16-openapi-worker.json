@@ -1,0 +1,45 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "RepMatch.Notificaciones.Worker | v1",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:28085/"
+    }
+  ],
+  "paths": {
+    "/salud": {
+      "get": {
+        "tags": [
+          "RepMatch.Notificaciones.Worker"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/comisiones": {
+      "get": {
+        "tags": [
+          "RepMatch.Notificaciones.Worker"
+        ],
+        "summary": "Derivaciones por tienda y mes, registradas desde la cola.",
+        "operationId": "ListarComisiones",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "RepMatch.Notificaciones.Worker"
+    }
+  ]
+}

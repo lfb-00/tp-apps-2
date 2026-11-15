@@ -1,0 +1,56 @@
+[
+  {
+    "tienda": "Easy",
+    "url": "https://www.easy.com.ar/api/catalog_system/pub/products/search?ft=bateria%20auto&_from=0&_to=2",
+    "resultados": [
+      {
+        "nombre": "Cargador de Batería Auto 6V-12V 2A Datrak",
+        "marca": "Datrak",
+        "ean": "7800155050645",
+        "precio": 76925.0,
+        "enlace": "https://www.easy.com.ar/cargador-de-bateria-auto-6v-12v-dratak-1300053/p"
+      },
+      {
+        "nombre": "Batería para Auto 12X85 Conroll Mateo",
+        "marca": "Mateo",
+        "ean": "3501361218563",
+        "precio": 160735.0,
+        "enlace": "https://www.easy.com.ar/bateria-mateo-conroll-modelo-12x85-1360356/p"
+      },
+      {
+        "nombre": "Batería para Auto 12X75 50AH Mateo",
+        "marca": "Mateo",
+        "ean": "7797535000133",
+        "precio": 150960.0,
+        "enlace": "https://www.easy.com.ar/bateria-mateo-conroll-modelo-12x75-1293407/p"
+      }
+    ]
+  },
+  {
+    "tienda": "Fravega",
+    "url": "https://www.fravega.com/api/catalog_system/pub/products/search?ft=bateria%20auto&_from=0&_to=2",
+    "resultados": [
+      {
+        "nombre": "Hidrolavadora Pistola Portatil Inalambrica A Bateria Auto",
+        "marca": "Alien Tech",
+        "ean": "",
+        "precio": 54999.0,
+        "enlace": "https://www.fravega.com/hidrolavadora-pistola-portatil-inalambrica-a-bateria-auto-21312727/p"
+      },
+      {
+        "nombre": "Cargador Arrancador De Batería Auto 100 Amp",
+        "marca": "Salkor",
+        "ean": "7798378484982",
+        "precio": 815399.0,
+        "enlace": "https://www.fravega.com/cargador-arrancador-de-bateria-auto-100-amp-990409508/p"
+      },
+      {
+        "nombre": "Inflador Portatil Gadnic Bateria Auto 6000mah",
+        "marca": "Gadnic",
+        "ean": "7427252440362",
+        "precio": 68822.62,
+        "enlace": "https://www.fravega.com/inflador-portatil-gadnic-bateria-auto-6000mah-990293189/p"
+      }
+    ]
+  }
+]
