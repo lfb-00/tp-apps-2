@@ -18,6 +18,8 @@ flowchart LR
         EX{{"repmatch.eventos<br/>exchange topic, durable"}}
         Q1[["repmatch.comisiones<br/>cola durable"]]
         Q2[["repmatch.actividad<br/>cola durable"]]
+        Q3[["repmatch.avisos.compartidas<br/>cola durable"]]
+        Q4[["repmatch.avisos.revisiones<br/>cola durable"]]
         DLX{{"repmatch.eventos.dlx<br/>exchange directo"}}
         D1[["repmatch.comisiones.dlq"]]
         D2[["repmatch.actividad.dlq"]]
@@ -26,17 +28,25 @@ flowchart LR
     subgraph worker["RepMatch.Notificaciones.Worker"]
         C1["ConsumidorComisiones<br/>ServicioComisiones"]
         C2["ConsumidorActividad<br/>log de actividad"]
+        C3["ConsumidorAvisosCompartidas<br/>aviso al mecánico"]
+        C4["ConsumidorAvisosRevisiones<br/>aviso al cliente"]
     end
 
-    BD[("PostgreSQL<br/>comisiones_tienda<br/>mensajes_procesados")]
+    BD[("PostgreSQL<br/>comisiones_tienda<br/>notificaciones<br/>mensajes_procesados")]
 
     W -- "busqueda.creada<br/>busqueda.compartida<br/>diagnostico.validado<br/>derivacion.tienda" --> EX
     A -- "busqueda.creada" --> EX
     EX -- "derivacion.tienda" --> Q1
     EX -- "# (todos)" --> Q2
+    EX -- "busqueda.compartida" --> Q3
+    EX -- "diagnostico.validado" --> Q4
     Q1 --> C1
     Q2 --> C2
+    Q3 --> C3
+    Q4 --> C4
     C1 --> BD
+    C3 --> BD
+    C4 --> BD
     Q1 -. "rechazado sin reencolar" .-> DLX
     Q2 -. "rechazado sin reencolar" .-> DLX
     DLX -- "repmatch.comisiones" --> D1
@@ -53,8 +63,8 @@ flowchart LR
 | Clave de ruteo | Evento de dominio | Lo publica | Datos (`*V1`) | Lo consume |
 |---|---|---|---|---|
 | `busqueda.creada` | `BusquedaCreada` | `ServicioBusquedas.CrearAsync`, desde la Web o `POST /api/busquedas` | búsqueda, cliente, vehículo. **Sin el texto libre** | `repmatch.actividad` |
-| `busqueda.compartida` | `BusquedaCompartida` | `ServicioRevisiones.CompartirAsync` | búsqueda, cliente, mecánico | `repmatch.actividad` (lugar previsto para avisarle al mecánico) |
-| `diagnostico.validado` | `DiagnosticoValidado` | `ServicioRevisiones.RevisarAsync` | búsqueda, cliente, mecánico, confirmado, códigos propuestos y recomendados | `repmatch.actividad` (lugar previsto para avisarle al cliente) |
+| `busqueda.compartida` | `BusquedaCompartida` | `ServicioRevisiones.CompartirAsync` | búsqueda, cliente, mecánico | `repmatch.avisos.compartidas` (aviso al mecánico) y `repmatch.actividad` |
+| `diagnostico.validado` | `DiagnosticoValidado` | `ServicioRevisiones.RevisarAsync` | búsqueda, cliente, mecánico, confirmado, códigos propuestos y recomendados | `repmatch.avisos.revisiones` (aviso al cliente) y `repmatch.actividad` |
 | `derivacion.tienda` | `DerivacionATienda` | `ServicioDerivaciones.DerivarAsync` (`GET /derivar/{id}`) | derivación, búsqueda, oferta, tienda, mecánico | `repmatch.comisiones` y `repmatch.actividad` |
 
 Todos viajan en el mismo sobre, `MensajeIntegracion<T>`: `mensajeId`, `tipo`, `version`,

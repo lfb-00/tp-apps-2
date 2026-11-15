@@ -145,12 +145,11 @@ como "omitida". Al arreglarlo, se saca el `Skip`.
 |---|---|
 | `BusquedaTests.Doble_clic_en_buscar_crea_una_sola_consulta` | Dos clics rápidos en "Diagnosticar con IA" crean dos consultas iguales. |
 | `MecanicoTests.Sin_recargar_el_cliente_puede_compartir_apenas_el_mecanico_pasa_a_Pro` | El cliente ve datos viejos del mecánico hasta recargar la página. |
-| `MecanicoTests.Sin_recargar_el_cliente_ve_la_revision_que_acaba_de_enviar_el_mecanico` | Mismo origen: sin recargar, el cliente no ve la revisión recién enviada. |
-| `ResilienciaTests.Con_el_catalogo_caido_ver_el_catalogo_completo_muestra_un_mensaje` | Con el catálogo caído, "Ver catálogo completo" tira la app. |
-| `ResilienciaTests.Con_el_catalogo_caido_la_portada_avisa_que_no_esta_disponible` | Con el catálogo caído, el selector de vehículo queda vacío sin avisar. |
 
-Los dos de datos viejos vienen de que, en Blazor Server, el `DbContext` vive lo que dura la
-conexión de la pestaña, y EF devuelve las entidades que ya tiene cargadas sin releerlas.
+El de datos viejos viene de que, en Blazor Server, el `DbContext` vive lo que dura la conexión de
+la pestaña, y EF devuelve las entidades que ya tiene cargadas sin releerlas. La página de la
+consulta ya tiene su propio scope (`OwningComponentBase`), así que navegar hasta ella lee datos
+actuales; este caso queda porque el cliente reintenta en la misma página, sin volver a abrirla.
 
 ## Relación con los issues
 

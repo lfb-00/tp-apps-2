@@ -34,7 +34,8 @@ x-conexion-postgres: &conexion-postgres
 x-llm: &llm
   IA__Llm__ApiKey: "${IA_LLM_APIKEY:-}"
   IA__Llm__UrlBase: "${IA_LLM_URLBASE:-https://api.groq.com/openai/v1/}"
-  IA__Llm__Modelo: "${IA_LLM_MODELO:-llama-3.3-70b-versatile}"
+  IA__Llm__Modelo: "${IA_LLM_MODELO:-openai/gpt-oss-120b}"
+  IA__Llm__EsfuerzoRazonamiento: "${IA_LLM_ESFUERZO-low}"
 
 # Tiendas donde buscar precios. Por defecto las reales; las pruebas las apuntan al simulador.
 x-tiendas: &tiendas
@@ -42,6 +43,11 @@ x-tiendas: &tiendas
   Ofertas__Tiendas__0__CacheMinutos: "${OFERTAS_CACHE_MINUTOS:-10}"
   Ofertas__Tiendas__1__UrlBase: "${OFERTAS_URL_FRAVEGA:-https://www.fravega.com}"
   Ofertas__Tiendas__1__CacheMinutos: "${OFERTAS_CACHE_MINUTOS:-10}"
+  # Solo coincidencias exactas (numero de fabricante o EAN), salvo que se pida otra cosa.
+  Ofertas__IncluirCoincidenciasPorNombre: "${OFERTAS_INCLUIR_POR_NOMBRE:-false}"
+  # eBay (Browse API): solo con las claves del .env; sin ellas la fuente no se registra.
+  Ofertas__Ebay__ClientId: "${EBAY_APP_ID:-}"
+  Ofertas__Ebay__ClientSecret: "${EBAY_CERT_ID:-}"
 
 # Cola de mensajes. Los servicios que publican o consumen la usan; si rabbitmq esta caido, la Web
 # y la API siguen funcionando y lo dejan en el log.
@@ -153,6 +159,8 @@ services:
       # La IA tambien por HTTP, contra IA.Api.
       IA__Modo: Remoto
       IA__UrlBaseRemota: "http://ia-api:8080"
+      # Cada cuanto la campana pregunta por avisos nuevos (los escribe el worker desde la cola).
+      Notificaciones__IntervaloSegundos: "${NOTIFICACIONES_INTERVALO_SEGUNDOS:-20}"
       # Claves que cifran la sesion del navegador: en un volumen, para que una pestania abierta
       # no pierda la sesion cada vez que el contenedor se recrea.
       ProteccionDatos__DirectorioClaves: /claves

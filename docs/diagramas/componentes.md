@@ -41,7 +41,7 @@ flowchart TB
     end
 
     subgraph host_worker["🖥️ Host: RepMatch.Notificaciones.Worker"]
-        CONS["ConsumidorComisiones · ConsumidorActividad<br/><i>GET /api/comisiones</i>"]
+        CONS["ConsumidorComisiones · ConsumidorActividad<br/>ConsumidorAvisosCompartidas · ConsumidorAvisosRevisiones<br/><i>GET /api/comisiones</i>"]
     end
 
     subgraph host_ia["🖥️ Host: RepMatch.IA.Api (REST)"]

@@ -328,7 +328,8 @@ dotnet ef migrations add NombreDelCambio --project src/RepMatch.Persistence --st
 ```
 
 Las entidades persistidas son `Cliente`, `Vehiculo`, `ConfiguracionVehiculo`, `Repuesto`,
-`AplicacionVehiculo`, `Busqueda`, `Oferta`, `Derivacion`, `ComisionesTienda` y `MensajeProcesado`.
+`AplicacionVehiculo`, `Busqueda`, `Oferta`, `Derivacion`, `ComisionesTienda`, `MensajeProcesado` y
+`Notificacion`.
 El catálogo vehicular contiene las combinaciones
 permitidas de marca, modelo, año y motor que consumen los selectores de la Web. Ojo con el alcance:
 la base guarda el **catálogo propio y las búsquedas de los usuarios**,
@@ -348,6 +349,7 @@ Todo se puede sobreescribir por variable de entorno (`Seccion__Clave`).
 |---|---|---|
 | `Catalogo:Modo` | `Local`, `Remoto`, `Soap` | `Local` (en compose: `Soap`) |
 | `Catalogo:UrlBaseRemota` | URL de `Catalogo.Api` | `http://localhost:5081` |
+| `Catalogo:UrlSoap` | endpoint del servicio SOAP (modo `Soap`) | `http://localhost:5082/ConsultaCompatibilidad.svc` (en compose: `http://catalogo-soap:8080/...`) |
 | `Catalogo:TimeoutSegundos` | timeout de las llamadas HTTP al catálogo remoto (1 a 120) | `30` |
 | `Persistencia:Proveedor` | `InMemory`, `Postgres` | `InMemory` (en compose: `Postgres`) |
 | `ConnectionStrings:RepMatch` | cadena Npgsql | vacía |
@@ -357,14 +359,20 @@ Todo se puede sobreescribir por variable de entorno (`Seccion__Clave`).
 | `IA:TimeoutSegundos` | timeout de la Web hacia `IA.Api` (1 a 120) | `10` |
 | `IA:Llm:ApiKey` | clave del proveedor del LLM; vacía desactiva el LLM | vacía (en compose: `IA_LLM_APIKEY` del `.env`) |
 | `IA:Llm:UrlBase` | API compatible con OpenAI | `https://api.groq.com/openai/v1/` |
-| `IA:Llm:Modelo` | modelo del proveedor | `llama-3.3-70b-versatile` |
+| `IA:Llm:Modelo` | modelo del proveedor | `openai/gpt-oss-120b` |
+| `IA:Llm:EsfuerzoRazonamiento` | `reasoning_effort` del pedido (`low`, `medium`, `high`); vacío no lo envía, para modelos que no razonan | `low` (en compose: `IA_LLM_ESFUERZO`) |
 | `IA:Llm:TimeoutSegundos` | espera máxima al LLM antes de responder con el local (1 a 60) | `4` |
+| `Notificaciones:IntervaloSegundos` | cada cuánto la campana de la Web busca avisos nuevos (2 a 300) | `20` (en compose: `NOTIFICACIONES_INTERVALO_SEGUNDOS`) |
+| `Ofertas:Ebay:ClientId`, `Ofertas:Ebay:ClientSecret` | App ID y Cert ID de producción de eBay; vacíos, la fuente eBay no se registra | vacíos (en compose: `EBAY_APP_ID`, `EBAY_CERT_ID` del `.env`) |
+| `Ofertas:Ebay:UrlBase`, `:Marketplace`, `:TimeoutSegundos`, `:PedidosSimultaneos`, `:ResultadosPorTermino`, `:MaximoCodigos`, `:CacheMinutos` | API de eBay (`https://api.sandbox.ebay.com/` para el entorno de prueba), sitio donde buscar y límites | `https://api.ebay.com/`, `EBAY_US`, `5`, `2`, `10`, `3`, `60` |
+| `Ofertas:IncluirCoincidenciasPorNombre` | mostrar publicaciones que coinciden solo por nombre, sin número de fabricante ni EAN | `false` (en compose: `OFERTAS_INCLUIR_POR_NOMBRE`; `scripts/e2e.sh` lo enciende para el simulador) |
 | `Ofertas:TimeoutGlobalSegundos` | tope para todas las tiendas juntas (1 a 60) | `8` |
 | `Ofertas:VigenciaMinutos` | después de esto los precios se vuelven a consultar | `60` |
 | `Ofertas:Tiendas:N:Nombre`, `:UrlBase`, `:Moneda`, `:PrefijosCategoria` | una entrada por tienda VTEX; sumar una tienda es sumar una entrada | Easy (`https://www.easy.com.ar`, `/Automotor/`) y Frávega (`https://www.fravega.com`, `/Autos, Motos y Otros/`) |
 | `Ofertas:Tiendas:N:TimeoutSegundos`, `:PedidosSimultaneos`, `:ResultadosPorTermino`, `:CacheMinutos` | límites por tienda | `5`, `2`, `10`, `10` |
 | `Mensajeria:Habilitada` | publicar y consumir en RabbitMQ | `false` (en compose: `true`) |
 | `Mensajeria:Host`, `:Puerto`, `:Usuario`, `:Contrasena` | conexión al broker | `localhost`, `5672`, `guest`, `guest` (en compose: `rabbitmq` y `RABBITMQ_USUARIO` / `RABBITMQ_CONTRASENA` del `.env`) |
+| `Mensajeria:VirtualHost`, `:Exchange` | virtual host del broker y exchange topic donde se publica | `/`, `repmatch.eventos` |
 | `Mensajeria:TimeoutSegundos`, `:PausaTrasFallaSegundos` | espera máxima para conectar o confirmar, y cuánto no reintentar después de una falla | `3`, `30` |
 | `ProteccionDatos:DirectorioClaves` | directorio de las claves que cifran la sesión (solo Web) | vacío: las maneja ASP.NET Core (en compose: `/claves`, en un volumen) |
 
@@ -379,6 +387,7 @@ Y los puertos del host, vía `.env` (ver `.env.example`): `PUERTO_WEB`, `PUERTO_
 - [Informe de arquitectura](docs/informe-arquitectura.md)
 - [Requerimientos funcionales y no funcionales, incluidos los de IA](docs/requerimientos.md)
 - [Manual de despliegue](docs/manual-despliegue.md)
+- [Fuentes del catálogo de repuestos](docs/catalogo-fuentes.md)
 - [Patrones de diseño aplicados](docs/patrones.md)
 - [Diagrama de clases](docs/diagramas/clases.md)
 - [Diagrama de componentes](docs/diagramas/componentes.md)
