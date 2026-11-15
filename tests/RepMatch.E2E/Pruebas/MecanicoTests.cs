@@ -143,15 +143,7 @@ public sealed class MecanicoTests(NavegadorFixture fixture, ITestOutputHelper sa
         await Expect(Exito(Pagina)).ToContainTextAsync("se la compartiste");
     }
 
-    /// <summary>
-    /// ERROR CONOCIDO: datos viejos dentro de una misma pestania. En Blazor Server el DbContext
-    /// vive lo que dura el circuito y EF devuelve la entidad que ya tiene en seguimiento sin
-    /// releerla. El primer intento cargo al mecanico con plan Gratuito; cuando el mecanico pasa a
-    /// Pro desde su sesion, el reintento del cliente sigue viendo Gratuito y vuelve a rechazar.
-    /// Recargando la pagina (circuito nuevo) funciona. Arreglo posible: AsNoTracking en las
-    /// lecturas, o un DbContext por operacion (IDbContextFactory) en vez de uno por circuito.
-    /// </summary>
-    [Fact(Skip = "Error conocido: el cliente ve datos viejos del mecánico hasta recargar (ver comentario).")]
+    [Fact]
     public async Task Sin_recargar_el_cliente_puede_compartir_apenas_el_mecanico_pasa_a_Pro()
     {
         var mecanicoPagina = await NuevaPaginaAsync();
@@ -179,12 +171,7 @@ public sealed class MecanicoTests(NavegadorFixture fixture, ITestOutputHelper sa
         await Expect(Exito(Pagina)).ToContainTextAsync("se la compartiste");
     }
 
-    /// <summary>
-    /// ERROR CONOCIDO, mismo origen que el anterior, visto desde el cliente: deja abierta la
-    /// consulta compartida, el mecanico la revisa, y el cliente navega dentro de la app (sin F5)
-    /// hasta su consulta. Sigue viendo "Compartida con un mecánico" en vez de la revision.
-    /// </summary>
-    [Fact(Skip = "Error conocido: sin recargar, el cliente no ve la revisión recién enviada (DbContext por circuito).")]
+    [Fact]
     public async Task Sin_recargar_el_cliente_ve_la_revision_que_acaba_de_enviar_el_mecanico()
     {
         var (mecanico, _, id) = await CompartidaAsync();

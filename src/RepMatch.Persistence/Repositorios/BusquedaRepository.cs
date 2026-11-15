@@ -6,10 +6,20 @@ namespace RepMatch.Persistence.Repositorios;
 
 public sealed class BusquedaRepository(RepMatchDbContext contexto) : IBusquedaRepository
 {
-    public Task<Busqueda?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default) =>
-        contexto.Busquedas
+    public async Task<Busqueda?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default)
+    {
+        // En Blazor Server el DbContext vive lo que dura el circuito SignalR y EF devuelve la
+        // entidad trackeada sin releerla. ReloadAsync fuerza una lectura fresca de la BD cuando la
+        // entidad ya esta en seguimiento, para que cambios de otros circuitos (plan del mecanico,
+        // revision enviada) sean visibles sin recargar la pagina.
+        var entrada = contexto.ChangeTracker.Entries<Busqueda>().FirstOrDefault(e => e.Entity.Id == id);
+        if (entrada is not null)
+            await entrada.ReloadAsync(ct);
+
+        return await contexto.Busquedas
             .Include(b => b.Ofertas)
             .FirstOrDefaultAsync(b => b.Id == id, ct);
+    }
 
     public async Task<IReadOnlyList<Busqueda>> ListarPorClienteAsync(
         Guid clienteId, CancellationToken ct = default) =>
