@@ -57,13 +57,29 @@ public sealed class DiagnosticadorLocal(ClasificadorSintomas clasificador) : IDi
         return Task.FromResult(new DiagnosticoDto
         {
             Sistema = ganador.Key,
-            Urgencia = delSistema[0].Sintoma.Urgencia,
+            Urgencia = UrgenciaPrudente(vecinos),
             Causas = causas,
             Codigos = ElegirCandidatos(solicitud.Candidatos, tipos, ganador.Key),
             Fuente = NombreFuente,
             LatenciaMs = reloj.ElapsedMilliseconds
         });
     }
+
+    private static readonly string[] Niveles = ["Baja", "Media", "Alta", "Critica"];
+
+    /// <summary>
+    /// La urgencia mas alta entre los vecinos que se parecen al texto, no solo la del sistema
+    /// ganador. Equivocar el sistema cuesta una consulta; subestimar la urgencia deja a alguien
+    /// manejando con un problema serio (RNF-IA-02). Caso real: "suena un golpeteo fuerte adentro
+    /// del motor" ganaba por Escape (Baja) porque comparte "suena" y "fuerte" con una frase del
+    /// escape, aunque entre los vecinos habia sintomas de motor de urgencia Alta.
+    /// </summary>
+    private static string UrgenciaPrudente(IReadOnlyList<VecinoSintoma> vecinos) =>
+        vecinos
+            .Where(v => v.Similitud >= SimilitudMinima)
+            .Select(v => v.Sintoma.Urgencia)
+            .OrderByDescending(u => Array.IndexOf(Niveles, u))
+            .First();
 
     /// <summary>
     /// Traduce los tipos de repuesto del corpus ("filtro aire") a codigos reales: un candidato

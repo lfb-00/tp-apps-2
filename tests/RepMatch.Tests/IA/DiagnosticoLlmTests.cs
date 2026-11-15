@@ -73,6 +73,28 @@ public class DiagnosticoLlmTests
         Assert.Contains("PAST-VW-GOL-DEL", proveedor.Cuerpo);
     }
 
+    [Theory]
+    [InlineData("low", "low")]
+    [InlineData("", null)]
+    public async Task Envia_el_modelo_configurado_y_el_esfuerzo_de_razonamiento_solo_si_hay(
+        string esfuerzo, string? esperado)
+    {
+        var opciones = new OpcionesLlm
+        {
+            ApiKey = "clave-de-prueba", UrlBase = "https://llm.test/v1/", EsfuerzoRazonamiento = esfuerzo
+        };
+        var proveedor = new ProveedorGrabado(HttpStatusCode.OK, RespuestaChat(
+            """{"sistema": "Frenos", "urgencia": "Media", "causas": [], "codigos": []}"""));
+        var llm = new DiagnosticadorLlm(
+            new HttpClient(proveedor) { BaseAddress = new Uri(opciones.UrlBase) }, opciones, NullLogger<DiagnosticadorLlm>.Instance);
+
+        await llm.DiagnosticarAsync(CandidatosGol.Solicitud("hace un ruido al frenar"));
+
+        using var cuerpo = JsonDocument.Parse(proveedor.Cuerpo);
+        Assert.Equal("openai/gpt-oss-120b", cuerpo.RootElement.GetProperty("model").GetString());
+        Assert.Equal(esperado, cuerpo.RootElement.TryGetProperty("reasoning_effort", out var valor) ? valor.GetString() : null);
+    }
+
     [Fact]
     public async Task Si_el_proveedor_falla_responde_el_clasificador_local()
     {
