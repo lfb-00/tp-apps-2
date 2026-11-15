@@ -53,9 +53,12 @@ public sealed class AdopcionEsquemaTests(PostgresAdopcionFixture postgres) : ICl
         await using var servicios = Host(cadena);
         await servicios.InicializarBaseAsync();
 
-        Assert.Equal(2, await EscalarAsync(cadena, """SELECT COUNT(*) FROM "__EFMigrationsHistory" """));
+        // Inicial adoptada + mensajeria + notificaciones aplicadas encima.
+        Assert.Equal(3, await EscalarAsync(cadena, """SELECT COUNT(*) FROM "__EFMigrationsHistory" """));
         Assert.Equal(1, await EscalarAsync(cadena,
             "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'comisiones_tienda'"));
+        Assert.Equal(1, await EscalarAsync(cadena,
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'notificaciones'"));
         Assert.True(await EscalarAsync(cadena, "SELECT COUNT(*) FROM clientes") > 0);
     }
 

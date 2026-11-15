@@ -1,0 +1,136 @@
+@using Microsoft.Extensions.DependencyInjection
+@using RepMatch.Aplicacion.Fachada
+@inherits OwningComponentBase
+@implements IAsyncDisposable
+@inject IConfiguration Configuracion
+@inject NavigationManager Navegacion
+@inject AvisosNotificaciones Avisos
+
+@* Scope propio (OwningComponentBase): la campana consulta cada tantos segundos, y con el DbContext
+   del circuito podria chocar con una operacion de la pagina que esta abierta. *@
+<div class="campana">
+    <button type="button" class="btn-tema" @onclick="AlternarAsync"
+            aria-label="@Etiqueta" title="@Etiqueta" aria-expanded="@abierta">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+        </svg>
+        @if (noLeidas > 0)
+        {
+            <span class="campana-numero">@(noLeidas > 9 ? "9+" : noLeidas.ToString())</span>
+        }
+    </button>
+    @if (abierta)
+    {
+        <div class="campana-lista" role="region" aria-label="Notificaciones">
+            <h2>Notificaciones</h2>
+            @if (recientes.Count == 0)
+            {
+                <p class="vacio">Todavía no tenés notificaciones.</p>
+            }
+            @foreach (var n in recientes)
+            {
+                <a href="/consultas/@n.BusquedaId" class="@(n.Leida ? "" : "no-leida")"
+                   @onclick="() => Abrir(n.BusquedaId)" @onclick:preventDefault>
+                    <strong>@n.Titulo</strong>
+                    @n.Detalle
+                    <br /><small>@n.CreadaEn.ToLocalTime().ToString("dd/MM HH:mm")</small>
+                </a>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Guid UsuarioId { get; set; }
+
+    private FachadaAplicacion Fachada => ScopedServices.GetRequiredService<FachadaAplicacion>();
+
+    private PeriodicTimer? temporizador;
+    private CancellationTokenSource? cancelacion;
+    private IReadOnlyList<NotificacionDto> recientes = [];
+    private int noLeidas;
+    private bool abierta;
+
+    private string Etiqueta => noLeidas == 0 ? "Notificaciones" : $"Notificaciones: {noLeidas} sin leer";
+
+    protected override async Task OnInitializedAsync()
+    {
+        Navegacion.LocationChanged += AlCambiarRuta;
+        Avisos.Cambio += AlAvisar;
+        await ActualizarAsync();
+
+        // Los avisos los escribe el worker desde la cola: aparecen sin que la pagina haga nada.
+        var segundos = Math.Clamp(Configuracion.GetValue("Notificaciones:IntervaloSegundos", 20), 2, 300);
+        temporizador = new PeriodicTimer(TimeSpan.FromSeconds(segundos));
+        cancelacion = new CancellationTokenSource();
+        _ = SondearAsync(cancelacion.Token);
+    }
+
+    private async Task SondearAsync(CancellationToken ct)
+    {
+        try
+        {
+            while (temporizador is not null && await temporizador.WaitForNextTickAsync(ct))
+                await InvokeAsync(async () => { await ActualizarAsync(); StateHasChanged(); });
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private async Task ActualizarAsync()
+    {
+        try
+        {
+            if (abierta)
+            {
+                var bandeja = await Fachada.ObtenerNotificacionesAsync(UsuarioId);
+                recientes = bandeja.Recientes;
+                noLeidas = bandeja.NoLeidas;
+            }
+            else
+            {
+                noLeidas = await Fachada.ContarNotificacionesNoLeidasAsync(UsuarioId);
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // La campana es accesoria: si la base no responde, queda con el ultimo numero conocido.
+        }
+    }
+
+    /// <summary>
+    /// Carga completa a proposito: si la persona ya esta en esa misma consulta, Blazor reutiliza
+    /// la pagina con los mismos parametros y no la vuelve a leer, y el aviso llevaria a datos
+    /// viejos. La sesion sobrevive a la recarga (sessionStorage protegido).
+    /// </summary>
+    private void Abrir(Guid busquedaId)
+    {
+        abierta = false;
+        Navegacion.NavigateTo($"/consultas/{busquedaId}", forceLoad: true);
+    }
+
+    private async Task AlternarAsync()
+    {
+        abierta = !abierta;
+        if (abierta)
+            await ActualizarAsync();
+    }
+
+    private void AlCambiarRuta(object? sender, LocationChangedEventArgs e) =>
+        _ = InvokeAsync(async () => { abierta = false; await ActualizarAsync(); StateHasChanged(); });
+
+    private void AlAvisar() => _ = InvokeAsync(async () => { await ActualizarAsync(); StateHasChanged(); });
+
+    public async ValueTask DisposeAsync()
+    {
+        Navegacion.LocationChanged -= AlCambiarRuta;
+        Avisos.Cambio -= AlAvisar;
+        if (cancelacion is not null)
+        {
+            await cancelacion.CancelAsync();
+            cancelacion.Dispose();
+        }
+        temporizador?.Dispose();
+        Dispose(true);
+    }
+}

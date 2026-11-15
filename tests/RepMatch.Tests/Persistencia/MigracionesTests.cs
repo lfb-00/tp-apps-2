@@ -22,6 +22,7 @@ public class MigracionesTests
         Assert.Contains(migraciones, migration => migration.EndsWith("_AgregarTablasMensajeria", StringComparison.Ordinal));
         Assert.Contains("CREATE TABLE clientes", script);
         Assert.Contains("CREATE TABLE IF NOT EXISTS comisiones_tienda", script);
+        Assert.Contains("CREATE TABLE notificaciones", script);
         Assert.Contains("CREATE TABLE IF NOT EXISTS mensajes_procesados", script);
     }
 }

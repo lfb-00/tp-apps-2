@@ -345,6 +345,37 @@ namespace RepMatch.Persistence.Migraciones
                     b.ToTable("mensajes_procesados", (string)null);
                 });
 
+            modelBuilder.Entity("RepMatch.Domain.Entidades.Notificacion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BusquedaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreadaEn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("DestinatarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("LeidaEn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DestinatarioId", "BusquedaId");
+
+                    b.HasIndex("DestinatarioId", "LeidaEn");
+
+                    b.ToTable("notificaciones", (string)null);
+                });
+
             modelBuilder.Entity("RepMatch.Domain.Entidades.Oferta", b =>
                 {
                     b.Property<Guid>("Id")

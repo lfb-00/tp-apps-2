@@ -931,3 +931,52 @@ button.btn-peligro:hover:not(:disabled) { background: var(--color-error); border
 .precios-de-pieza h3 { margin: 0; font-size: 1rem; }
 .precios-de-pieza .precios { border-top: 0; padding-top: 0.25rem; }
 .precios-pie { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; margin: 1rem 0 0; flex-wrap: wrap; }
+
+/* Campana de notificaciones */
+.campana { position: relative; flex-shrink: 0; }
+.campana .btn-tema { position: relative; }
+.campana .btn-tema svg { width: 18px; height: 18px; }
+.campana-numero {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    border-radius: 9px;
+    background: var(--color-accent);
+    color: var(--color-on-primary);
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 18px;
+    text-align: center;
+}
+.campana-lista {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    width: min(22rem, calc(100vw - 2rem));
+    max-height: 26rem;
+    overflow-y: auto;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px var(--color-sombra);
+    z-index: 200;
+}
+.campana-lista h2 { margin: 0; padding: 0.7rem 1rem; font-size: 0.9rem; border-bottom: 1px solid var(--color-border); }
+.campana-lista a {
+    display: block;
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-text);
+    text-decoration: none;
+    font-size: 0.88rem;
+}
+.campana-lista a:last-child { border-bottom: none; }
+.campana-lista a:hover { background: var(--color-bg); }
+.campana-lista a.no-leida { background: var(--color-primary-soft); }
+.campana-lista a strong { display: block; margin-bottom: 0.15rem; }
+.campana-lista small { color: var(--color-text-muted); }
+.campana-lista .vacio { padding: 0.9rem 1rem; margin: 0; }
+.barra .campana + .quien { margin-left: 0; }
