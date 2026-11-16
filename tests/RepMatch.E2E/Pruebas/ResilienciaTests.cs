@@ -62,7 +62,10 @@ public sealed class ResilienciaTests(NavegadorFixture fixture, ITestOutputHelper
     /// <summary>
     /// "Ver catálogo completo" recrea SelectorVehiculo (cambia su @key) y el selector vuelve a
     /// pedir las opciones. Antes la HttpRequestException tiraba el circuito ("Ocurrió un error
-    /// inesperado"); ahora SelectorVehiculo la atrapa y muestra un aviso.
+    /// inesperado"); ahora SelectorVehiculo la atrapa y muestra un aviso. Los repuestos no dependen
+    /// de catalogo-api: en compose la Web los pide por SOAP, que sigue arriba, asi que el catalogo
+    /// completo se lista igual. La version anterior afirmaba cero piezas y pasaba solo si la
+    /// respuesta SOAP llegaba despues de la verificacion.
     /// </summary>
     [SkippableFact]
     [Trait("Escenario", Escenarios.SinCatalogo)]
@@ -73,8 +76,8 @@ public sealed class ResilienciaTests(NavegadorFixture fixture, ITestOutputHelper
         await IrAsync("/catalogo");
         await Pagina.GetByRole(AriaRole.Button, new() { Name = "Ver catálogo completo" }).ClickAsync();
 
-        await Expect(Pagina.GetByRole(AriaRole.Alert)).ToBeVisibleAsync();
-        await Expect(Piezas(Pagina)).ToHaveCountAsync(0);
+        await Expect(Pagina.GetByRole(AriaRole.Alert)).ToContainTextAsync("No pudimos cargar las marcas y modelos");
+        await Expect(Piezas(Pagina).First).ToBeVisibleAsync();
     }
 
     /// <summary>

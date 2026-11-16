@@ -52,6 +52,12 @@ public sealed class OpcionesTiendaVtex
 
     public bool Habilitada { get; set; } = true;
 
+    /// <summary>
+    /// Es una casa de repuestos. Solo estas se sugieren cuando una pieza no tiene ofertas exactas:
+    /// mandar a buscar un filtro de aceite a un supermercado no ayuda a nadie.
+    /// </summary>
+    public bool VendeRepuestos { get; set; }
+
     /// <summary>VTEX no informa la moneda en la busqueda: la conoce quien configura la tienda.</summary>
     public string Moneda { get; set; } = "ARS";
 

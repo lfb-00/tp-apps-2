@@ -118,13 +118,13 @@ public static class DatosSemilla
 
         yield return Pieza("FILT-AIRE-VW-16", "Filtro de aire del motor", SistemaVehiculo.Motor,
             "Motor 1.6 8V (EA111). El 1.6 MSI 16V de 2017 en adelante usa 04E-129-620-B.",
-            ["5Z0-129-620", "JZZ-129-620-C", "Fram CA9410", "Tecfil ART6098", "Bosch 0 986 B02 371"],
+            ["5Z0-129-620", "JZZ-129-620-C", "Fram CA9410", "Tecfil ART6098", "Bosch 0 986 B02 371", "MANN C 2295/2"],
             A("Volkswagen", "Gol", 2009, 2019, "1.6"));
 
         yield return Pieza("FILT-ACE-VW-16", "Filtro de aceite", SistemaVehiculo.Motor,
             "Filtro roscado. Motor 1.6 8V (EA111).",
             ["030-115-561-AR", "030-115-561-AQ", "JZZ-115-561-A", "Fram PH 10907", "Tecfil PSL560",
-             "Bosch 0 986 B00 016", "Bosch 0 986 B00 043"],
+             "Bosch 0 986 B00 016", "Bosch 0 986 B00 043", "MANN W 712/53"],
             A("Volkswagen", "Gol", 2009, 2019, "1.6"));
 
         yield return Pieza("BUJI-VW-GOL-16", "Juego de bujias", SistemaVehiculo.Motor,
@@ -161,17 +161,17 @@ public static class DatosSemilla
         // --- Chevrolet Onix 1.4 (Bosch, motor X14YFH) ---
         yield return Pieza("FILT-AIRE-GM-ONIX-14", "Filtro de aire del motor", SistemaVehiculo.Motor,
             "Motor 1.4 8V (X14YFH).",
-            ["Bosch 0 986 B02 530"],
+            ["Bosch 0 986 B02 530", "MANN C 24 034"],
             A("Chevrolet", "Onix", 2013, 2019, "1.4"));
 
         yield return Pieza("FILT-ACE-GM-ONIX-14", "Filtro de aceite", SistemaVehiculo.Motor,
             "Motor 1.4 8V (X14YFH).",
-            ["Bosch 0 986 B00 041", "Bosch 0 986 B00 021"],
+            ["Bosch 0 986 B00 041", "Bosch 0 986 B00 021", "MANN W 712/22"],
             A("Chevrolet", "Onix", 2013, 2019, "1.4"));
 
         yield return Pieza("FILT-COMB-GM-ONIX-14", "Filtro de combustible", SistemaVehiculo.Motor,
             "Motor 1.4 8V (X14YFH).",
-            ["Bosch 0 986 BF0 018"],
+            ["Bosch 0 986 BF0 018", "MANN WK 58"],
             A("Chevrolet", "Onix", 2013, 2019, "1.4"));
 
         yield return Pieza("BUJI-GM-ONIX-14", "Juego de bujias", SistemaVehiculo.Motor,
@@ -208,19 +208,19 @@ public static class DatosSemilla
         // --- Renault Sandero y Logan 1.6 (Bosch, motores K7M 8V y K4M 16V) ---
         yield return Pieza("FILT-ACE-REN-16", "Filtro de aceite", SistemaVehiculo.Motor,
             "Mismo filtro para los motores 1.6 8V (K7M) y 16V (K4M).",
-            ["Bosch 0 451 103 332"],
+            ["Bosch 0 451 103 332", "MANN W 75/2"],
             A("Renault", "Sandero", 2011, 2015, "1.6"),
             A("Renault", "Logan", 2011, 2013, "1.6"));
 
         yield return Pieza("FILT-AIRE-REN-16-8V", "Filtro de aire del motor (1.6 8V)", SistemaVehiculo.Motor,
             "Motor 1.6 8V (K7M). El 16V (K4M) usa otro filtro.",
-            ["Bosch 0 986 B02 372"],
+            ["Bosch 0 986 B02 372", "MANN C 2680"],
             A("Renault", "Sandero", 2011, 2015, "1.6"),
             A("Renault", "Logan", 2011, 2012, "1.6"));
 
         yield return Pieza("FILT-AIRE-REN-16-16V", "Filtro de aire del motor (1.6 16V)", SistemaVehiculo.Motor,
             "Motor 1.6 16V (K4M). El 8V (K7M) usa otro filtro.",
-            ["Bosch 0 986 B02 333"],
+            ["Bosch 0 986 B02 333", "MANN C 1858/4"],
             A("Renault", "Sandero", 2011, 2014, "1.6"),
             A("Renault", "Logan", 2011, 2013, "1.6"));
 
@@ -257,12 +257,12 @@ public static class DatosSemilla
         // --- Toyota Corolla 1.8 (MAHLE, mercado mexicano: aplicacion por cilindrada y anio) ---
         yield return Pieza("FILT-AIRE-TOY-COR-18", "Filtro de aire del motor", SistemaVehiculo.Motor,
             "Motor 1.8.",
-            ["MAHLE LX 7292"],
+            ["MAHLE LX 7292", "MANN C 24 005"],
             A("Toyota", "Corolla", 2014, 2019, "1.8"));
 
         yield return Pieza("FILT-ACE-TOY-COR-18", "Filtro de aceite (cartucho)", SistemaVehiculo.Motor,
             "Elemento filtrante. Motor 1.8, hasta 2016.",
-            ["MAHLE OX 416D1"],
+            ["MAHLE OX 416D1", "MANN HU 6006 x"],
             A("Toyota", "Corolla", 2014, 2016, "1.8"));
 
         yield return Pieza("FILT-ACE-TOY-COR-18-R", "Filtro de aceite (roscado)", SistemaVehiculo.Motor,

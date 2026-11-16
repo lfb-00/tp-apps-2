@@ -19,6 +19,7 @@ contrastaron con la imagen de la página, no solo con el texto extraído.
 | MU | *Main Applications for Utes and Light Commercial Vehicles* | MANN+HUMMEL (MANN-FILTER Australia) | 01/2024 | [mann-filter.com](https://www.mann-filter.com/content/dam/website/mann-filter/mann-filter-com/australia/download-hub/document/Mann_Filter_Utes_LCV_Guide.pdf) |
 | MI | *Informativo Técnico — Linha Leve* (C 33 017/1, C 27 030/1) | MANN-FILTER Brasil | 10/2021 y 11/2021 | [mann-filter.com](https://www.mann-filter.com/content/dam/website/mann-filter/mann-filter-com/br-pt/documents/informativos/Informativo%20Tecnico%2011.21%20-%20Linha%20Leve.pdf) |
 | MC | Catálogo en línea, ficha de C 33 017/1 | MANN-FILTER Brasil | actualizada 2026-03-23 | [mann-filter.com](https://www.mann-filter.com/br-pt/catalogo/resultados-da-pesquisa/product.html/c33017/1_mann-filter.html) |
+| ML | *Linha Leve* — folheto de aplicações (filtros de ar, óleo, combustível e cabine) | MANN-FILTER Brasil | 02/2022 | [mann-filter.com](https://www.mann-filter.com/content/dam/website/mann-filter/mann-filter-com/br-pt/documents/folheto_linha_leve_592x210mm_fev22_WEB.pdf) |
 
 El catálogo de Volkswagen da el número original de la automotriz (*Ref. série*), el de su línea
 económica (*Ref. Economy*) y equivalencias de reposición que la propia VW publica (Cobreq, Fremax,
@@ -28,7 +29,11 @@ toman por modelo, cilindrada y año, y por eso solo se usó donde el motor coinc
 vende en Argentina (Ranger diésel, fabricada en Argentina) o, con esa salvedad, en el Corolla 1.8.
 La guía de MANN Australia es del mismo tipo: se usaron solo las generaciones que se venden en
 Argentina (Hilux GUN126 con motor 1GD-FTV, Ranger PX y PY, Amarok de primera generación 2H; no la
-Amarok T1 de 2022, que en Argentina no se vende). Donde otra fuente cubre el mismo vehículo, coincide
+Amarok T1 de 2022, que en Argentina no se vende). El folleto de aplicaciones de MANN Brasil (ML) es del mismo tipo que el catálogo de Bosch: da el
+filtro por versión de motor y período. Se usó para sumar el número de MANN a filtros que ya tenían
+fuente, porque es el que publica la casa de repuestos que da los precios. Para el Sandero 1.6 el
+folleto lista los motores K7M (8V) y K4M (16V); el Logan 1.6 usa los mismos, y Bosch (BF) da la
+misma pieza para los dos. Donde otra fuente cubre el mismo vehículo, coincide
 (por ejemplo, el filtro de aire de la Hilux en MI y MC, y el de aceite de la Ranger 2.0 en MH).
 
 ## Repuestos
@@ -38,33 +43,33 @@ Amarok T1 de 2022, que en Argentina no se vende). Donde otra fuente cubre el mis
 | `PAST-VW-GOL-DEL` | Pastillas de freno delanteras | 5U0-698-151-A · JZZ-698-151-AF · Cobreq N-288 | Gol 2009–2019 | VW p. 7 |
 | `DISC-VW-GOL-DEL` | Discos de freno delanteros (par) | 5U0-615-301-C · JZZ-698-302-C · Fremax BD-5297 | Gol 2009–2019 | VW p. 4 |
 | `ZAPA-VW-GOL-TRAS` | Zapatas de freno traseras | 5U0-698-525-B · JZZ-698-520 · Bosch 0 986 487 270 | Gol 2009–2016 | VW p. 9 |
-| `FILT-AIRE-VW-16` | Filtro de aire del motor | 5Z0-129-620 · JZZ-129-620-C · Fram CA9410 · Tecfil ART6098 · Bosch 0 986 B02 371 | Gol 1.6 2009–2019 | VW p. 12; BF p. B62 |
-| `FILT-ACE-VW-16` | Filtro de aceite | 030-115-561-AR · 030-115-561-AQ · JZZ-115-561-A · Fram PH 10907 · Tecfil PSL560 · Bosch 0 986 B00 016 · Bosch 0 986 B00 043 | Gol 1.6 2009–2019 | VW p. 13; BF p. B62 |
+| `FILT-AIRE-VW-16` | Filtro de aire del motor | 5Z0-129-620 · JZZ-129-620-C · Fram CA9410 · Tecfil ART6098 · Bosch 0 986 B02 371 · MANN C 2295/2 | Gol 1.6 2009–2019 | VW p. 12; BF p. B62; ML p. 7 |
+| `FILT-ACE-VW-16` | Filtro de aceite | 030-115-561-AR · 030-115-561-AQ · JZZ-115-561-A · Fram PH 10907 · Tecfil PSL560 · Bosch 0 986 B00 016 · Bosch 0 986 B00 043 · MANN W 712/53 | Gol 1.6 2009–2019 | VW p. 13; BF p. B62; ML p. 7 |
 | `BUJI-VW-GOL-16` | Juego de bujías | Bosch F 000 KE0 P30 (FR 5 DE 2) · SP 30 | Gol 1.6 8V (CCRA) 2009–2019 | BV p. B184 |
 | `BOBI-VW-GOL-16` | Bobina de encendido | Bosch F 000 ZS0 210 | Gol 1.6 8V (CCRA) 2009–2016 | BV p. B184 |
 | `CABL-VW-GOL-16` | Juego de cables de bujía | Bosch F 000 99C 125 | Gol 1.6 8V (CCRA) 2009–2016 | BV p. B184 |
-| `FILT-COMB-VW-REN-16` | Filtro de combustible | 6QE-201-511-C · JZW-201-511 · Bosch 0 986 BF0 024 · MANN WK 58/3 · Tecfil GI50/7 | Gol 1.6 2009–2016; Sandero 1.6 2011–2015; Logan 1.6 2011–2013 | BF pp. B62, B52, B53; VW p. 10 (indica también Logan y Sandero) |
+| `FILT-COMB-VW-REN-16` | Filtro de combustible | 6QE-201-511-C · JZW-201-511 · Bosch 0 986 BF0 024 · MANN WK 58/3 · Tecfil GI50/7 | Gol 1.6 2009–2016; Sandero 1.6 2011–2015; Logan 1.6 2011–2013 | BF pp. B62, B52, B53; VW p. 10 (indica también Logan y Sandero); ML pp. 6, 7 |
 | `KIT-EMB-VW-GOL` | Kit de embrague (placa y disco) | JZZ-198-015-C · 036-141-026-Q + 032-141-033-D · 030-141-026-F + 030-141-034-L | Gol 2009–2019, caja manual | VW p. 21 |
 | `BATE-12V-50AH` | Batería 12V 50Ah (tamaño H4) | 5GM-915-105-AF · -AG · -B · -C · JZZ-915-105 | Gol 2013–2019; Onix 2013 en adelante; 208 2013 en adelante; Sandero 2011 en adelante | VW p. 24 (VW indica Onix, 208 y Sandero en "Outras marcas") |
-| `FILT-AIRE-GM-ONIX-14` | Filtro de aire del motor | Bosch 0 986 B02 530 | Onix 1.4 (X14YFH) 2013–2019 | BF p. B12 |
-| `FILT-ACE-GM-ONIX-14` | Filtro de aceite | Bosch 0 986 B00 041 · Bosch 0 986 B00 021 | Onix 1.4 (X14YFH) 2013–2019 | BF p. B12 |
-| `FILT-COMB-GM-ONIX-14` | Filtro de combustible | Bosch 0 986 BF0 018 | Onix 1.4 (X14YFH) 2013–2019 | BF p. B12 |
+| `FILT-AIRE-GM-ONIX-14` | Filtro de aire del motor | Bosch 0 986 B02 530 · MANN C 24 034 | Onix 1.4 (X14YFH) 2013–2019 | BF p. B12; ML p. 5 |
+| `FILT-ACE-GM-ONIX-14` | Filtro de aceite | Bosch 0 986 B00 041 · Bosch 0 986 B00 021 · MANN W 712/22 | Onix 1.4 (X14YFH) 2013–2019 | BF p. B12; ML p. 5 |
+| `FILT-COMB-GM-ONIX-14` | Filtro de combustible | Bosch 0 986 BF0 018 · MANN WK 58 | Onix 1.4 (X14YFH) 2013–2019 | BF p. B12; ML p. 5 |
 | `BUJI-GM-ONIX-14` | Juego de bujías | Bosch F 000 KE0 P34 (WR 6 DC+) · SP 34 | Onix 1.4 (X14YFH) 2013–2019 | BV p. B59 |
 | `CABL-GM-ONIX-14` | Juego de cables de bujía | Bosch F 000 99C 612 | Onix 1.4 (X14YFH) 2013–2019 | BV p. B59 |
 | `FILT-AIRE-PSA-208-16` | Filtro de aire del motor | Bosch 0 986 B02 367 | 208 1.6 16V (NFP) 2013–2020 | BF p. B48 |
 | `FILT-ACE-PSA-208-16` | Filtro de aceite | Bosch 1 457 429 249 | 208 1.6 16V (NFP) 2013–2020 | BF p. B48 |
 | `BUJI-PSA-208-16` | Juego de bujías | Bosch F 000 KE0 P51 (FR 5 ME) | 208 1.6 16V (NFP) 2013–2020 | BV p. B145 |
 | `BOBI-PSA-208-16` | Bobina de encendido | Bosch F 000 ZS1 426 | 208 1.6 16V (NFP) 2015–2020 | BV p. B145 |
-| `FILT-ACE-REN-16` | Filtro de aceite | Bosch 0 451 103 332 | Sandero 1.6 2011–2015; Logan 1.6 2011–2013 | BF pp. B52, B53 |
-| `FILT-AIRE-REN-16-8V` | Filtro de aire del motor (1.6 8V) | Bosch 0 986 B02 372 | Sandero 1.6 8V (K7M) 2011–2015; Logan 1.6 8V 2011–2012 | BF pp. B52, B53 |
-| `FILT-AIRE-REN-16-16V` | Filtro de aire del motor (1.6 16V) | Bosch 0 986 B02 333 | Sandero 1.6 16V (K4M) 2011–2014; Logan 1.6 16V 2011–2013 | BF pp. B52, B53 |
+| `FILT-ACE-REN-16` | Filtro de aceite | Bosch 0 451 103 332 · MANN W 75/2 | Sandero 1.6 2011–2015; Logan 1.6 2011–2013 | BF pp. B52, B53; ML p. 6 |
+| `FILT-AIRE-REN-16-8V` | Filtro de aire del motor (1.6 8V) | Bosch 0 986 B02 372 · MANN C 2680 | Sandero 1.6 8V (K7M) 2011–2015; Logan 1.6 8V 2011–2012 | BF pp. B52, B53; ML p. 6 |
+| `FILT-AIRE-REN-16-16V` | Filtro de aire del motor (1.6 16V) | Bosch 0 986 B02 333 · MANN C 1858/4 | Sandero 1.6 16V (K4M) 2011–2014; Logan 1.6 16V 2011–2013 | BF pp. B52, B53; ML p. 6 |
 | `BUJI-REN-16-8V` | Juego de bujías (1.6 8V) | Bosch F 000 KE0 P20 (FR 7 LD+) · SP 20 | Sandero y Logan 1.6 8V (K7M) 2011–2015 | BV pp. B156, B157 |
 | `BUJI-REN-16-16V` | Juego de bujías (1.6 16V) | Bosch F 000 KE0 P49 (FQR 6 DCW+) | Sandero 1.6 16V (K4M) 2011–2014; Logan 2011–2013 | BV pp. B156, B157 |
 | `BOBI-REN-16-8V` | Bobina de encendido (1.6 8V) | Bosch 0 986 221 060 | Sandero y Logan 1.6 8V (K7M) 2011–2015 | BV pp. B156, B157 |
 | `CABL-REN-16-8V` | Juego de cables de bujía (1.6 8V) | Bosch F 000 99C 135 | Sandero y Logan 1.6 8V (K7M) 2011–2015 | BV pp. B156, B157 |
 | `BUJI-FIAT-CRONOS-18` | Juego de bujías | Bosch 0 242 135 563 (YR 7 KII 33 T) | Cronos 1.8 16V (E.torQ) 2018 en adelante | BV p. B74 |
-| `FILT-AIRE-TOY-COR-18` | Filtro de aire del motor | MAHLE LX 7292 | Corolla 1.8 2014–2019 | MH p. 57 |
-| `FILT-ACE-TOY-COR-18` | Filtro de aceite (cartucho) | MAHLE OX 416D1 | Corolla 1.8 2014–2016 | MH p. 57 |
+| `FILT-AIRE-TOY-COR-18` | Filtro de aire del motor | MAHLE LX 7292 · MANN C 24 005 | Corolla 1.8 2014–2019 | MH p. 57; ML p. 7 |
+| `FILT-ACE-TOY-COR-18` | Filtro de aceite (cartucho) | MAHLE OX 416D1 · MANN HU 6006 x | Corolla 1.8 2014–2016 | MH p. 57; ML p. 7 |
 | `FILT-ACE-TOY-COR-18-R` | Filtro de aceite (roscado) | MAHLE OC 340 | Corolla 1.8 2017–2019 | MH p. 57 |
 | `FILT-ACE-FORD-RAN-TDCI` | Filtro de aceite (cartucho) | MAHLE OX 834D · MANN HU 7002 z | Ranger 2.2 y 3.2 TDCi 2012–2022; 2.0 Bi-Turbo 2023 en adelante | MH pp. 29–30; MU p. 4 |
 | `FILT-AIRE-FORD-RAN-32` | Filtro de aire del motor | MANN C 22 024 | Ranger 3.2 TDCi 2012–2022 | MU p. 4 |

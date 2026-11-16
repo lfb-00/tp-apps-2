@@ -102,7 +102,7 @@ public sealed class FuenteEbay : IFuenteOfertas
         ArgumentNullException.ThrowIfNull(consulta);
 
         var codigos = consulta.CodigosEquivalentes
-            .Select(LectorEbay.SinMarca)
+            .Select(CodigosRepuesto.SinMarca)
             .Where(c => c.Length >= 4)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Take(_opciones.MaximoCodigos);
