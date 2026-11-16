@@ -174,7 +174,8 @@ public sealed class MecanicoTests(NavegadorFixture fixture, ITestOutputHelper sa
         await Expect(Exito(mecanicoPagina)).ToHaveTextAsync("Ya tenés el plan Pro.");
         await Expect(mecanicoPagina.Locator(".resumen-taller")).ToContainTextAsync("Pro");
 
-        // Se recarga la pagina del cliente a proposito: sin recargar falla (ver la prueba siguiente).
+        // CompartirAsync vuelve a abrir la consulta; el reintento en la misma pagina, sin recargar,
+        // es la prueba siguiente.
         await CompartirAsync(Pagina, ids[5], mecanico.Nombre);
         await Expect(Exito(Pagina)).ToContainTextAsync("se la compartiste");
     }
