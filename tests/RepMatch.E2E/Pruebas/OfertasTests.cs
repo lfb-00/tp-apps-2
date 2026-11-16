@@ -96,15 +96,59 @@ public sealed class OfertasTests(NavegadorFixture fixture, ITestOutputHelper sal
         await Expect(donde.Locator($".precios[data-codigo='{Bateria}'] li.oferta")).ToHaveCountAsync(4);
     }
 
+    /// <summary>
+    /// Comprar una pieza no pide cuenta: sin sesion se ven las mismas ofertas. Como no hay oferta
+    /// guardada, el enlace no es /derivar/{id} sino /ir/{token firmado}, que registra la
+    /// derivacion sin cuenta (la comision) y redirige a la publicacion.
+    /// </summary>
     [Fact]
-    public async Task Sin_sesion_muestra_desde_cuanto_pero_no_donde()
+    public async Task Sin_sesion_se_ven_las_ofertas_y_salir_a_la_tienda_redirige_a_la_publicacion()
     {
         await BuscarSinSesionAsync(Pagina, TextoBateria);
 
-        await Expect(Precios(Pagina, Bateria).Locator(".precios-resumen")).ToHaveTextAsync(new Regex(@"Desde\s+\$ 100\.810\s+en 2 tiendas"));
-        await Expect(Precios(Pagina, Bateria).GetByRole(AriaRole.Link, new() { Name = "Ingresá para ver dónde" }))
-            .ToHaveAttributeAsync("href", "/login");
-        await Expect(Pagina.GetByRole(AriaRole.Link, new() { Name = "Ir a la tienda" })).ToHaveCountAsync(0);
+        await Expect(Precios(Pagina, Bateria).Locator("details.ofertas-probables > summary"))
+            .ToHaveTextAsync("Coincidencias probables por nombre (4)");
+        await MostrarProbablesAsync(Pagina, Bateria);
+        var enlace = Ofertas(Pagina, Bateria).First.GetByRole(AriaRole.Link, new() { Name = "Ir a la tienda" });
+        var href = await enlace.GetAttributeAsync("href");
+        Assert.Matches("^/ir/[A-Za-z0-9_-]+$", href!);
+
+        var respuesta = await Pagina.APIRequest.GetAsync(href!, new() { MaxRedirects = 0 });
+        Assert.Equal(302, respuesta.Status);
+        Assert.Equal("https://www.easy.com.ar/bateria-enerbox-tipo-12x65-cb410-1304479/p", respuesta.Headers["location"]);
+    }
+
+    /// <summary>
+    /// Las pastillas no tienen ofertas en el simulador: aparece "¿Preferís comprarla en persona?".
+    /// La zona escrita va a OpenStreetMap simulado (Nominatim ubica Palermo, Overpass devuelve los
+    /// comercios grabados del centro de Buenos Aires).
+    /// </summary>
+    [Fact]
+    public async Task Sin_ofertas_se_pueden_buscar_casas_de_repuestos_cerca_de_una_zona()
+    {
+        await BuscarSinSesionAsync(Pagina, TextoFrenos);
+        var casas = Pagina.Locator(".casas-cercanas");
+        await Expect(casas.GetByRole(AriaRole.Heading, new() { Name = "¿Preferís comprarla en persona?" })).ToBeVisibleAsync();
+
+        await casas.GetByLabel("Barrio o ciudad").FillAsync("ningun lugar");
+        await casas.GetByRole(AriaRole.Button, new() { Name = "Buscar", Exact = true }).ClickAsync();
+        await Expect(casas.GetByRole(AriaRole.Alert)).ToContainTextAsync("No encontramos \"ningun lugar\"");
+
+        await casas.GetByLabel("Barrio o ciudad").FillAsync("Palermo");
+        await casas.GetByLabel("Barrio o ciudad").PressAsync("Enter");
+        await Expect(casas.Locator(".casas-centro")).ToContainTextAsync("de Palermo");
+        await Expect(casas.Locator("li.casa").First).ToBeVisibleAsync();
+        await Expect(casas.Locator("li.casa").First.GetByRole(AriaRole.Link, new() { Name = "Ver en Google Maps" }))
+            .ToHaveAttributeAsync("href", new Regex(@"^https://www\.google\.com/maps/search/\?api=1&query=-34\.\d+,-58\.\d+$"));
+    }
+
+    [Fact]
+    public async Task Un_enlace_sin_cuenta_alterado_no_redirige_a_ningun_lado()
+    {
+        var respuesta = await Pagina.APIRequest.GetAsync("/ir/no-es-un-enlace-firmado", new() { MaxRedirects = 0 });
+
+        Assert.Equal(404, respuesta.Status);
+        Assert.Contains("venció o no es válido", await respuesta.TextAsync());
     }
 
     [Fact]
@@ -161,7 +205,7 @@ public sealed class OfertasTests(NavegadorFixture fixture, ITestOutputHelper sal
         await BuscarConSesionAsync(Pagina, TextoFrenos);
 
         await Expect(Pagina.Locator(".precios .precios-vacio").First)
-            .ToHaveTextAsync("Ninguna tienda conectada la publica por ahora.");
+            .ToHaveTextAsync("No tenemos ofertas de esta pieza por ahora.");
     }
 
     [SkippableFact]

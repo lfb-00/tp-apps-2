@@ -14,6 +14,8 @@ public sealed class DerivacionConfiguration : IEntityTypeConfiguration<Derivacio
         b.Ignore(d => d.EventosDominio);
 
         b.Property(d => d.NombreTienda).HasMaxLength(80).IsRequired();
+        // Las derivaciones anteriores a esta columna quedan vacias: no se sabe de que pieza eran.
+        b.Property(d => d.CodigoRepuesto).HasMaxLength(60).IsRequired().HasDefaultValue(string.Empty);
         b.Property(d => d.UrlDestino).HasMaxLength(1000).IsRequired();
         b.Property(d => d.OcurridaEn).IsRequired();
 

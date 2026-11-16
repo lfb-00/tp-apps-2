@@ -45,7 +45,7 @@ Los docs son entregables evaluados tanto como el código. Cada etapa suma sobre 
 - ≥1 servicio **SOAP** (WSDL + contrato) y ≥2 servicios **REST** (OpenAPI/Swagger).
 - Mensajería con colas (RabbitMQ implementado), productores y consumidores (ej. `BusquedaCreada`).
 - Integración SOA / microservicios ligeros.
-- ≥1 **API externa real** (VTEX implementado: Easy y Frávega; eBay pendiente. APIs oficiales, nunca scraping).
+- ≥1 **API externa real** (VTEX implementado: Autodo, Easy y Frávega; eBay escrito, sin credenciales. APIs oficiales, nunca scraping).
 - **Componente de IA** (acá: texto libre del problema → diagnóstico y repuestos
   candidatos), expuesto por REST o invocado asincrónicamente por la cola.
 - **Entregable:** servicios documentados + productores/consumidores + API externa + IA funcional +
@@ -92,6 +92,10 @@ src/
                            embebido), DiagnosticadorConRespaldo, FiltroDatosPersonales. → Common, Contracts
   RepMatch.Fuentes.Vtex/   API externa: FuenteVtex (un IFuenteOfertas por tienda de Ofertas:Tiendas) y
                            LectorVtex (JSON del buscador de VTEX → OfertaExternaDto). → Common, Contracts
+  RepMatch.Fuentes.Mapas/  Casas de repuestos cercanas: MapaOpenStreetMap (IMapaCasasRepuestos: descarga de
+                           Overpass, zonas con Nominatim, copia incluida en Datos/) y LectorOpenStreetMap.
+                           El worker copia las casas a casas_repuestos cada semana
+                           (ImportadorCasasRepuestos); la búsqueda lee la base. → Common, Contracts
   RepMatch.Mensajeria/     Cola: BusRabbitMq (IEventBus sobre RabbitMQ.Client), ConexionRabbitMq (una
                            conexión por proceso, pausa tras una falla), TopologiaRabbitMq y la base
                            ConsumidorRabbitMq<T> (ack tras procesar, un reintento, DLQ). → Common, Contracts
@@ -163,8 +167,10 @@ scripts/evidencias-integracion.sh  evidencias 15-23: OpenAPI de IA y Worker, res
   → se actualiza y conserva el `Id`, que puede tener derivaciones; lo que una tienda que respondió
   dejó de publicar → no disponible; una tienda caída no toca sus ofertas). La página pide los precios
   **después** de mostrar las piezas: es el comportamiento que tendrá con la cola. El cliente deriva
-  por `/derivar`; el mecánico ve enlaces directos (su clic no se le atribuye); sin sesión solo
-  "desde $X en N tiendas". Si dos tiendas publican el mismo EAN, sus ofertas son coincidencias
+  por `/derivar`; el mecánico ve enlaces directos (su clic no se le atribuye); sin sesión se ven
+  las mismas ofertas y se sale por `/ir/{token}` (`EnlacesSinCuenta`, firmado), que registra una
+  `Derivacion.SinCuenta` (sin búsqueda ni persona). Sin ofertas exactas se sugiere buscar la pieza en
+  las tiendas con `VendeRepuestos` (`IFuenteOfertas.UrlParaBuscar`), sin precio. Si dos tiendas publican el mismo EAN, sus ofertas son coincidencias
   exactas (#29); las coincidencias por nombre que contradicen el vehículo se descartan
   (`ValidadorCandidatoOferta`, #30); cada `FuenteVtex` tiene Polly y caché, Redis en compose (#20).
   La pantalla separa exactas de probables, pero dentro de cada grupo el orden es solo por precio.

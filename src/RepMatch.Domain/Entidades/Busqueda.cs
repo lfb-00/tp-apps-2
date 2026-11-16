@@ -171,7 +171,7 @@ public class Busqueda : EntidadBase
             ? MecanicoId
             : null;
 
-        return new Derivacion(Id, oferta.Id, oferta.NombreTienda, oferta.UrlOriginal, mecanico);
+        return new Derivacion(Id, oferta.Id, oferta.CodigoRepuesto, oferta.NombreTienda, oferta.UrlOriginal, mecanico);
     }
 
     /// <summary>

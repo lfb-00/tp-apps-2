@@ -4,6 +4,7 @@ using RepMatch.Contracts;
 using RepMatch.Contracts.Dtos;
 using RepMatch.Contracts.Configuracion;
 using RepMatch.Fuentes.Ebay;
+using RepMatch.Fuentes.Mapas;
 using RepMatch.Fuentes.Vtex;
 using RepMatch.Mensajeria;
 using RepMatch.Persistence;
@@ -25,12 +26,15 @@ builder.Services.AgregarDiagnostico(builder.Configuration);
 // Tiendas donde buscar precios (API publica de VTEX). Cada una sale de la seccion "Ofertas".
 builder.Services.AgregarFuentesOfertas(builder.Configuration);
 builder.Services.AgregarFuenteEbay(builder.Configuration);   // solo si hay credenciales
+// Casas de repuestos cercanas (OpenStreetMap) para las piezas sin ofertas en linea.
+builder.Services.AgregarMapas(builder.Configuration);
 // Cola de mensajes: con Mensajeria:Habilitada los eventos de dominio se publican en RabbitMQ.
 builder.Services.AgregarMensajeria(builder.Configuration);
 builder.Services.AgregarProteccionDatos(builder.Configuration);
 builder.Services.AddScoped<RepMatch.Web.Servicios.SesionActual>();
 builder.Services.AddScoped<RepMatch.Web.Servicios.TemaActual>();
 builder.Services.AddScoped<RepMatch.Web.Servicios.AvisosNotificaciones>();
+builder.Services.AddSingleton<RepMatch.Web.Servicios.EnlacesSinCuenta>();
 
 var app = builder.Build();
 
@@ -67,6 +71,21 @@ app.MapGet("/derivar/{ofertaId:guid}", async (
     Guid ofertaId, RepMatch.Aplicacion.Fachada.FachadaAplicacion fachada, CancellationToken ct) =>
 {
     var resultado = await fachada.DerivarAsync(ofertaId, ct);
+    return resultado.EsExitoso
+        ? Results.Redirect(resultado.Valor)
+        : Results.NotFound(new { error = resultado.Error });
+});
+
+// "Ir a la tienda" sin cuenta: no hay oferta guardada, asi que el destino viaja en un enlace firmado
+// (EnlacesSinCuenta). Se registra igual la derivacion, sin persona ni busqueda, y se redirige.
+app.MapGet("/ir/{token}", async (
+    string token, RepMatch.Web.Servicios.EnlacesSinCuenta enlaces,
+    RepMatch.Aplicacion.Fachada.FachadaAplicacion fachada, CancellationToken ct) =>
+{
+    if (enlaces.Leer(token) is not { } destino)
+        return Results.NotFound(new { error = "El enlace venció o no es válido. Volvé a buscar la pieza." });
+
+    var resultado = await fachada.DerivarSinCuentaAsync(destino.CodigoRepuesto, destino.Tienda, destino.Url, ct);
     return resultado.EsExitoso
         ? Results.Redirect(resultado.Valor)
         : Results.NotFound(new { error = resultado.Error });

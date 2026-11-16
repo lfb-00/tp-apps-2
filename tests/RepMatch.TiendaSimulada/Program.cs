@@ -38,6 +38,17 @@ app.MapGet("/{tienda}/api/catalog_system/pub/products/search", (string tienda, s
     return Results.Text(File.ReadAllText(archivo), "application/json", Encoding.UTF8, StatusCodes.Status206PartialContent);
 });
 
+// OpenStreetMap simulado para las casas de repuestos cercanas: Overpass responde siempre los
+// comercios grabados del centro de Buenos Aires; Nominatim ubica cualquier zona en Palermo, salvo
+// "ningun lugar", que no existe (para probar el aviso).
+var mapas = Path.Combine(carpeta, "mapas");
+app.MapPost("/osm/api/interpreter", () =>
+    Results.Text(File.ReadAllText(Path.Combine(mapas, "overpass-centro.json")), "application/json", Encoding.UTF8));
+app.MapGet("/osm/nominatim/search", (string? q) =>
+    Normalizar(q ?? "").Contains("ningun lugar", StringComparison.Ordinal)
+        ? Results.Content("[]", "application/json")
+        : Results.Text(File.ReadAllText(Path.Combine(mapas, "nominatim-palermo.json")), "application/json", Encoding.UTF8));
+
 app.Run();
 
 static string Normalizar(string texto)

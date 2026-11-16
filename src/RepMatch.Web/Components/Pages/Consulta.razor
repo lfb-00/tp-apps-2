@@ -236,6 +236,7 @@ else
                                   Ofertas="@busqueda.Ofertas"
                                   ParaMecanico="!EsDuenio"
                                   Recomendados="@busqueda.Revision?.CodigosRecomendados"
+                                  Sugerencias="@Sugerencias(codigo, busqueda.Vehiculo)"
                                   Maximo="10" />
                 </section>
             }
@@ -246,6 +247,12 @@ else
                 }
                 <button class="secundario" @onclick="() => CargarPreciosAsync(forzar: true)" disabled="@cargandoPrecios">Actualizar precios</button>
             </p>
+            @if (EsDuenio && !cargandoPrecios && PiezasSinOfertas(busqueda) is > 0 and var sinOfertas)
+            {
+                <CasasCercanas Prefijo="casas-consulta"
+                               Motivo="@(sinOfertas == 1 ? "Una pieza no tiene ofertas en línea." : $"{sinOfertas} piezas no tienen ofertas en línea.")"
+                               ZonaInicial="@(Sesion.Cliente?.Localidad is { Length: > 0 } localidad ? $"{localidad}, {Sesion.Cliente.Provincia}".TrimEnd(',', ' ') : null)" />
+            }
         </div>
     }
 }
@@ -357,6 +364,15 @@ else
             cargandoPrecios = false;
         }
     }
+
+    private static int PiezasSinOfertas(BusquedaDto busqueda) =>
+        PiezasConPrecio(busqueda).Count(codigo => !busqueda.Ofertas.Any(o => o.Disponible
+            && o.CodigoRepuesto.Equals(codigo, StringComparison.OrdinalIgnoreCase)));
+
+    private IReadOnlyList<SugerenciaTiendaDto> Sugerencias(string codigo, VehiculoDto vehiculo) =>
+        compatibles.FirstOrDefault(p => p.CodigoCanonico.Equals(codigo, StringComparison.OrdinalIgnoreCase)) is { } pieza
+            ? Fachada.SugerirTiendas(pieza, vehiculo)
+            : [];
 
     private string NombrePieza(string codigo) =>
         compatibles.FirstOrDefault(p => p.CodigoCanonico.Equals(codigo, StringComparison.OrdinalIgnoreCase))?.Nombre

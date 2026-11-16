@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using Polly;
@@ -22,8 +23,9 @@ namespace RepMatch.Fuentes.Vtex;
 ///
 /// Usa el buscador publico de catalogo de VTEX, la API que la propia tienda usa para su sitio:
 /// responde JSON sin credenciales y no es scraping. Por cada pieza consulta primero los codigos
-/// equivalentes (precisos, pero las tiendas generalistas casi nunca los publican) y despues el
-/// nombre (mas cobertura, menos precision: queda marcado como coincidencia por nombre).
+/// equivalentes, sin la marca ni espacios (<see cref="CodigosRepuesto.ParaBuscar"/>), y despues el
+/// nombre. Lo que vuelve es exacto si la publicacion menciona uno de los codigos de la pieza, se
+/// haya encontrado por codigo o por nombre; si no, queda como coincidencia por nombre.
 ///
 /// Es singleton a proposito: comparte entre todas las personas el limite de pedidos simultaneos y
 /// el circuito de esta tienda. La cache distribuida comparte las respuestas entre instancias de Web.
@@ -106,8 +108,8 @@ public sealed class FuenteVtex : IFuenteOfertas
         var terminos = consulta.CodigosEquivalentes
             .Where(c => !string.IsNullOrWhiteSpace(c))
             .Take(MaximoCodigos)
-            .Select(c => (Termino: c.Trim(), EsCodigo: true))
-            .Append((Termino: consulta.Nombre.Trim(), EsCodigo: false));
+            .Select(c => (Termino: CodigosRepuesto.ParaBuscar(c), EsCodigo: true))
+            .Append((Termino: TerminoDeNombre(consulta.Nombre), EsCodigo: false));
 
         foreach (var (termino, esCodigo) in terminos)
         {
@@ -121,6 +123,51 @@ public sealed class FuenteVtex : IFuenteOfertas
         }
 
         return [.. porReferencia.Values];
+    }
+
+    /// <summary>
+    /// La pagina de busqueda del propio sitio VTEX (<c>/{termino}?_q={termino}&amp;map=ft</c>), solo
+    /// para tiendas que venden repuestos. El termino es el tipo de pieza y el modelo ("bujías Gol"):
+    /// el buscador de VTEX ordena mal con palabras de relleno, y "Juego de bujías Gol" trae discos
+    /// de freno.
+    /// </summary>
+    public string? UrlParaBuscar(ConsultaOfertasDto consulta, VehiculoDto? vehiculo)
+    {
+        ArgumentNullException.ThrowIfNull(consulta);
+        if (!_tienda.VendeRepuestos)
+            return null;
+
+        var termino = TerminoParaSugerir(consulta.Nombre, vehiculo?.Modelo);
+        var escapado = Uri.EscapeDataString(termino);
+        return $"{_tienda.UrlBase.TrimEnd('/')}/{escapado}?_q={escapado}&map=ft";
+    }
+
+    /// <summary>"Juego de bujías (1.6 8V)" y Gol: "bujías Gol".</summary>
+    public static string TerminoParaSugerir(string nombre, string? modelo)
+    {
+        var palabras = TerminoDeNombre(nombre).Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
+        if (palabras.Count > 2 && palabras[0] is "Juego" or "Kit" or "juego" or "kit"
+            && palabras[1].Equals("de", StringComparison.OrdinalIgnoreCase))
+            palabras.RemoveRange(0, 2);
+        palabras.RemoveAll(p => p.Equals("de", StringComparison.OrdinalIgnoreCase)
+                                || p.Equals("del", StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(modelo))
+            palabras.Add(modelo.Trim());
+        return string.Join(' ', palabras);
+    }
+
+    /// <summary>
+    /// El nombre sin lo que va entre parentesis: el buscador de VTEX responde 400 a
+    /// "Filtro de aceite (cartucho)" o "Discos de freno delanteros (par)", en Easy y en Autodo.
+    /// Ese 400 contaba como falla de la tienda y, a la tercera, el circuito la cortaba 30
+    /// segundos para todas las piezas siguientes. Lo de los parentesis aclara la pieza para la
+    /// persona; para buscar por nombre alcanza con el resto.
+    /// </summary>
+    public static string TerminoDeNombre(string nombre)
+    {
+        ArgumentNullException.ThrowIfNull(nombre);
+        var sinAclaracion = Regex.Replace(nombre, @"\([^)]*\)?", " ");
+        return string.Join(' ', sinAclaracion.Split(' ', StringSplitOptions.RemoveEmptyEntries));
     }
 
     private async Task<IReadOnlyList<OfertaExternaDto>> BuscarTerminoAsync(

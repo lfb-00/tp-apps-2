@@ -66,24 +66,22 @@ public sealed record OfertasBusquedaDto
 }
 
 /// <summary>
-/// Lo que ve quien busca sin cuenta: desde cuanto y en cuantas tiendas, pero no donde. Sin
-/// busqueda guardada no hay oferta guardada, y sin oferta no hay derivacion que registrar.
+/// Los precios de quien compara sin cuenta: las mismas ofertas que ve el cliente, sin guardar
+/// nada. Como no hay oferta guardada, su <see cref="OfertaDto.Id"/> es vacio y la salida a la
+/// tienda no pasa por /derivar sino por un enlace firmado que registra una derivacion sin cuenta.
 /// </summary>
-public sealed record ResumenPreciosDto
+public sealed record PreciosSinCuentaDto
 {
-    public required string CodigoRepuesto { get; init; }
-
-    /// <summary>null si ninguna tienda la publica.</summary>
-    public decimal? Desde { get; init; }
-
-    public string Moneda { get; init; } = "ARS";
-    public int Tiendas { get; init; }
+    public IReadOnlyList<OfertaDto> Ofertas { get; init; } = [];
+    public IReadOnlyList<string> TiendasSinRespuesta { get; init; } = [];
 }
 
-public sealed record ResumenPreciosBusquedaDto
+/// <summary>Una tienda de repuestos donde buscar una pieza que no tiene ofertas exactas. No es
+/// una oferta: es un enlace a la busqueda del propio sitio, sin precio.</summary>
+public sealed record SugerenciaTiendaDto
 {
-    public IReadOnlyList<ResumenPreciosDto> Piezas { get; init; } = [];
-    public IReadOnlyList<string> TiendasSinRespuesta { get; init; } = [];
+    public required string Tienda { get; init; }
+    public required string Url { get; init; }
 }
 
 public sealed record CrearBusquedaDto

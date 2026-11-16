@@ -1,28 +1,14 @@
 @using System.Globalization
 @* Precios de una pieza. La misma tarjeta para los tres roles, con lo que a cada uno le toca:
-   el anonimo ve "desde cuanto" sin donde; el cliente ve las ofertas y deriva por /derivar (es la
-   comision); el mecanico ve las ofertas con link directo a la tienda, para que su propio clic no
-   cuente como una derivacion atribuida a el. El orden es solo por precio. *@
+   sin cuenta y el cliente ven las mismas ofertas; el cliente deriva por /derivar y quien no tiene
+   cuenta por un enlace firmado (los dos registran la comision); el mecanico ve link directo a la
+   tienda, para que su propio clic no cuente como una derivacion atribuida a el. El orden es solo
+   por precio. Sin ofertas, sugiere buscar la pieza en las tiendas de repuestos conectadas. *@
 
 <div class="precios" data-codigo="@CodigoRepuesto">
     @if (Cargando)
     {
         <p class="precios-cargando" role="status"><span class="ai-spin"><AiIcon Size="14" /></span> Buscando precios…</p>
-    }
-    else if (Resumen is not null)
-    {
-        @if (Resumen.Desde is { } desde)
-        {
-            <p class="precios-resumen">
-                Desde <strong>@Importe(desde, Resumen.Moneda)</strong>
-                en @Resumen.Tiendas @(Resumen.Tiendas == 1 ? "tienda" : "tiendas")
-            </p>
-            <a class="link-marca" href="/login">Ingresá para ver dónde</a>
-        }
-        else
-        {
-            <p class="precios-vacio">@SinOfertas</p>
-        }
     }
     else if (Ofertas is not null)
     {
@@ -32,6 +18,18 @@
         if (disponibles.Count == 0)
         {
             <p class="precios-vacio">@SinOfertas</p>
+            @if (Sugerencias is { Count: > 0 })
+            {
+                <p class="precios-sugerencia">
+                    Podés buscarla en
+                    @for (var i = 0; i < Sugerencias.Count; i++)
+                    {
+                        var sugerencia = Sugerencias[i];
+                        @(i == 0 ? "" : i == Sugerencias.Count - 1 ? " o " : ", ")
+                        <a class="link-marca" href="@sugerencia.Url" target="_blank" rel="noopener noreferrer">@sugerencia.Tienda</a>
+                    }.
+                </p>
+            }
         }
         else
         {
@@ -41,7 +39,7 @@
                 <ul class="ofertas">
                     @foreach (var oferta in exactas.Take(Maximo))
                     {
-                        <OfertaTienda Oferta="oferta" ParaMecanico="ParaMecanico" Recomendados="Recomendados" />
+                        <OfertaTienda Oferta="oferta" ParaMecanico="ParaMecanico" Recomendados="Recomendados" Enlace="@EnlaceSinCuenta?.Invoke(oferta)" />
                     }
                 </ul>
                 @if (exactas.Count > Maximo)
@@ -56,7 +54,7 @@
                     <ul class="ofertas">
                         @foreach (var oferta in probables.Take(Maximo))
                         {
-                            <OfertaTienda Oferta="oferta" ParaMecanico="ParaMecanico" Recomendados="Recomendados" />
+                            <OfertaTienda Oferta="oferta" ParaMecanico="ParaMecanico" Recomendados="Recomendados" Enlace="@EnlaceSinCuenta?.Invoke(oferta)" />
                         }
                     </ul>
                     @if (probables.Count > Maximo)
@@ -79,9 +77,13 @@
     [Parameter]
     public IReadOnlyList<OfertaDto>? Ofertas { get; set; }
 
-    /// <summary>Para el anonimo, en lugar de <see cref="Ofertas"/>.</summary>
+    /// <summary>Sin cuenta: arma el enlace firmado de cada oferta, que no esta guardada.</summary>
     [Parameter]
-    public ResumenPreciosDto? Resumen { get; set; }
+    public Func<OfertaDto, string>? EnlaceSinCuenta { get; set; }
+
+    /// <summary>Tiendas de repuestos donde buscarla a mano si no hay ofertas.</summary>
+    [Parameter]
+    public IReadOnlyList<SugerenciaTiendaDto>? Sugerencias { get; set; }
 
     [Parameter]
     public bool Cargando { get; set; }
@@ -101,7 +103,7 @@
 
     private string SinOfertas => HuboTiendasSinRespuesta
         ? "Sin precios por ahora: no todas las tiendas respondieron."
-        : "Ninguna tienda conectada la publica por ahora.";
+        : "No tenemos ofertas de esta pieza por ahora.";
 
     /// <summary>Disponibles de esta pieza, de la mas barata a la mas cara. Una moneda a la vez:
     /// primero pesos, despues el resto, nunca mezcladas en un mismo orden.</summary>

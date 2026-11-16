@@ -36,7 +36,11 @@
             <small class="oferta-aviso">Coincide por nombre: verificá que sea la medida de tu auto.</small>
         }
     </div>
-    @if (ParaMecanico)
+    @if (Enlace is not null)
+    {
+        <a class="link-marca" href="@Enlace" target="_blank" rel="noopener">Ir a la tienda</a>
+    }
+    else if (ParaMecanico)
     {
         <a class="link-marca" href="@Oferta.UrlOriginal" target="_blank" rel="noopener noreferrer">Ver en la tienda</a>
     }
@@ -54,6 +58,11 @@
 
     [Parameter]
     public bool ParaMecanico { get; set; }
+
+    /// <summary>Sin cuenta la oferta no esta guardada y no hay /derivar/{id}: el enlace firmado
+    /// que arma <c>EnlacesSinCuenta</c>.</summary>
+    [Parameter]
+    public string? Enlace { get; set; }
 
     [Parameter]
     public IReadOnlyCollection<string>? Recomendados { get; set; }

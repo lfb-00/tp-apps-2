@@ -1,0 +1,202 @@
+{
+  "version": 0.6,
+  "generator": "Overpass API 0.7.62.11 87bfad18",
+  "osm3s": {
+    "timestamp_osm_base": "2026-11-16T04:58:16Z",
+    "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
+  },
+  "elements": [
+
+{
+  "type": "node",
+  "id": 4557873526,
+  "lat": -34.6024961,
+  "lon": -58.3825351,
+  "tags": {
+    "name": "Auto Zero Fiat Plan",
+    "shop": "car_parts"
+  }
+},
+{
+  "type": "node",
+  "id": 4673247926,
+  "lat": -34.6148860,
+  "lon": -58.3801995,
+  "tags": {
+    "addr:city": "Ciudad Autónoma de Buenos Aires",
+    "addr:country": "AR",
+    "addr:street": "Bernardo de Irigoyen",
+    "name": "Ciudad Moto",
+    "shop": "car_parts"
+  }
+},
+{
+  "type": "node",
+  "id": 4675439251,
+  "lat": -34.6109269,
+  "lon": -58.3763169,
+  "tags": {
+    "name": "Autoservicio Express",
+    "shop": "car_parts",
+    "source": "Reconocimiento terrestre por Kaart 2016"
+  }
+},
+{
+  "type": "node",
+  "id": 4699371419,
+  "lat": -34.6124707,
+  "lon": -58.4051911,
+  "tags": {
+    "name": "Ayrton",
+    "service:vehicle:oil_change": "yes",
+    "shop": "car_parts"
+  }
+},
+{
+  "type": "node",
+  "id": 4701911223,
+  "lat": -34.5979516,
+  "lon": -58.4104016,
+  "tags": {
+    "addr:city": "Ciudad Autónoma de Buenos Aires",
+    "addr:country": "AR",
+    "addr:street": "Avenida Córdoba",
+    "name": "Motorman City",
+    "shop": "car_parts"
+  }
+},
+{
+  "type": "node",
+  "id": 11414677089,
+  "lat": -34.6074869,
+  "lon": -58.3893500,
+  "tags": {
+    "addr:city": "Ciudad Autónoma de Buenos Aires",
+    "addr:country": "AR",
+    "addr:housenumber": "132",
+    "addr:street": "Montevideo",
+    "name": "El Talare Puestos",
+    "shop": "car_parts"
+  }
+},
+{
+  "type": "node",
+  "id": 12012834351,
+  "lat": -34.6175932,
+  "lon": -58.3841068,
+  "tags": {
+    "name": "Independencia",
+    "service:vehicle:oil_change": "yes",
+    "shop": "car_parts"
+  }
+},
+{
+  "type": "node",
+  "id": 12012860069,
+  "lat": -34.6177856,
+  "lon": -58.3876042,
+  "tags": {
+    "name": "Centro de Baterías",
+    "service:vehicle:batteries": "yes",
+    "shop": "car_parts"
+  }
+},
+{
+  "type": "node",
+  "id": 13184725401,
+  "lat": -34.5886158,
+  "lon": -58.4047518,
+  "tags": {
+    "addr:housenumber": "2037",
+    "addr:street": "Austria",
+    "name": "Fidel",
+    "shop": "car_parts"
+  }
+},
+{
+  "type": "node",
+  "id": 13570199055,
+  "lat": -34.5887535,
+  "lon": -58.4026779,
+  "tags": {
+    "addr:housenumber": "2787",
+    "addr:street": "French",
+    "name": "Moto Libra",
+    "shop": "car_parts"
+  }
+},
+{
+  "type": "node",
+  "id": 13950539701,
+  "lat": -34.6131904,
+  "lon": -58.3733480,
+  "tags": {
+    "name": "Toyota",
+    "shop": "car_parts"
+  }
+},
+{
+  "type": "node",
+  "id": 14281121302,
+  "lat": -34.5996972,
+  "lon": -58.4053976,
+  "tags": {
+    "shop": "car_parts"
+  }
+},
+{
+  "type": "node",
+  "id": 14281121601,
+  "lat": -34.5998870,
+  "lon": -58.4048546,
+  "tags": {
+    "name": "Moto Carlitos",
+    "shop": "car_parts"
+  }
+},
+{
+  "type": "node",
+  "id": 14281124901,
+  "lat": -34.5998870,
+  "lon": -58.4048546,
+  "tags": {
+    "name": "Moto Carlitos",
+    "shop": "car_parts"
+  }
+},
+{
+  "type": "way",
+  "id": 475567814,
+  "center": {
+    "lat": -34.6226466,
+    "lon": -58.3866895
+  },
+  "tags": {
+    "addr:city": "Ciudad Autónoma de Buenos Aires",
+    "addr:country": "AR",
+    "addr:street": "Avenida San Juan",
+    "building": "yes",
+    "name": "Nelson Auto Radio",
+    "shop": "car_parts"
+  }
+},
+{
+  "type": "way",
+  "id": 476422865,
+  "center": {
+    "lat": -34.5983842,
+    "lon": -58.4114249
+  },
+  "tags": {
+    "addr:city": "Ciudad Autónoma de Buenos Aires",
+    "addr:country": "AR",
+    "addr:street": "Avenida Córdoba",
+    "building": "yes",
+    "name": "Casa Jonte",
+    "phone": "+54 11 4866-0143",
+    "shop": "car_parts"
+  }
+}
+
+  ]
+}

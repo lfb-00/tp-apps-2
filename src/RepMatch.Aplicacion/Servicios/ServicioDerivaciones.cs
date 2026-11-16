@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using RepMatch.Aplicacion.Eventos;
 using RepMatch.Common.Resultados;
 using RepMatch.Domain.Comun;
+using RepMatch.Domain.Entidades;
 using RepMatch.Domain.Repositorios;
 
 namespace RepMatch.Aplicacion.Servicios;
@@ -39,6 +40,36 @@ public sealed class ServicioDerivaciones(
             log.LogInformation(
                 "Derivacion {DerivacionId} a {Tienda} desde la busqueda {BusquedaId} (mecanico {MecanicoId})",
                 derivacion.Id, derivacion.NombreTienda, derivacion.BusquedaId, derivacion.MecanicoId);
+
+            return ResultadoOperacion<string>.Exito(derivacion.UrlDestino);
+        }
+        catch (ExcepcionDominio ex)
+        {
+            return ResultadoOperacion<string>.Falla(ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// La salida a la tienda de quien compara sin cuenta. No hay busqueda ni oferta guardadas:
+    /// queda la pieza, la tienda y el destino. El enlace lo firma la Web, asi que nadie puede usar
+    /// este camino para redirigir a un sitio cualquiera.
+    /// </summary>
+    public async Task<ResultadoOperacion<string>> DerivarSinCuentaAsync(
+        string codigoRepuesto, string tienda, string url, CancellationToken ct = default)
+    {
+        try
+        {
+            var derivacion = Derivacion.SinCuenta(codigoRepuesto, tienda, url);
+            var pendientes = derivacion.EventosDominio.ToArray();
+
+            await derivaciones.AgregarAsync(derivacion, ct);
+            await unidadDeTrabajo.ConfirmarAsync(ct);
+            derivacion.LimpiarEventos();
+            await despachador.DespacharAsync(pendientes, ct);
+
+            log.LogInformation(
+                "Derivacion sin cuenta {DerivacionId} a {Tienda} por {Codigo}",
+                derivacion.Id, derivacion.NombreTienda, derivacion.CodigoRepuesto);
 
             return ResultadoOperacion<string>.Exito(derivacion.UrlDestino);
         }

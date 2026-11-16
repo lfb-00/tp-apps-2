@@ -900,9 +900,9 @@ button.btn-peligro:hover:not(:disabled) { background: var(--color-error); border
 
 /* --- Precios de las tiendas (Servicio de Ofertas) ------------------------------------ */
 .precios { margin-top: 0.75rem; padding-top: 0.65rem; border-top: 1px solid var(--color-border); }
-.precios-cargando, .precios-vacio, .precios-resumen { margin: 0; font-size: 0.9rem; color: var(--color-text-muted); }
+.precios-cargando, .precios-vacio, .precios-sugerencia { margin: 0; font-size: 0.9rem; color: var(--color-text-muted); }
 .precios-cargando { display: flex; align-items: center; gap: 0.4rem; }
-.precios-resumen strong { color: var(--color-text); }
+.precios-sugerencia { margin-top: 0.3rem; }
 .ofertas { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.55rem; }
 .ofertas-titulo { margin: 0.25rem 0 0.5rem; font-size: 0.84rem; }
 .ofertas-probables { margin-top: 0.65rem; }
@@ -980,3 +980,30 @@ button.btn-peligro:hover:not(:disabled) { background: var(--color-error); border
 .campana-lista small { color: var(--color-text-muted); }
 .campana-lista .vacio { padding: 0.9rem 1rem; margin: 0; }
 .barra .campana + .quien { margin-left: 0; }
+
+/* --- Casas de repuestos cercanas (OpenStreetMap) -------------------------------------- */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+.casas-cercanas { margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--color-border); display: grid; gap: 0.65rem; }
+.casas-cercanas h3 { margin: 0; font-size: 1rem; }
+.casas-cercanas .texto-ayuda { margin: 0; }
+.casas-buscar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.casas-buscar input { flex: 1 1 12rem; min-width: 0; }
+.casas-o { color: var(--color-text-muted); font-size: 0.9rem; }
+.casas-centro { margin: 0; font-size: 0.9rem; }
+.mapa-casas { height: 280px; border-radius: 10px; border: 1px solid var(--color-border); overflow: hidden; z-index: 0; }
+.casas-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+.casa {
+  display: grid; grid-template-columns: 1fr auto; gap: 0.15rem 0.75rem; align-items: start;
+  padding: 0.6rem 0.75rem; border: 1px solid var(--color-border); border-radius: 10px;
+}
+.casa-datos { display: grid; gap: 0.1rem; min-width: 0; font-size: 0.9rem; }
+.casa-datos span { color: var(--color-text-muted); }
+.casa-distancia { font-size: 0.85rem; color: var(--color-text-muted); white-space: nowrap; }
+.casa .link-marca { grid-column: 1 / -1; justify-self: start; font-size: 0.88rem; }
+.casas-fuente { color: var(--color-text-muted); font-size: 0.78rem; }
+@media (max-width: 520px) {
+  .mapa-casas { height: 220px; }
+}

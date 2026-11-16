@@ -77,6 +77,13 @@ export REPMATCH_CONTAINER_PREFIX="${COMPOSE_PROJECT_NAME}-"
 # La Web busca precios en el simulador, sin cache: la fase SinTiendas tiene que ver la caida.
 export OFERTAS_URL_EASY="http://tienda-simulada:8080/easy"
 export OFERTAS_URL_FRAVEGA="http://tienda-simulada:8080/fravega"
+# El simulador no tiene respuestas grabadas de Autodo: sin apagarla, cada busqueda saldria a
+# internet o veria una tienda caida.
+export OFERTAS_AUTODO_HABILITADA=false
+# El mapa de casas de repuestos tambien sale del simulador (respuestas grabadas de OpenStreetMap).
+export MAPAS_URL_OVERPASS="http://tienda-simulada:8080/osm/api/"
+export MAPAS_URL_NOMINATIM="http://tienda-simulada:8080/osm/nominatim/"
+export MAPAS_CACHE_HORAS=0
 export OFERTAS_CACHE_MINUTOS=0
 export PUERTO_WEB="${E2E_PUERTO_WEB:-18080}"
 export PUERTO_WEB_LOCAL="${E2E_PUERTO_WEB_LOCAL:-18090}"

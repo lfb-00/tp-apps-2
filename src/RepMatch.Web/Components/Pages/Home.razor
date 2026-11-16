@@ -3,6 +3,7 @@
 @using RepMatch.Aplicacion.Fachada
 @inject FachadaAplicacion Fachada
 @inject SesionActual Sesion
+@inject EnlacesSinCuenta Enlaces
 
 <PageTitle>RepMatch</PageTitle>
 
@@ -98,7 +99,7 @@
         else
         {
             <p class="conteo">@resultadoAnon.Piezas.Count @(resultadoAnon.Piezas.Count == 1 ? "pieza compatible" : "piezas compatibles")</p>
-            <AvisoPrecios TiendasSinRespuesta="@(resumenAnon?.TiendasSinRespuesta ?? [])" />
+            <AvisoPrecios TiendasSinRespuesta="@(preciosAnon?.TiendasSinRespuesta ?? [])" />
             <div class="piezas">
                 @foreach (var pieza in resultadoAnon.Piezas)
                 {
@@ -106,12 +107,18 @@
                         <TarjetaRepuesto Repuesto="pieza" Vehiculo="vehiculoAnonDto" />
                         <PreciosPieza CodigoRepuesto="@pieza.CodigoCanonico"
                                       Cargando="cargandoPreciosAnon"
-                                      HuboTiendasSinRespuesta="@(resumenAnon?.TiendasSinRespuesta.Count > 0)"
-                                      Resumen="@resumenAnon?.Piezas.FirstOrDefault(r => r.CodigoRepuesto == pieza.CodigoCanonico)" />
+                                      HuboTiendasSinRespuesta="@(preciosAnon?.TiendasSinRespuesta.Count > 0)"
+                                      Ofertas="@preciosAnon?.Ofertas"
+                                      EnlaceSinCuenta="Enlaces.Crear"
+                                      Sugerencias="@Fachada.SugerirTiendas(pieza, vehiculoAnonDto)" />
                     </article>
                 }
             </div>
             <p class="texto-ayuda">Precios de referencia de las tiendas conectadas. El envío se calcula en cada tienda.</p>
+            @if (!cargandoPreciosAnon && preciosAnon is not null && SinOfertas(resultadoAnon.Piezas, preciosAnon.Ofertas) is > 0 and var sinOfertasAnon)
+            {
+                <CasasCercanas Prefijo="casas-anon" Motivo="@MotivoCasas(sinOfertasAnon)" />
+            }
         }
     }
 }
@@ -237,7 +244,8 @@ else
                             <PreciosPieza CodigoRepuesto="@pieza.CodigoCanonico"
                                           Cargando="cargandoPrecios"
                                           HuboTiendasSinRespuesta="@(tiendasSinRespuesta.Count > 0)"
-                                          Ofertas="@ofertas?.Ofertas" />
+                                          Ofertas="@ofertas?.Ofertas"
+                                          Sugerencias="@Fachada.SugerirTiendas(pieza, resultado.Busqueda.Vehiculo)" />
                         </article>
                     }
                 </div>
@@ -245,6 +253,10 @@ else
                     Ordenadas por precio. RepMatch no vende: te lleva a la tienda, donde se calcula el envío.
                     <a class="link-discreto" href="/consultas/@resultado.Busqueda.Id">Ver la consulta completa</a>
                 </p>
+                @if (!cargandoPrecios && ofertas is not null && SinOfertas(resultado.Piezas, ofertas.Ofertas) is > 0 and var sinOfertas)
+                {
+                    <CasasCercanas Prefijo="casas" Motivo="@MotivoCasas(sinOfertas)" ZonaInicial="@ZonaDelPerfil" />
+                }
             }
         }
     }
@@ -296,7 +308,19 @@ else
     private string? errorTextoAnon;
     private ResultadoDiagnosticoDto? resultadoAnon;
     private VehiculoDto? vehiculoAnonDto;
-    private ResumenPreciosBusquedaDto? resumenAnon;
+    private PreciosSinCuentaDto? preciosAnon;
+
+    /// <summary>Piezas sin ninguna oferta disponible: por ellas se ofrecen las casas cercanas.</summary>
+    private static int SinOfertas(IEnumerable<RepuestoDto> piezas, IReadOnlyList<OfertaDto> ofertasDisponibles) =>
+        piezas.Count(p => !ofertasDisponibles.Any(o => o.Disponible
+            && o.CodigoRepuesto.Equals(p.CodigoCanonico, StringComparison.OrdinalIgnoreCase)));
+
+    private static string MotivoCasas(int sinOfertas) =>
+        sinOfertas == 1 ? "Una pieza no tiene ofertas en línea." : $"{sinOfertas} piezas no tienen ofertas en línea.";
+
+    private string? ZonaDelPerfil => Sesion.Cliente is { } c && !string.IsNullOrWhiteSpace(c.Localidad)
+        ? string.IsNullOrWhiteSpace(c.Provincia) ? c.Localidad : $"{c.Localidad}, {c.Provincia}"
+        : null;
     private bool cargandoPreciosAnon;
 
     // búsqueda con sesión
@@ -362,7 +386,7 @@ else
         errores = [];
         errorTexto = null;
         resultadoAnon = null;
-        resumenAnon = null;
+        preciosAnon = null;
         ofertas = null;
         tiendasSinRespuesta = [];
         errorPrecios = null;
@@ -407,7 +431,7 @@ else
         buscandoAnon = true;
         erroresAnon = [];
         resultadoAnon = null;
-        resumenAnon = null;
+        preciosAnon = null;
         var vehiculo = vehiculoAnonDto;
 
         try
@@ -448,7 +472,7 @@ else
             StateHasChanged();
             try
             {
-                resumenAnon = await Fachada.ResumirPreciosAsync(conPiezas.Piezas, vehiculo);
+                preciosAnon = await Fachada.ObtenerPreciosSinCuentaAsync(conPiezas.Piezas, vehiculo);
             }
             finally
             {

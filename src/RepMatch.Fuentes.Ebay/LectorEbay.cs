@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using RepMatch.Contracts;
 using RepMatch.Contracts.Configuracion;
 using RepMatch.Contracts.Dtos;
 
@@ -27,7 +28,7 @@ public static class LectorEbay
             || items.ValueKind != JsonValueKind.Array)
             return [];
 
-        var buscado = SoloAlfanumerico(SinMarca(codigo));
+        var buscado = SoloAlfanumerico(CodigosRepuesto.SinMarca(codigo));
         if (buscado.Length == 0)
             return [];
 
@@ -67,19 +68,6 @@ public static class LectorEbay
         return ofertas;
     }
 
-    /// <summary>
-    /// El catalogo guarda los numeros de reposicion con la marca adelante ("MANN W 712/83",
-    /// "Bosch 0 986 B00 041") para que se entienda de quien es cada numero. Para buscar y comparar
-    /// en eBay se usa el numero solo: los titulos escriben la marca de mil maneras
-    /// ("MANN-FILTER", "Mann Filter") y casi nunca pegada al numero.
-    /// </summary>
-    public static string SinMarca(string codigo)
-    {
-        var partes = codigo.Trim().Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-        return partes.Length == 2 && partes[0].All(char.IsLetter) && partes[1].Any(char.IsDigit)
-            ? partes[1].Trim()
-            : codigo.Trim();
-    }
 
     private static bool TryPrecio(JsonElement elemento, string propiedad, out decimal monto, out string moneda)
     {

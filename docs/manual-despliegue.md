@@ -101,8 +101,12 @@ Variables del `.env`:
 | `IA_LLM_URLBASE`, `IA_LLM_MODELO` | Proveedor y modelo del LLM (API compatible con OpenAI) | Groq, `openai/gpt-oss-120b` |
 | `IA_LLM_ESFUERZO` | `reasoning_effort` del LLM. Vacío no lo envía (modelos que no razonan) | `low` |
 | `RABBITMQ_USUARIO`, `RABBITMQ_CONTRASENA` | Credenciales del broker, para todos los servicios | `repmatch` / `repmatch` |
-| `OFERTAS_URL_EASY`, `OFERTAS_URL_FRAVEGA` | URL base de cada tienda VTEX | las tiendas reales |
+| `OFERTAS_URL_EASY`, `OFERTAS_URL_FRAVEGA`, `OFERTAS_URL_AUTODO` | URL base de cada tienda VTEX | las tiendas reales |
+| `OFERTAS_AUTODO_HABILITADA` | Consultar Autodo. Las pruebas de punta a punta la apagan | `true` |
 | `OFERTAS_CACHE_MINUTOS` | Caché de respuestas de las tiendas; 0 la desactiva | 10 |
+| `MAPAS_HABILITADO` | Casas de repuestos cercanas (OpenStreetMap). `false` oculta la sección | `true` |
+| `MAPAS_URL_OVERPASS`, `MAPAS_URL_NOMINATIM` | Servidores de OpenStreetMap para comercios y zonas | los públicos |
+| `MAPAS_CACHE_HORAS` | Caché de las respuestas del mapa; 0 la desactiva | 24 |
 | `EBAY_APP_ID`, `EBAY_CERT_ID` | Credenciales de producción de la Browse API de eBay. Vacías: eBay no se consulta | vacías |
 | `NOTIFICACIONES_INTERVALO_SEGUNDOS` | Cada cuánto la campana de la Web busca avisos nuevos | 20 |
 | `OFERTAS_INCLUIR_POR_NOMBRE` | Mostrar ofertas que coinciden solo por nombre (sin número de fabricante ni EAN) | false |

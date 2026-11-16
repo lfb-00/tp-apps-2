@@ -151,6 +151,42 @@ public class FuenteVtexTests
         Assert.Equal(CoincidenciasOferta.ExactoPorEan, Assert.Single(ofertas, o => o.Ean == "7797535000843").Coincidencia);
     }
 
+    /// <summary>
+    /// El buscador de VTEX responde 400 a un termino con parentesis, y ese 400 contaba como falla
+    /// de la tienda: a la tercera pieza asi, el circuito la cortaba para todas las siguientes.
+    /// </summary>
+    [Fact]
+    public async Task Busca_el_codigo_sin_marca_ni_espacios_y_el_nombre_sin_parentesis()
+    {
+        var tienda = new TiendaFalsa(_ => Json("[]", HttpStatusCode.OK));
+        var filtro = new ConsultaOfertasDto
+        {
+            CodigoRepuesto = "FILT-ACE-TOY-HILUX-28",
+            Nombre = "Filtro de aceite (roscado)",
+            CodigosEquivalentes = ["MANN W 712/83"]
+        };
+
+        await Crear(tienda).BuscarAsync(filtro);
+
+        Assert.Equal(2, tienda.Pedidos.Count);
+        Assert.Contains("ft=W712%2F83&", tienda.Pedidos[0].Query);
+        Assert.Contains("ft=Filtro%20de%20aceite&", tienda.Pedidos[1].Query);
+    }
+
+    [Fact]
+    public void Una_casa_de_repuestos_sugiere_buscar_la_pieza_en_su_sitio_y_las_demas_no()
+    {
+        var pieza = new ConsultaOfertasDto { CodigoRepuesto = "BUJI-VW-GOL-16", Nombre = "Juego de bujías" };
+        var gol = new VehiculoDto { Marca = "Volkswagen", Modelo = "Gol", Anio = 2015, Motor = "1.6" };
+        var autodo = new OpcionesTiendaVtex { Nombre = "Autodo", UrlBase = "https://www.autodo.com.ar/", VendeRepuestos = true };
+        var sinRespuesta = new TiendaFalsa(_ => Json("[]", HttpStatusCode.OK));
+
+        Assert.Equal("https://www.autodo.com.ar/buj%C3%ADas%20Gol?_q=buj%C3%ADas%20Gol&map=ft",
+            Crear(sinRespuesta, autodo).UrlParaBuscar(pieza, gol));
+        Assert.Null(Crear(sinRespuesta).UrlParaBuscar(pieza, gol));   // Easy no vende repuestos
+        Assert.Empty(sinRespuesta.Pedidos);                             // armar el enlace no consulta
+    }
+
     [Fact]
     public async Task Sin_resultados_devuelve_una_lista_vacia()
     {

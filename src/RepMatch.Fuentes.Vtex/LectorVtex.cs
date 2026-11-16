@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using RepMatch.Contracts;
 using RepMatch.Contracts.Configuracion;
 using RepMatch.Contracts.Dtos;
 
@@ -18,7 +19,9 @@ namespace RepMatch.Fuentes.Vtex;
 /// <item>Por nombre, el titulo tiene que empezar con la misma palabra que la pieza: asi "Bateria
 /// para Auto 12V" entra y "Cargador de Bateria" no, aunque los dos esten en Automotor.</item>
 /// <item>Por codigo, el codigo tiene que aparecer en la publicacion: el buscador de VTEX
-/// tolera errores de tipeo y devolveria cualquier cosa parecida.</item>
+/// tolera errores de tipeo y devolveria cualquier cosa parecida. Cuenta el titulo, la referencia
+/// y, en tiendas de repuestos como autodo.com.ar, las especificaciones de codigo de fabricante,
+/// codigo original y equivalencias.</item>
 /// <item>Fravega es un marketplace: cada producto trae varios vendedores y el que la tienda marca
 /// por defecto puede estar sin stock. Se toma el vendedor disponible mas barato.</item>
 /// </list>
@@ -53,8 +56,12 @@ public static class LectorVtex
             if (mejor is null)
                 continue;
 
+            // Una publicacion que menciona un codigo de la pieza es exacta aunque haya llegado por el
+            // nombre: el buscador de Autodo no indexa la referencia, y "Filtro de aceite" trae el
+            // W 712/83 que buscar el numero solo no siempre encuentra. Sin codigo, por nombre solo
+            // entra lo que empieza con la misma palabra; por codigo, nada.
             var coincidencia = Coincidencia(producto, mejor.Value.Item, consulta, termino, esCodigo);
-            if (esCodigo ? coincidencia is null : !EmpiezaComo(titulo, consulta.Nombre))
+            if (coincidencia is null && (esCodigo || !EmpiezaComo(titulo, consulta.Nombre)))
                 continue;
 
             var (item, precio, precioLista, vendedor) = mejor.Value;
@@ -126,9 +133,12 @@ public static class LectorVtex
 
     private static bool MencionaCodigo(JsonElement producto, JsonElement item, string codigo)
     {
-        var buscado = SoloAlfanumerico(codigo);
+        var buscado = SoloAlfanumerico(CodigosRepuesto.SinMarca(codigo));
         if (buscado.Length == 0)
             return false;
+
+        if (EspecificacionesDeCodigo(producto).Contains(buscado))
+            return true;
 
         var lugares = new List<string?>
         {
@@ -145,11 +155,8 @@ public static class LectorVtex
     private static string? Coincidencia(
         JsonElement producto, JsonElement item, ConsultaOfertasDto consulta, string termino, bool esCodigo)
     {
-        if (!esCodigo)
-            return null;
-
         var ean = Texto(item, "ean");
-        if (!string.IsNullOrWhiteSpace(ean)
+        if (esCodigo && !string.IsNullOrWhiteSpace(ean)
             && SoloAlfanumerico(ean).Equals(SoloAlfanumerico(termino), StringComparison.OrdinalIgnoreCase))
             return CoincidenciasOferta.ExactoPorEan;
 
@@ -158,6 +165,45 @@ public static class LectorVtex
             .Any(c => MencionaCodigo(producto, item, c))
                 ? CoincidenciasOferta.ExactoPorCodigo
                 : null;
+    }
+
+    /// <summary>
+    /// Los numeros que la tienda publica como especificaciones: en Autodo, "Código de producto"
+    /// (el del fabricante), "Código original" (los de la automotriz) y "Equivalencia" (los de
+    /// otras marcas, "BOSCH: 0986452002"). Es la tabla de equivalencias que usa cualquier
+    /// casa de repuestos; que la publique la tienda la hace parte de lo capturado. Cada valor
+    /// trae varios numeros separados por vinetas, saltos de linea o "MARCA:", asi que se comparan
+    /// enteros, uno por uno, y no como texto corrido: pegados podrian formar un numero que no esta.
+    /// </summary>
+    private static HashSet<string> EspecificacionesDeCodigo(JsonElement producto)
+    {
+        var numeros = new HashSet<string>(StringComparer.Ordinal);
+        if (producto.ValueKind != JsonValueKind.Object)
+            return numeros;
+
+        foreach (var especificacion in producto.EnumerateObject().Where(p => EsEspecificacionDeCodigo(p.Name)))
+        {
+            foreach (var valor in ValoresAtributo(especificacion.Value))
+            {
+                foreach (var parte in valor.Split(SeparadoresDeCodigos, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var numero = SoloAlfanumerico(parte);
+                    if (numero.Length > 0)
+                        numeros.Add(numero);
+                }
+            }
+        }
+
+        return numeros;
+    }
+
+    private static readonly string[] SeparadoresDeCodigos = ["<br>", "<br/>", "<br />", "•", ":", ",", ";", "\n"];
+
+    private static bool EsEspecificacionDeCodigo(string nombre)
+    {
+        var clave = SoloAlfanumerico(nombre);
+        return clave.StartsWith("codigo", StringComparison.Ordinal)
+            || clave.StartsWith("equivalenc", StringComparison.Ordinal);
     }
 
     private static IReadOnlyList<string> Atributos(JsonElement producto)

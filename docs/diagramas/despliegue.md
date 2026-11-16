@@ -61,7 +61,7 @@ flowchart TB
     WK -- "Npgsql" --> P
 
     LLM(["🌐 Proveedor LLM<br/>Groq o Gemini<br/><i>solo con IA_LLM_APIKEY</i>"])
-    VT(["🌐 Tiendas VTEX<br/>www.easy.com.ar · www.fravega.com<br/><i>API pública de catálogo, sin credenciales</i>"])
+    VT(["🌐 Tiendas VTEX<br/>www.autodo.com.ar · www.easy.com.ar · www.fravega.com<br/><i>API pública de catálogo, sin credenciales</i>"])
     W == "HTTPS/JSON<br/>/api/catalog_system/pub/products/search<br/>precios de las piezas" ==> VT
     IA -. "HTTPS, opcional" .-> LLM
     A -. "HTTPS, opcional<br/>(diagnóstico en proceso)" .-> LLM
@@ -162,8 +162,9 @@ flowchart TB
 
     subgraph externo["🌐 Fuentes externas reales"]
         EB["eBay Browse API<br/><i>OAuth2 client_credentials</i>"]
-        VT["VTEX Catalog API<br/><i>easy.com.ar · fravega.com</i>"]
+        VT["VTEX Catalog API<br/><i>autodo.com.ar · easy.com.ar · fravega.com</i>"]
         VP["NHTSA vPIC<br/><i>decodificación de VIN</i>"]
+        OSM["OpenStreetMap<br/><i>Overpass · Nominatim · teselas</i>"]
     end
 
     W --> A
@@ -195,6 +196,8 @@ flowchart TB
 | eBay Browse API | App ID + Cert ID (registro gratuito) | 5000 llamadas/día |
 | VTEX `easy.com.ar` | ninguna | ✅ Implementado: HTTP 206; del catálogo semilla publica baterías |
 | VTEX `fravega.com` | ninguna | ✅ Implementado: HTTP 206; marketplace, sobre todo accesorios |
+| VTEX `autodo.com.ar` | ninguna | ✅ Implementado: HTTP 206; casa de repuestos, da los precios exactos |
 | NHTSA vPIC | ninguna | ✅ HTTP 200 |
+| OpenStreetMap (Overpass, Nominatim, teselas) | ninguna; User-Agent propio y caché, como pide su política de uso | ✅ Implementado: el worker copia las casas de repuestos cada semana; la Web ubica zonas |
 | LLM (Groq o Gemini, ya usado por `ia-api`) | clave del proveedor en `IA_LLM_APIKEY`, opcional | sin probar con clave real; sin clave responde el clasificador local |
 | MercadoLibre | — | ❌ descartado: `403 forbidden`, cerraron la búsqueda pública |

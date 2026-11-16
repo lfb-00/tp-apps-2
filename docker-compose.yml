@@ -38,11 +38,24 @@ x-llm: &llm
   IA__Llm__EsfuerzoRazonamiento: "${IA_LLM_ESFUERZO-low}"
 
 # Tiendas donde buscar precios. Por defecto las reales; las pruebas las apuntan al simulador.
+# Casas de repuestos cercanas: APIs publicas de OpenStreetMap, sin credenciales. El worker copia las
+# casas de Argentina a la base una vez por semana (Overpass); la Web ubica las zonas escritas
+# (Nominatim) y busca en la copia.
+x-mapas: &mapas
+  Mapas__Habilitado: "${MAPAS_HABILITADO:-true}"
+  Mapas__UrlOverpass: "${MAPAS_URL_OVERPASS:-https://overpass-api.de/api/}"
+  Mapas__UrlNominatim: "${MAPAS_URL_NOMINATIM:-https://nominatim.openstreetmap.org/}"
+  Mapas__CacheHoras: "${MAPAS_CACHE_HORAS:-24}"
+
 x-tiendas: &tiendas
   Ofertas__Tiendas__0__UrlBase: "${OFERTAS_URL_EASY:-https://www.easy.com.ar}"
   Ofertas__Tiendas__0__CacheMinutos: "${OFERTAS_CACHE_MINUTOS:-10}"
   Ofertas__Tiendas__1__UrlBase: "${OFERTAS_URL_FRAVEGA:-https://www.fravega.com}"
   Ofertas__Tiendas__1__CacheMinutos: "${OFERTAS_CACHE_MINUTOS:-10}"
+  # Autodo es la unica de las tres que vende repuestos: es la que encuentra los numeros de fabricante.
+  Ofertas__Tiendas__2__UrlBase: "${OFERTAS_URL_AUTODO:-https://www.autodo.com.ar}"
+  Ofertas__Tiendas__2__Habilitada: "${OFERTAS_AUTODO_HABILITADA:-true}"
+  Ofertas__Tiendas__2__CacheMinutos: "${OFERTAS_CACHE_MINUTOS:-10}"
   # Solo coincidencias exactas (numero de fabricante o EAN), salvo que se pida otra cosa.
   Ofertas__IncluirCoincidenciasPorNombre: "${OFERTAS_INCLUIR_POR_NOMBRE:-false}"
   # eBay (Browse API): solo con las claves del .env; sin ellas la fuente no se registra.
@@ -148,7 +161,7 @@ services:
     image: repmatch/web:tp-inicial
     container_name: "${REPMATCH_CONTAINER_PREFIX:-}repmatch-web"
     environment:
-      <<: [*conexion-postgres, *tiendas, *mensajeria]
+      <<: [*conexion-postgres, *tiendas, *mensajeria, *mapas]
       ConnectionStrings__Redis: redis:6379
       ASPNETCORE_ENVIRONMENT: Development
       # Repuestos por SOAP contra catalogo-soap; opciones de vehiculo por REST contra
@@ -213,7 +226,7 @@ services:
     image: repmatch/worker:segunda
     container_name: "${REPMATCH_CONTAINER_PREFIX:-}repmatch-worker"
     environment:
-      <<: [*conexion-postgres, *mensajeria]
+      <<: [*conexion-postgres, *mensajeria, *mapas]
       ASPNETCORE_ENVIRONMENT: Development
     ports:
       - "${PUERTO_WORKER:-8085}:8080"
@@ -238,7 +251,7 @@ services:
       dockerfile: src/RepMatch.Web/Dockerfile
     container_name: "${REPMATCH_CONTAINER_PREFIX:-}repmatch-web-local"
     environment:
-      <<: [*conexion-postgres, *llm, *tiendas, *mensajeria]
+      <<: [*conexion-postgres, *llm, *tiendas, *mensajeria, *mapas]
       ConnectionStrings__Redis: redis:6379
       ASPNETCORE_ENVIRONMENT: Development
       Catalogo__Modo: Local

@@ -21,6 +21,7 @@
     <ProjectReference Include="..\RepMatch.Persistence\RepMatch.Persistence.csproj" />
     <ProjectReference Include="..\RepMatch.Aplicacion\RepMatch.Aplicacion.csproj" />
     <ProjectReference Include="..\RepMatch.Mensajeria\RepMatch.Mensajeria.csproj" />
+    <ProjectReference Include="..\RepMatch.Fuentes.Mapas\RepMatch.Fuentes.Mapas.csproj" />
   </ItemGroup>
 
 </Project>

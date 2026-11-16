@@ -572,7 +572,7 @@ aplicación consume la API externa real que pide la Segunda Parte.
 Ver [IFuenteOfertas.cs](../src/RepMatch.Contracts/IFuenteOfertas.cs).
 
 **Adapter.** `FuenteVtex` (`src/RepMatch.Fuentes.Vtex/FuenteVtex.cs`) traduce el contrato al buscador
-público de catálogo de VTEX, la plataforma de Easy y Frávega: arma
+público de catálogo de VTEX, la plataforma de Autodo, Easy y Frávega: arma
 `/api/catalog_system/pub/products/search?ft=…&_from=0&_to=9`, acepta el `206 Partial Content` como
 respuesta válida y convierte los errores de la tienda en `HttpRequestException`. `LectorVtex` hace la
 otra mitad de la traducción: del JSON de VTEX a `OfertaExternaDto`, con las reglas que salieron de
@@ -599,7 +599,8 @@ duplicar publicaciones y de marcar lo que desapareció vive en el dominio
 (`Busqueda.ActualizarOfertas`), no en el servicio.
 
 **Facade.** `FachadaAplicacion.ObtenerOfertasAsync` (búsqueda guardada, para el dueño o el mecánico
-asignado) y `ResumirPreciosAsync` (búsqueda sin sesión, sin guardar nada) son la única entrada de
+asignado), `ObtenerPreciosSinCuentaAsync` (búsqueda sin sesión, sin guardar nada) y
+`SugerirTiendas` (dónde buscar una pieza sin ofertas) son la única entrada de
 la presentación a los precios.
 
 ## Circuit Breaker por tienda

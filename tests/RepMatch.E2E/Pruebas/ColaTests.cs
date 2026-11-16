@@ -33,11 +33,16 @@ public sealed class ColaTests(NavegadorFixture fixture, ITestOutputHelper salida
     private static ILocator Ofertas(IPage pagina) =>
         pagina.Locator($".precios[data-codigo='{CodigoBateria}'] li.oferta");
 
+    /// <summary>
+    /// Abre el grupo de coincidencias probables. Espera a que aparezca: los precios llegan despues
+    /// de las piezas, y si se miraba enseguida el grupo todavia no existia, no se abria, y el enlace
+    /// "Ir a la tienda" (oculto dentro del grupo cerrado) nunca se encontraba. Era la falla
+    /// intermitente de la fase SinCola.
+    /// </summary>
     private static async Task MostrarProbablesAsync(IPage pagina)
     {
         var detalles = pagina.Locator($".precios[data-codigo='{CodigoBateria}'] details.ofertas-probables");
-        if (await detalles.CountAsync() == 0)
-            return;
+        await Expect(detalles.Locator("summary")).ToBeVisibleAsync();
 
         if (await detalles.GetAttributeAsync("open") is null)
             await detalles.Locator("summary").ClickAsync();
