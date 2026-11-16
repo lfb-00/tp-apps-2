@@ -92,6 +92,26 @@ public class ServicioOfertasTests
     }
 
     [Fact]
+    public async Task Por_defecto_solo_quedan_las_coincidencias_exactas()
+    {
+        var e = await SembrarAsync();
+        var easy = new TiendaFalsa("Easy").Con("BATE-12V-60AH", "1", 100810m);
+        easy.PorCodigo["BATE-12V-60AH"].Add(easy.PorCodigo["BATE-12V-60AH"][0] with
+        {
+            Referencia = "2",
+            Url = "https://easy.example/2",
+            Coincidencia = CoincidenciasOferta.ExactoPorCodigo
+        });
+
+        await using var contexto = CrearContexto();
+        var resultado = await Crear(contexto, new OpcionesOfertas(), easy).ObtenerAsync(e.BusquedaId, e.ClienteId);
+
+        Assert.True(resultado.EsExitoso);
+        var oferta = Assert.Single(resultado.Valor.Busqueda.Ofertas);
+        Assert.Equal(CoincidenciasOferta.ExactoPorCodigo, oferta.Coincidencia);
+    }
+
+    [Fact]
     public async Task Dos_tiendas_con_el_mismo_EAN_quedan_identificadas_como_el_mismo_producto()
     {
         var e = await SembrarAsync();
@@ -150,7 +170,9 @@ public class ServicioOfertasTests
             new CatalogoFalso(),
             new CatalogoVehiculosFalso(),
             new UnitOfWork(contexto),
-            opciones ?? new OpcionesOfertas(),
+            // Las ofertas de TiendaFalsa.Con coinciden por nombre: estas pruebas ejercitan como se
+            // validan y se guardan, asi que las incluyen. El comportamiento por defecto tiene su prueba.
+            opciones ?? new OpcionesOfertas { IncluirCoincidenciasPorNombre = true },
             NullLogger<ServicioOfertas>.Instance);
 
     private sealed record Escenario(Guid ClienteId, Guid MecanicoId, Guid BusquedaId);
@@ -245,7 +267,7 @@ public class ServicioOfertasTests
 
         await using var contexto = CrearContexto();
         var reloj = System.Diagnostics.Stopwatch.StartNew();
-        var resultado = await Crear(contexto, new OpcionesOfertas { TimeoutGlobalSegundos = 1 }, easy, colgada)
+        var resultado = await Crear(contexto, new OpcionesOfertas { TimeoutGlobalSegundos = 1, IncluirCoincidenciasPorNombre = true }, easy, colgada)
             .ObtenerAsync(e.BusquedaId, e.ClienteId);
 
         Assert.True(reloj.Elapsed < TimeSpan.FromSeconds(5));

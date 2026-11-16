@@ -31,8 +31,16 @@ public static class TopologiaRabbitMq
 
     public static DefinicionCola ColaActividad { get; } = new("repmatch.actividad", ["#"]);
 
+    /// <summary>Avisa al mecanico que le compartieron una consulta.</summary>
+    public static DefinicionCola ColaAvisosCompartidas { get; } =
+        new("repmatch.avisos.compartidas", [ClavesRuteo.BusquedaCompartida]);
+
+    /// <summary>Avisa al cliente que el mecanico reviso su consulta.</summary>
+    public static DefinicionCola ColaAvisosRevisiones { get; } =
+        new("repmatch.avisos.revisiones", [ClavesRuteo.DiagnosticoValidado]);
+
     public static IReadOnlyList<DefinicionCola> ColasConsumidores { get; } =
-        Array.AsReadOnly([ColaComisiones, ColaActividad]);
+        Array.AsReadOnly([ColaComisiones, ColaActividad, ColaAvisosCompartidas, ColaAvisosRevisiones]);
 
     public static string ExchangeMuertos(OpcionesMensajeria opciones) => $"{opciones.Exchange}.dlx";
 

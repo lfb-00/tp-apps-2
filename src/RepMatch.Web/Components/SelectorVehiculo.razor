@@ -1,4 +1,12 @@
 @inject ICatalogoVehiculos CatalogoVehiculos
+@inject ILogger<SelectorVehiculo> Log
+
+@if (sinCatalogo)
+{
+    <div class="alerta alerta-error" role="alert" aria-live="polite">
+        No pudimos cargar las marcas y modelos. Probá de nuevo en unos minutos.
+    </div>
+}
 
 <div class="campos selector-vehiculo">
     <div class="campo">
@@ -55,6 +63,7 @@
     private int? anio;
     private string motor = "";
     private bool inicializado;
+    private bool sinCatalogo;
 
     private IEnumerable<string> Marcas => opciones.Select(o => o.Marca).Distinct().Order();
     private IEnumerable<string> Modelos => opciones.Where(o => o.Marca == marca).Select(o => o.Modelo).Distinct().Order();
@@ -65,9 +74,25 @@
         : opciones.Where(o => o.Marca == marca && o.Modelo == modelo
             && o.AnioDesde <= anio.Value && o.AnioHasta >= anio.Value).Select(o => o.Motor).Distinct().Order();
 
+    /// <summary>
+    /// En modo Remoto o Soap las opciones vienen de Catalogo.Api por HTTP. Si ese servicio esta
+    /// caido, la excepcion sin atrapar tiraba el circuito de Blazor y toda la pagina mostraba
+    /// "Ocurrio un error inesperado". Ahora el selector queda vacio con un aviso y el resto de la
+    /// pagina sigue andando (manejo de errores que pide el Integrador). Se atrapan los mismos
+    /// tipos que atrapa la fachada: HttpRequestException (servicio caido o error HTTP) y
+    /// TaskCanceledException (timeout del HttpClient).
+    /// </summary>
     protected override async Task OnInitializedAsync()
     {
-        opciones = await CatalogoVehiculos.ListarOpcionesAsync();
+        try
+        {
+            opciones = await CatalogoVehiculos.ListarOpcionesAsync();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            Log.LogWarning("No se pudieron cargar las opciones de vehiculo ({Tipo}: {Mensaje})", ex.GetType().Name, ex.Message);
+            sinCatalogo = true;
+        }
         CopiarValor();
         inicializado = true;
     }

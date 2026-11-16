@@ -26,6 +26,7 @@ public class ServicioClientesTests
     private static ServicioClientes CrearServicio(RepMatchDbContext contexto) =>
         new(new ClienteRepository(contexto),
             new BusquedaRepository(contexto),
+            new NotificacionRepository(contexto),
             new UnitOfWork(contexto),
             new ValidadorCrearCliente(),
             new ValidadorVehiculo(),
@@ -182,6 +183,40 @@ public class ServicioClientesTests
             Assert.Equal(0, await contexto.Vehiculos.CountAsync(v => v.ClienteId == clienteId));
             Assert.Equal(0, await contexto.Busquedas.CountAsync(b => b.ClienteId == clienteId));
             Assert.Equal(1, await contexto.Busquedas.CountAsync());   // la de la otra persona sigue
+        }
+    }
+
+    /// <summary>
+    /// La baja borra los avisos que recibio la persona y los que generaron sus consultas (por
+    /// ejemplo, el de un mecanico al que le habia compartido una). Los de otras personas quedan.
+    /// </summary>
+    [Fact]
+    public async Task Eliminar_cuenta_borra_sus_avisos_y_los_de_sus_consultas()
+    {
+        var clienteId = await SembrarClienteAsync();
+        var mecanicoId = Guid.NewGuid();
+        await using (var contexto = CrearContexto())
+        {
+            var suya = await contexto.Busquedas.FirstAsync(b => b.ClienteId == clienteId);
+            var ajena = await contexto.Busquedas.FirstAsync(b => b.ClienteId != clienteId);
+            var ahora = DateTimeOffset.UtcNow;
+            contexto.Notificaciones.AddRange(
+                new Notificacion(clienteId, TipoNotificacion.DiagnosticoConfirmado, suya.Id, ahora),
+                new Notificacion(mecanicoId, TipoNotificacion.ConsultaCompartida, suya.Id, ahora),
+                new Notificacion(mecanicoId, TipoNotificacion.ConsultaCompartida, ajena.Id, ahora));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using (var contexto = CrearContexto())
+            Assert.True((await CrearServicio(contexto).EliminarCuentaAsync(
+                clienteId, new EliminarCuentaDto { Contrasena = Contrasena })).EsExitoso);
+
+        await using (var contexto = CrearContexto())
+        {
+            var quedan = await contexto.Notificaciones.ToListAsync();
+            var aviso = Assert.Single(quedan);
+            Assert.Equal(mecanicoId, aviso.DestinatarioId);
+            Assert.NotEqual(clienteId, (await contexto.Busquedas.SingleAsync(b => b.Id == aviso.BusquedaId)).ClienteId);
         }
     }
 }

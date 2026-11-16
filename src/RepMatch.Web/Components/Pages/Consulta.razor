@@ -1,7 +1,9 @@
 @page "/consultas/{Id:guid}"
+@using Microsoft.Extensions.DependencyInjection
 @using RepMatch.Aplicacion.Fachada
-@inject FachadaAplicacion Fachada
+@inherits OwningComponentBase
 @inject SesionActual Sesion
+@inject AvisosNotificaciones Avisos
 
 <PageTitle>Consulta — RepMatch</PageTitle>
 
@@ -280,6 +282,14 @@ else
     private bool EsDuenio => consulta is not null && consulta.Busqueda.ClienteId == Sesion.Cliente?.Id;
     private bool EsMecanicoAsignado => consulta is not null && consulta.Busqueda.MecanicoId == Sesion.Cliente?.Id;
 
+    /// <summary>
+    /// Scope propio por pagina (OwningComponentBase): cada vez que se abre una consulta se lee con
+    /// un DbContext nuevo. Con el del circuito, EF devolvia la entidad que ya tenia cargada y el
+    /// cliente no veia la revision del mecanico hasta recargar con F5 (error conocido de las
+    /// pruebas de punta a punta). Es lo que hace util la notificacion: lleva a datos actuales.
+    /// </summary>
+    private FachadaAplicacion Fachada => ScopedServices.GetRequiredService<FachadaAplicacion>();
+
     protected override async Task OnParametersSetAsync()
     {
         cargando = true;
@@ -289,6 +299,10 @@ else
         consulta = await Fachada.ObtenerConsultaAsync(Id, Sesion.Cliente.Id);
         if (consulta is not null)
         {
+            // Ver la consulta es leer sus avisos; la campana se actualiza en el momento.
+            if (await Fachada.MarcarNotificacionesLeidasAsync(Sesion.Cliente.Id, Id) > 0)
+                Avisos.Avisar();
+
             // El catálogo da los nombres de las piezas y, para el mecánico, las opciones a recomendar.
             var piezas = await Fachada.BuscarRepuestosAsync(consulta.Busqueda.Vehiculo, sistema: null);
             compatibles = piezas.EsExitoso ? piezas.Valor : [];

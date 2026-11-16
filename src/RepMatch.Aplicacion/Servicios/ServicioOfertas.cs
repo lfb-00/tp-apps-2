@@ -207,7 +207,15 @@ public sealed class ServicioOfertas(
         foreach (var oferta in ofertas)
         {
             if (oferta.Coincidencia == CoincidenciasOferta.ProbablePorNombre)
+            {
                 candidatasPorNombre++;
+                if (!opciones.IncluirCoincidenciasPorNombre)
+                {
+                    descartadas++;
+                    motivos["solo-por-nombre"] = motivos.GetValueOrDefault("solo-por-nombre") + 1;
+                    continue;
+                }
+            }
 
             if (piezasPorCodigo.TryGetValue(oferta.CodigoRepuesto, out var pieza)
                 && ValidadorCandidatoOferta.MotivoRechazo(oferta, pieza, vehiculo, vehiculosConocidos) is { } motivo)

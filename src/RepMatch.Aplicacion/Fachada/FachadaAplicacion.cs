@@ -18,8 +18,19 @@ public sealed class FachadaAplicacion(
     ServicioRevisiones revisiones,
     ServicioDerivaciones derivaciones,
     ServicioDiagnostico diagnostico,
-    ServicioOfertas ofertas)
+    ServicioOfertas ofertas,
+    ServicioNotificaciones notificaciones)
 {
+    public Task<BandejaNotificacionesDto> ObtenerNotificacionesAsync(Guid usuarioId, CancellationToken ct = default) =>
+        notificaciones.ObtenerBandejaAsync(usuarioId, ct);
+
+    public Task<int> ContarNotificacionesNoLeidasAsync(Guid usuarioId, CancellationToken ct = default) =>
+        notificaciones.ContarNoLeidasAsync(usuarioId, ct);
+
+    /// <summary>La pantalla de la consulta llama a esto al abrirse: ver la consulta es leer sus avisos.</summary>
+    public Task<int> MarcarNotificacionesLeidasAsync(Guid usuarioId, Guid busquedaId, CancellationToken ct = default) =>
+        notificaciones.MarcarLeidasAsync(usuarioId, busquedaId, ct);
+
     public Task<IReadOnlyList<MecanicoDto>> ListarMecanicosAsync(
         string? provincia = null, CancellationToken ct = default) =>
         mecanicos.ListarAsync(provincia, ct);

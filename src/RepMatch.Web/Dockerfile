@@ -15,6 +15,7 @@ COPY src/RepMatch.Clientes.Soap/RepMatch.Clientes.Soap.csproj   src/RepMatch.Cli
 COPY src/RepMatch.IA/RepMatch.IA.csproj                         src/RepMatch.IA/
 COPY src/RepMatch.Mensajeria/RepMatch.Mensajeria.csproj           src/RepMatch.Mensajeria/
 COPY src/RepMatch.Fuentes.Vtex/RepMatch.Fuentes.Vtex.csproj     src/RepMatch.Fuentes.Vtex/
+COPY src/RepMatch.Fuentes.Ebay/RepMatch.Fuentes.Ebay.csproj     src/RepMatch.Fuentes.Ebay/
 COPY src/RepMatch.Web/RepMatch.Web.csproj                       src/RepMatch.Web/
 RUN dotnet restore src/RepMatch.Web/RepMatch.Web.csproj
 

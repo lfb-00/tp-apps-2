@@ -92,7 +92,7 @@ public class ValidacionIATests(ITestOutputHelper salida)
     // Transmision y Escape el sistema sube a 81,7 %, pero aparece una subestimacion grave (RNF-IA-02):
     // "suena un golpeteo fuerte adentro del motor" (Alta) sale como Escape (Baja), porque comparte
     // "suena" y "fuerte" con "suena mas fuerte el escape cuando acelero". Al corregirlo, sacar el Skip.
-    [Fact(Skip = "1 subestimacion grave (RNF-IA-02): un golpeteo de motor (Alta) sale como Escape (Baja).")]
+    [Fact]
     public async Task El_clasificador_local_cumple_la_exactitud_minima()
     {
         var local = new DiagnosticadorLocal(ClasificadorSintomas.CargarCorpusIncluido());
@@ -125,9 +125,12 @@ public class ValidacionIATests(ITestOutputHelper salida)
         var diagnosticador = alcance.ServiceProvider.GetRequiredService<DiagnosticadorConRespaldo>();
         var timeoutMs = servicios.GetRequiredService<RepMatch.IA.Llm.OpcionesLlm>().TimeoutSegundos * 1000;
 
-        // El cupo gratuito de Groq admite unas 30 peticiones por minuto: sin pausa, las ultimas
-        // responderian 429 y las contestaria el respaldo local.
-        var reporte = await EvaluarAsync(diagnosticador, CargarCasos(), TimeSpan.FromSeconds(2.5));
+        // El cupo gratuito de Groq para gpt-oss-120b es de 8000 tokens por minuto y cada diagnostico
+        // gasta ~700 (medido el 2026-11-15): con 6 s entre casos son ~7000 por minuto. Sin la pausa,
+        // las ultimas responderian 429 y las contestaria el respaldo local, que ya se mide aparte.
+        var pausa = double.TryParse(Environment.GetEnvironmentVariable("REPMATCH_VALIDAR_LLM_PAUSA_SEGUNDOS"),
+            System.Globalization.CultureInfo.InvariantCulture, out var segundos) ? segundos : 6;
+        var reporte = await EvaluarAsync(diagnosticador, CargarCasos(), TimeSpan.FromSeconds(pausa));
         salida.WriteLine(reporte.ToString());
 
         var delLlm = reporte.PorFuente.GetValueOrDefault("llm");

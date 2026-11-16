@@ -3,6 +3,7 @@ using RepMatch.Common.Resultados;
 using RepMatch.Contracts;
 using RepMatch.Contracts.Dtos;
 using RepMatch.Contracts.Configuracion;
+using RepMatch.Fuentes.Ebay;
 using RepMatch.Fuentes.Vtex;
 using RepMatch.Mensajeria;
 using RepMatch.Persistence;
@@ -18,26 +19,32 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 // Registra la capa de datos, la de logica de negocio y las dos formas de alcanzar el catalogo.
+builder.Services.AgregarProblemDetails();
 builder.Services.AgregarCatalogo(builder.Configuration);
 builder.Services.AgregarDiagnostico(builder.Configuration);
 // Tiendas donde buscar precios (API publica de VTEX). Cada una sale de la seccion "Ofertas".
 builder.Services.AgregarFuentesOfertas(builder.Configuration);
+builder.Services.AgregarFuenteEbay(builder.Configuration);   // solo si hay credenciales
 // Cola de mensajes: con Mensajeria:Habilitada los eventos de dominio se publican en RabbitMQ.
 builder.Services.AgregarMensajeria(builder.Configuration);
 builder.Services.AgregarProteccionDatos(builder.Configuration);
 builder.Services.AddScoped<RepMatch.Web.Servicios.SesionActual>();
 builder.Services.AddScoped<RepMatch.Web.Servicios.TemaActual>();
+builder.Services.AddScoped<RepMatch.Web.Servicios.AvisosNotificaciones>();
 
 var app = builder.Build();
 
 app.UsarCorrelacion();
 app.UseSerilogRequestLogging();
 
+// Siempre, no solo fuera de Development: compose corre en Development (para publicar OpenAPI) y
+// es el entorno de laboratorio, asi que la pagina de excepciones del desarrollador mostraba la
+// traza al usuario. ProblemDetails con el correlation id, igual que los otros hosts: por este
+// camino solo pueden fallar /derivar, /evidencia y la carga inicial, porque la interfaz es
+// interactiva sin prerender y sus errores los muestra Blazor en el circuito.
+app.UseExceptionHandler();
 if (!app.Environment.IsDevelopment())
-{
-    app.UseExceptionHandler("/Error", createScopeForErrors: true);
     app.UseHsts();
-}
 
 app.UseStaticFiles();
 app.UseAntiforgery();

@@ -28,6 +28,42 @@ public sealed class MecanicoTests(NavegadorFixture fixture, ITestOutputHelper sa
 
     private static ILocator Revision(IPage pagina) => pagina.Locator(".tarjeta.revision");
 
+    private static ILocator Campana(IPage pagina) => pagina.Locator(".campana");
+
+    /// <summary>El aviso lo escribe el worker al consumir la cola: se espera mas que lo habitual.</summary>
+    private static readonly LocatorAssertionsToHaveTextOptions EsperaAviso = new() { Timeout = 20_000 };
+
+    /// <summary>
+    /// De punta a punta por la cola: compartir publica busqueda.compartida, el worker deja el aviso
+    /// y la campana del mecanico lo muestra sin recargar; revisar publica diagnostico.validado y la
+    /// campana del cliente muestra que lo confirmo. Abrir el aviso lleva a la consulta y lo marca leido.
+    /// </summary>
+    [Fact]
+    public async Task La_campana_avisa_al_mecanico_que_le_compartieron_y_al_cliente_que_lo_revisaron()
+    {
+        var (mecanico, _, id) = await CompartidaAsync();
+
+        await IrAsync(mecanico, "/taller");
+        await Expect(Campana(mecanico).Locator(".campana-numero")).ToHaveTextAsync("1", EsperaAviso);
+        await Campana(mecanico).GetByRole(AriaRole.Button).ClickAsync();
+        var aviso = Campana(mecanico).GetByRole(AriaRole.Link).First;
+        await Expect(aviso).ToContainTextAsync("Nueva consulta para revisar");
+        await aviso.ClickAsync();
+        await Expect(mecanico).ToHaveURLAsync($"{Entorno.UrlWeb}/consultas/{id}");
+        await Expect(Campana(mecanico).Locator(".campana-numero")).ToHaveCountAsync(0);
+
+        await mecanico.GetByRole(AriaRole.Button, new() { Name = "Enviar revisión" }).ClickAsync();
+        await Expect(Exito(mecanico)).ToContainTextAsync("Revisión enviada");
+
+        await Expect(Campana(Pagina).Locator(".campana-numero")).ToHaveTextAsync("1", EsperaAviso);
+        await Campana(Pagina).GetByRole(AriaRole.Button).ClickAsync();
+        aviso = Campana(Pagina).GetByRole(AriaRole.Link).First;
+        await Expect(aviso).ToContainTextAsync("Diagnóstico confirmado");
+        await aviso.ClickAsync();
+        await Expect(Revision(Pagina)).ToContainTextAsync("Confirmó el diagnóstico");
+        await Expect(Campana(Pagina).Locator(".campana-numero")).ToHaveCountAsync(0);
+    }
+
     [Fact]
     public async Task Compartir_lleva_la_consulta_a_la_bandeja_del_mecanico()
     {
@@ -75,13 +111,13 @@ public sealed class MecanicoTests(NavegadorFixture fixture, ITestOutputHelper sa
         await Expect(mecanico.GetByRole(AriaRole.Alert))
             .ToContainTextAsync("Para corregir el diagnóstico indicá al menos un repuesto.");
 
-        await mecanico.Locator("label.campo-check", new() { HasText = "AMOR-VW-GOL-DEL" }).Locator("input").CheckAsync();
+        await mecanico.Locator("label.campo-check", new() { HasText = "BUJI-VW-GOL-16" }).Locator("input").CheckAsync();
         await mecanico.GetByRole(AriaRole.Button, new() { Name = "Enviar revisión" }).ClickAsync();
         await Expect(Exito(mecanico)).ToContainTextAsync("Revisión enviada");
 
         await IrAsync(Pagina, $"/consultas/{id}");
         await Expect(Revision(Pagina)).ToContainTextAsync("Corrigió el diagnóstico");
-        await Expect(Revision(Pagina).Locator(".lista-piezas")).ToContainTextAsync("AMOR-VW-GOL-DEL");
+        await Expect(Revision(Pagina).Locator(".lista-piezas")).ToContainTextAsync("BUJI-VW-GOL-16");
     }
 
     [Fact]
@@ -180,11 +216,12 @@ public sealed class MecanicoTests(NavegadorFixture fixture, ITestOutputHelper sa
     }
 
     /// <summary>
-    /// ERROR CONOCIDO, mismo origen que el anterior, visto desde el cliente: deja abierta la
-    /// consulta compartida, el mecanico la revisa, y el cliente navega dentro de la app (sin F5)
-    /// hasta su consulta. Sigue viendo "Compartida con un mecánico" en vez de la revision.
+    /// El cliente deja abierta la consulta compartida, el mecanico la revisa y el cliente navega
+    /// dentro de la app (sin F5) hasta su consulta. Antes seguia viendo "Compartida con un
+    /// mecánico" (DbContext por circuito); ahora la pagina de la consulta tiene su propio scope y
+    /// lee la revision.
     /// </summary>
-    [Fact(Skip = "Error conocido: sin recargar, el cliente no ve la revisión recién enviada (DbContext por circuito).")]
+    [Fact]
     public async Task Sin_recargar_el_cliente_ve_la_revision_que_acaba_de_enviar_el_mecanico()
     {
         var (mecanico, _, id) = await CompartidaAsync();

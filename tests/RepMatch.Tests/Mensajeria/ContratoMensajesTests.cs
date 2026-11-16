@@ -82,8 +82,10 @@ public class ContratoMensajesTests
     public void La_topologia_compartida_declara_las_colas_de_todos_los_consumidores()
     {
         Assert.Equal(
-            ["repmatch.comisiones", "repmatch.actividad"],
+            ["repmatch.comisiones", "repmatch.actividad", "repmatch.avisos.compartidas", "repmatch.avisos.revisiones"],
             TopologiaRabbitMq.ColasConsumidores.Select(cola => cola.Nombre));
+        Assert.Equal([ClavesRuteo.BusquedaCompartida], TopologiaRabbitMq.ColaAvisosCompartidas.ClavesRuteo);
+        Assert.Equal([ClavesRuteo.DiagnosticoValidado], TopologiaRabbitMq.ColaAvisosRevisiones.ClavesRuteo);
         Assert.Contains(
             ClavesRuteo.DerivacionTienda,
             TopologiaRabbitMq.ColasConsumidores.Single(cola => cola.Nombre == "repmatch.comisiones").ClavesRuteo);

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="Polly" Version="8.7.0" />
+    <ProjectReference Include="..\RepMatch.Common\RepMatch.Common.csproj" />
+    <ProjectReference Include="..\RepMatch.Contracts\RepMatch.Contracts.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- IHttpClientFactory e IDistributedCache, igual que Fuentes.Vtex. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+</Project>

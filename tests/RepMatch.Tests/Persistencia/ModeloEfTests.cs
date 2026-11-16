@@ -61,12 +61,13 @@ public class ModeloEfTests
         {
             var repuesto = await contexto.Repuestos
                 .Include(r => r.Aplicaciones)
-                .SingleAsync(r => r.CodigoCanonico == "PAST-VW-GOL-DEL");
+                .SingleAsync(r => r.CodigoCanonico == "FILT-ACE-REN-16");
 
-            Assert.Equal("Pastillas de freno delanteras", repuesto.Nombre);
+            Assert.Equal("Filtro de aceite", repuesto.Nombre);
             Assert.Equal(2, repuesto.Aplicaciones.Count);
-            Assert.Contains("5U0698151", repuesto.CodigosEquivalentes);
-            Assert.True(repuesto.EsCompatibleCon(new DatosVehiculo("Volkswagen", "Gol", 2015)));
+            Assert.Contains("BOSCH 0 451 103 332", repuesto.CodigosEquivalentes);
+            Assert.True(repuesto.EsCompatibleCon(new DatosVehiculo("Renault", "Sandero", 2012, "1.6")));
+            Assert.False(repuesto.EsCompatibleCon(new DatosVehiculo("Renault", "Sandero", 2012, "1.6 SCe")));
         }
     }
 

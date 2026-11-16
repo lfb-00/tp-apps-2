@@ -67,9 +67,9 @@ corre por defecto porque gasta cuota: se habilita con `REPMATCH_VALIDAR_LLM=1` y
 
 | Id | Requerimiento | Verificación | Medición |
 |---|---|---|---|
-| RNF-IA-01 | **Exactitud mínima:** el sistema correcto en al menos el 80 % de los casos del conjunto de validación. Incluye no diagnosticar los textos que no son síntomas. | `ValidacionIATests` | Clasificador local, 2026-11-14, con el corpus ampliado: 81,7 % — cumple (antes, 76,7 %; ver abajo). LLM: sin medir. |
-| RNF-IA-02 | **Urgencia:** en al menos el 80 % de los síntomas, la urgencia a un nivel o menos de la del mecánico (Baja, Media, Alta, Crítica), y **ningún** caso Alta o Crítica clasificado como Baja. | `ValidacionIATests` | Clasificador local, 2026-11-14, con el corpus ampliado: 98,1 %, pero **1 subestimación — no cumple** (ver abajo). |
-| RNF-IA-03 | **Latencia:** el clasificador local responde con p95 menor a 50 ms. El LLM se abandona a los 4 s (`IA:Llm:TimeoutSegundos`) y responde el clasificador local; la Web espera a `IA.Api` hasta 10 s (`IA:TimeoutSegundos`). | `ValidacionIATests`, `DiagnosticoLocalTests.Responde_en_menos_de_50_ms`, `scripts/carga.sh` | Local: p95 de 0,1 ms en la validación y 2,04 ms con 10 usuarios concurrentes ([`carga.md`](evidencias/carga.md)). |
+| RNF-IA-01 | **Exactitud mínima:** el sistema correcto en al menos el 80 % de los casos del conjunto de validación. Incluye no diagnosticar los textos que no son síntomas. | `ValidacionIATests` | LLM (Groq, `openai/gpt-oss-120b`), 2026-11-15: **95,0 %** — cumple (57 de 60; los 3 errores son Neumáticos respondidos como Suspensión). Clasificador local: 81,7 % — cumple (antes, 76,7 %; ver abajo). |
+| RNF-IA-02 | **Urgencia:** en al menos el 80 % de los síntomas, la urgencia a un nivel o menos de la del mecánico (Baja, Media, Alta, Crítica), y **ningún** caso Alta o Crítica clasificado como Baja. | `ValidacionIATests` | LLM, 2026-11-15: **100 %** y 0 subestimaciones — cumple. Clasificador local, 2026-11-15, con la urgencia prudente: 88,9 % y 0 subestimaciones — cumple (antes, 98,1 % con 1 subestimación; ver abajo). |
+| RNF-IA-03 | **Latencia:** el clasificador local responde con p95 menor a 50 ms. El LLM se abandona a los 4 s (`IA:Llm:TimeoutSegundos`) y responde el clasificador local; la Web espera a `IA.Api` hasta 10 s (`IA:TimeoutSegundos`). | `ValidacionIATests`, `DiagnosticoLocalTests.Responde_en_menos_de_50_ms`, `scripts/carga.sh` | Local: p95 de 0,1 ms en la validación y 2,04 ms con 10 usuarios concurrentes ([`carga.md`](evidencias/carga.md)). LLM: p50 715 ms y p95 1030 ms, por debajo del corte de 4 s; respondió los 60 casos, ninguno el respaldo. |
 | RNF-IA-04 | **Siempre hay respuesta:** sin clave, con error de red, timeout o una respuesta fuera del esquema, responde el clasificador local y la respuesta lo indica en `fuente`. Si la IA no responde, quedan todas las piezas compatibles. | `DiagnosticoLlmTests`, `BusquedaConIATests.Si_la_IA_esta_caida_la_busqueda_sale_por_compatibilidad`, `ResilienciaTests.Con_la_IA_caida_la_busqueda_sin_sesion_muestra_todas_las_compatibles` | — |
 | RNF-IA-05 | **Solo piezas reales:** la IA elige entre las piezas compatibles que le pasa el catálogo; un código que no está en esa lista se descarta. | `DiagnosticoLlmTests.Interpreta_una_respuesta_valida_y_descarta_codigos_inventados`, `DiagnosticoLocalTests.Solo_devuelve_codigos_de_los_candidatos` | — |
 | RNF-IA-06 | **Privacidad:** el texto sale hacia el proveedor sin mails ni teléfonos; los logs registran su largo y no su contenido; los mensajes de la cola llevan ids y datos del vehículo, nunca el texto; sin sesión, el texto no se guarda. | `DiagnosticoLocalTests.Saca_mails_y_telefonos_pero_no_anios_ni_kilometros`, `DiagnosticoLlmTests.Llama_al_proveedor_con_la_clave_y_sin_datos_de_contacto`. Por diseño: `DiagnosticadorConRespaldo` (log con `texto=N caracteres`, evidencia `20`) y los contratos de `EventosIntegracion`, sin campo de texto (evidencia `21`). | — |
@@ -88,12 +88,27 @@ apareció una subestimación grave: "suena un golpeteo fuerte adentro del motor"
 como Escape con urgencia Baja, porque comparte "suena" y "fuerte" con la frase nueva "suena mas
 fuerte el escape cuando acelero". RNF-IA-02 no se cumple hasta corregirlo.
 
-La prueba del clasificador local sigue con `Skip` y la causa en un comentario, como el resto de
-las pruebas que encontraron un error real. Ojo al corregir: cada ajuste del corpus hecho mirando
-los errores de la validación la vuelve menos independiente. Para que la medición siga valiendo,
-conviene sumar casos nuevos al conjunto de validación, escritos por alguien que no haya visto el
-corpus, y volver a medir. La prueba `El_conjunto_de_validacion_no_repite_frases_del_corpus`
-impide que se repitan frases textualmente.
+**Corrección (2026-11-15).** No se tocó el corpus: cada ajuste hecho mirando los errores de la
+validación la vuelve menos independiente. Se cambió la regla. Antes la urgencia era la de la frase
+más parecida del sistema ganador; ahora es la **más alta entre los vecinos que se parecen al
+texto** (`DiagnosticadorLocal.UrgenciaPrudente`). Equivocar el sistema cuesta una consulta;
+subestimar la urgencia deja a alguien manejando con un problema serio, que es justo lo que
+RNF-IA-02 prohíbe. En el caso del golpeteo, entre los vecinos había síntomas de motor de urgencia
+Alta. El costo es que algunas urgencias suben un nivel: la exactitud de urgencia bajó de 98,1 % a
+88,9 %, sigue por encima del 80 %, y las subestimaciones graves quedaron en 0. La prueba del
+clasificador local ya no tiene `Skip`.
+
+Para que la medición siga valiendo conviene sumar casos nuevos al conjunto de validación,
+escritos por alguien que no haya visto el corpus. La prueba
+`El_conjunto_de_validacion_no_repite_frases_del_corpus` impide que se repitan frases
+textualmente.
+
+### El LLM
 
 El mínimo aplica también al LLM, que es el que responde en producción cuando hay clave; el
-clasificador local es su respaldo y su línea base.
+clasificador local es su respaldo y su línea base. Medido el 2026-11-15 con Groq y
+`openai/gpt-oss-120b` (`reasoning_effort` bajo): sistema 95,0 %, urgencia 100 %, 0
+subestimaciones, p95 de 1030 ms, y los 60 casos los respondió el LLM. Para medirlo:
+`REPMATCH_VALIDAR_LLM=1` y la clave en `IA__Llm__ApiKey`. La prueba espera 6 s entre casos
+(`REPMATCH_VALIDAR_LLM_PAUSA_SEGUNDOS`): el cupo gratuito de ese modelo es de 8000 tokens por
+minuto y cada diagnóstico gasta unos 700; sin la pausa, Groq responde 429 y contesta el respaldo.

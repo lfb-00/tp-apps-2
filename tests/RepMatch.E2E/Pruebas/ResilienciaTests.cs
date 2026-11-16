@@ -12,7 +12,7 @@ namespace RepMatch.E2E.Pruebas;
 /// </summary>
 public sealed class ResilienciaTests(NavegadorFixture fixture, ITestOutputHelper salida) : PruebaE2E(fixture, salida)
 {
-    private const int PiezasCompatiblesGol = 7;
+    private const int PiezasCompatiblesGol = 11;
     private const string SinCatalogoAnonimo = "No se pudo consultar el catálogo. Probá de nuevo en unos segundos.";
     private const string SinCatalogoConSesion = "No se pudo consultar el catálogo para completar la búsqueda.";
 
@@ -60,12 +60,11 @@ public sealed class ResilienciaTests(NavegadorFixture fixture, ITestOutputHelper
     }
 
     /// <summary>
-    /// ERROR CONOCIDO: "Ver catálogo completo" recrea SelectorVehiculo (cambia su @key), el
-    /// selector vuelve a pedir las opciones en OnInitializedAsync, CatalogoVehiculosRemoto tira
-    /// HttpRequestException y nadie la atrapa: se cae el circuito y aparece "Ocurrió un error
-    /// inesperado". Arreglo posible: atrapar el error en SelectorVehiculo y mostrar un aviso.
+    /// "Ver catálogo completo" recrea SelectorVehiculo (cambia su @key) y el selector vuelve a
+    /// pedir las opciones. Antes la HttpRequestException tiraba el circuito ("Ocurrió un error
+    /// inesperado"); ahora SelectorVehiculo la atrapa y muestra un aviso.
     /// </summary>
-    [SkippableFact(Skip = "Error conocido: con el catálogo caído, 'Ver catálogo completo' tira la app (ver comentario).")]
+    [SkippableFact]
     [Trait("Escenario", Escenarios.SinCatalogo)]
     public async Task Con_el_catalogo_caido_ver_el_catalogo_completo_muestra_un_mensaje()
     {
@@ -79,10 +78,10 @@ public sealed class ResilienciaTests(NavegadorFixture fixture, ITestOutputHelper
     }
 
     /// <summary>
-    /// ERROR CONOCIDO (menor): con el catalogo caido, los desplegables de vehiculo quedan vacios
-    /// sin ningun aviso, y la persona no sabe si es un problema suyo o del sistema.
+    /// Con el catalogo caido, los desplegables de vehiculo quedan vacios: SelectorVehiculo avisa
+    /// que es un problema del sistema y no de la persona.
     /// </summary>
-    [SkippableFact(Skip = "Error conocido: sin catálogo, el selector de vehículo queda vacío sin avisar.")]
+    [SkippableFact]
     [Trait("Escenario", Escenarios.SinCatalogo)]
     public async Task Con_el_catalogo_caido_la_portada_avisa_que_no_esta_disponible()
     {
