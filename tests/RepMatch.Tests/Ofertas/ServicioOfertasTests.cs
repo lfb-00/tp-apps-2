@@ -56,6 +56,9 @@ public class ServicioOfertasTests
         public Dictionary<string, List<OfertaExternaDto>> PorCodigo { get; } = [];
         public bool Caida { get; set; }
         public bool Colgada { get; set; }
+        public string? BuscarEn { get; init; }
+
+        public string? UrlParaBuscar(ConsultaOfertasDto consulta, VehiculoDto? vehiculo) => BuscarEn;
         public List<string> Consultas { get; } = [];
 
         public async Task<IReadOnlyList<OfertaExternaDto>> BuscarAsync(ConsultaOfertasDto consulta, CancellationToken ct = default)
@@ -373,18 +376,33 @@ public class ServicioOfertasTests
     }
 
     [Fact]
-    public async Task El_resumen_sin_sesion_dice_desde_cuanto_y_en_cuantas_tiendas_sin_guardar_nada()
+    public async Task Sin_sesion_se_ven_las_mismas_ofertas_y_no_se_guarda_nada()
     {
         var easy = new TiendaFalsa("Easy").Con("BATE-12V-60AH", "1", 100810m).Con("BATE-12V-60AH", "3", 127287.5m);
         var fravega = new TiendaFalsa("Frávega").Con("BATE-12V-60AH", "2", 113000m);
 
         await using var contexto = CrearContexto();
-        var resumen = await Crear(contexto, null, easy, fravega).ResumirAsync([Bateria, Pastillas], Gol.ADto());
+        var precios = await Crear(contexto, null, easy, fravega).PreciosSinCuentaAsync([Bateria, Pastillas], Gol.ADto());
 
-        var bateria = Assert.Single(resumen.Piezas, p => p.CodigoRepuesto == "BATE-12V-60AH");
-        Assert.Equal(100810m, bateria.Desde);
-        Assert.Equal(2, bateria.Tiendas);
-        Assert.Null(Assert.Single(resumen.Piezas, p => p.CodigoRepuesto == "PAST-VW-GOL-DEL").Desde);
+        Assert.Equal(3, precios.Ofertas.Count);
+        Assert.All(precios.Ofertas, o => Assert.Equal("BATE-12V-60AH", o.CodigoRepuesto));
+        // No estan guardadas: no tienen id ni hay a donde derivar por /derivar.
+        Assert.All(precios.Ofertas, o => Assert.Equal(Guid.Empty, o.Id));
+        Assert.Contains(precios.Ofertas, o => o.NombreTienda == "Frávega" && o.PrecioTotal == 113000m);
         Assert.Empty(contexto.Ofertas);
+    }
+
+    [Fact]
+    public async Task Sugiere_solo_las_tiendas_que_saben_armar_una_busqueda_de_la_pieza()
+    {
+        var easy = new TiendaFalsa("Easy");
+        var repuestos = new TiendaFalsa("Repuestos") { BuscarEn = "https://repuestos.test/buscar" };
+
+        await using var contexto = CrearContexto();
+        var sugerencias = Crear(contexto, null, easy, repuestos).SugerirTiendas(Pastillas, Gol.ADto());
+
+        var sugerencia = Assert.Single(sugerencias);
+        Assert.Equal("Repuestos", sugerencia.Tienda);
+        Assert.Equal("https://repuestos.test/buscar", sugerencia.Url);
     }
 }

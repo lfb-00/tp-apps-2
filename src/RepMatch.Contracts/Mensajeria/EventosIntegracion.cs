@@ -35,12 +35,20 @@ public sealed record DiagnosticoValidadoV1
     public IReadOnlyList<string> CodigosRecomendados { get; init; } = [];
 }
 
-/// <summary>Alguien salio de RepMatch hacia una tienda: la base de la comision de afiliado.</summary>
+/// <summary>
+/// Alguien salio de RepMatch hacia una tienda: la base de la comision de afiliado. Busqueda y
+/// oferta llegan null cuando la persona comparaba sin cuenta; sigue siendo la version 1 porque
+/// los mensajes anteriores se leen igual (traen los dos ids) y el consumidor solo usa la tienda.
+/// </summary>
 public sealed record DerivacionTiendaV1
 {
     public required Guid DerivacionId { get; init; }
-    public required Guid BusquedaId { get; init; }
-    public required Guid OfertaId { get; init; }
+    public Guid? BusquedaId { get; init; }
+    public Guid? OfertaId { get; init; }
+
+    /// <summary>La pieza del catalogo. null en mensajes anteriores a las derivaciones sin cuenta.</summary>
+    public string? CodigoRepuesto { get; init; }
+
     public required string Tienda { get; init; }
     public Guid? MecanicoId { get; init; }
 }

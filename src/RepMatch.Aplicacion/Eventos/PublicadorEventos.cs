@@ -64,6 +64,7 @@ public sealed class PublicadorEventos(IEventBus bus, ILogger<PublicadorEventos> 
                         DerivacionId = e.DerivacionId,
                         BusquedaId = e.BusquedaId,
                         OfertaId = e.OfertaId,
+                        CodigoRepuesto = e.CodigoRepuesto,
                         Tienda = e.NombreTienda,
                         MecanicoId = e.MecanicoId
                     }, ct);

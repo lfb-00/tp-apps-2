@@ -22,4 +22,11 @@ public interface IFuenteOfertas
     /// decide como seguir sin ella. Si responde sin resultados, devuelve una lista vacia.
     /// </summary>
     Task<IReadOnlyList<OfertaExternaDto>> BuscarAsync(ConsultaOfertasDto consulta, CancellationToken ct = default);
+
+    /// <summary>
+    /// Una busqueda de la pieza en el sitio de la tienda, para sugerirla cuando no hay ofertas
+    /// exactas: "no tenemos ofertas ahora, pero podes buscarla en...". No es una oferta ni muestra
+    /// precio. null si la tienda no vende repuestos y no tiene sentido mandar a nadie ahi.
+    /// </summary>
+    string? UrlParaBuscar(ConsultaOfertasDto consulta, VehiculoDto? vehiculo) => null;
 }

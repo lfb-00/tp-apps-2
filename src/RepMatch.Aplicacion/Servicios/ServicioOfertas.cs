@@ -114,41 +114,65 @@ public sealed class ServicioOfertas(
     }
 
     /// <summary>
-    /// Para quien busca sin cuenta: precio mas bajo y cantidad de tiendas por pieza, sin guardar
-    /// nada y sin decir donde. Ver el detalle y derivar requiere ingresar, porque la derivacion
-    /// sale de una busqueda guardada.
+    /// Para quien busca sin cuenta: las mismas ofertas que ve el cliente, sin guardar nada. Comprar
+    /// una pieza no tiene por que pedir una cuenta; la cuenta es para guardar consultas y
+    /// compartirlas con un mecanico. La salida a la tienda igual se registra (derivacion sin
+    /// cuenta), porque es la comision de afiliado.
     /// </summary>
-    public async Task<ResumenPreciosBusquedaDto> ResumirAsync(
+    public async Task<PreciosSinCuentaDto> PreciosSinCuentaAsync(
         IReadOnlyList<RepuestoDto> piezas, VehiculoDto vehiculo, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(piezas);
         ArgumentNullException.ThrowIfNull(vehiculo);
         if (piezas.Count == 0 || _fuentes.Count == 0)
-            return new ResumenPreciosBusquedaDto();
+            return new PreciosSinCuentaDto();
 
         var consulta = await ConsultarTiendasAsync(piezas, vehiculo, ct);
 
-        var porPieza = piezas.Select(p =>
+        return new PreciosSinCuentaDto
         {
-            var deLaPieza = consulta.Ofertas
-                .Where(o => o.CodigoRepuesto.Equals(p.CodigoCanonico, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-
-            // Una sola moneda por resumen, como en el ranking: ARS si hay, si no la que haya.
-            var moneda = deLaPieza.Any(o => o.Moneda == "ARS") ? "ARS" : deLaPieza.FirstOrDefault()?.Moneda ?? "ARS";
-            var enMoneda = deLaPieza.Where(o => o.Moneda == moneda).ToList();
-
-            return new ResumenPreciosDto
-            {
-                CodigoRepuesto = p.CodigoCanonico,
-                Desde = enMoneda.Count > 0 ? enMoneda.Min(o => o.Precio) : null,
-                Moneda = moneda,
-                Tiendas = enMoneda.Select(o => o.Tienda).Distinct(StringComparer.OrdinalIgnoreCase).Count()
-            };
-        }).ToList();
-
-        return new ResumenPreciosBusquedaDto { Piezas = porPieza, TiendasSinRespuesta = consulta.SinRespuesta };
+            Ofertas = [.. consulta.Ofertas.Select(ADtoSinGuardar)],
+            TiendasSinRespuesta = consulta.SinRespuesta
+        };
     }
+
+    /// <summary>
+    /// Las tiendas de repuestos donde buscar una pieza a mano, para cuando no tiene ofertas
+    /// exactas. No consulta a nadie: cada fuente arma el enlace a su propio buscador.
+    /// </summary>
+    public IReadOnlyList<SugerenciaTiendaDto> SugerirTiendas(RepuestoDto pieza, VehiculoDto? vehiculo)
+    {
+        ArgumentNullException.ThrowIfNull(pieza);
+        var consulta = new ConsultaOfertasDto
+        {
+            CodigoRepuesto = pieza.CodigoCanonico,
+            Nombre = pieza.Nombre,
+            CodigosEquivalentes = pieza.CodigosEquivalentes
+        };
+
+        return [.. _fuentes
+            .Select(f => (f.Nombre, Url: f.UrlParaBuscar(consulta, vehiculo)))
+            .Where(s => s.Url is not null)
+            .Select(s => new SugerenciaTiendaDto { Tienda = s.Nombre, Url = s.Url! })];
+    }
+
+    private static OfertaDto ADtoSinGuardar(OfertaExternaDto o) => new()
+    {
+        CodigoRepuesto = o.CodigoRepuesto,
+        NombreTienda = o.Tienda,
+        Titulo = o.Titulo,
+        Precio = o.Precio,
+        Moneda = o.Moneda,
+        PrecioTotal = o.Precio,
+        UrlOriginal = o.Url,
+        Disponible = true,
+        CapturadaEn = o.CapturadaEn == default ? DateTimeOffset.UtcNow : o.CapturadaEn,
+        PrecioLista = o.PrecioLista,
+        Coincidencia = o.Coincidencia,
+        Marca = o.Marca,
+        Ean = o.Ean,
+        Vendedor = o.Vendedor
+    };
 
     /// <summary>Datos de catalogo de las piezas a buscar: nombre y codigos equivalentes.</summary>
     private async Task<IReadOnlyList<RepuestoDto>> PiezasAsync(

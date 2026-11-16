@@ -45,7 +45,7 @@ public class PublicadorEventosTests
             new BusquedaCreada(Guid.NewGuid(), Guid.NewGuid(), new DatosVehiculo("Volkswagen", "Gol", 2015, "1.6"), "no arranca"),
             new BusquedaCompartida(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()),
             new DiagnosticoValidado(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), false, ["A"], ["B"]),
-            new DerivacionATienda(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "Easy", null)
+            new DerivacionATienda(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "BATE-12V-50AH", "Easy", null)
         ];
 
         foreach (var evento in eventos)
@@ -94,7 +94,7 @@ public class PublicadorEventosTests
         var publicador = Crear(new BusFalso(caido: true));
 
         var error = await Record.ExceptionAsync(() =>
-            publicador.ObservarAsync(new DerivacionATienda(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "Easy", null)));
+            publicador.ObservarAsync(new DerivacionATienda(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "BATE-12V-50AH", "Easy", null)));
 
         Assert.Null(error);
     }
