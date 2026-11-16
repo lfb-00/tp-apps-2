@@ -6,10 +6,18 @@ namespace RepMatch.Persistence.Repositorios;
 
 public sealed class ClienteRepository(RepMatchDbContext contexto) : IClienteRepository
 {
-    public Task<Cliente?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default) =>
-        contexto.Clientes
+    public async Task<Cliente?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default)
+    {
+        // Mismo motivo que BusquedaRepository.ObtenerPorIdAsync: en Blazor Server el plan del
+        // mecanico puede cambiar desde otro circuito y la entidad trackeada quedaria desactualizada.
+        var entrada = contexto.ChangeTracker.Entries<Cliente>().FirstOrDefault(e => e.Entity.Id == id);
+        if (entrada is not null)
+            await entrada.ReloadAsync(ct);
+
+        return await contexto.Clientes
             .Include(c => c.Vehiculos)
             .FirstOrDefaultAsync(c => c.Id == id, ct);
+    }
 
     public Task<Cliente?> ObtenerPorEmailAsync(string email, CancellationToken ct = default)
     {

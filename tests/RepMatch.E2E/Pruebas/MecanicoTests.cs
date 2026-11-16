@@ -174,20 +174,13 @@ public sealed class MecanicoTests(NavegadorFixture fixture, ITestOutputHelper sa
         await Expect(Exito(mecanicoPagina)).ToHaveTextAsync("Ya tenés el plan Pro.");
         await Expect(mecanicoPagina.Locator(".resumen-taller")).ToContainTextAsync("Pro");
 
-        // Se recarga la pagina del cliente a proposito: sin recargar falla (ver la prueba siguiente).
+        // CompartirAsync vuelve a abrir la consulta; el reintento en la misma pagina, sin recargar,
+        // es la prueba siguiente.
         await CompartirAsync(Pagina, ids[5], mecanico.Nombre);
         await Expect(Exito(Pagina)).ToContainTextAsync("se la compartiste");
     }
 
-    /// <summary>
-    /// ERROR CONOCIDO: datos viejos dentro de una misma pestania. En Blazor Server el DbContext
-    /// vive lo que dura el circuito y EF devuelve la entidad que ya tiene en seguimiento sin
-    /// releerla. El primer intento cargo al mecanico con plan Gratuito; cuando el mecanico pasa a
-    /// Pro desde su sesion, el reintento del cliente sigue viendo Gratuito y vuelve a rechazar.
-    /// Recargando la pagina (circuito nuevo) funciona. Arreglo posible: AsNoTracking en las
-    /// lecturas, o un DbContext por operacion (IDbContextFactory) en vez de uno por circuito.
-    /// </summary>
-    [Fact(Skip = "Error conocido: el cliente ve datos viejos del mecánico hasta recargar (ver comentario).")]
+    [Fact]
     public async Task Sin_recargar_el_cliente_puede_compartir_apenas_el_mecanico_pasa_a_Pro()
     {
         var mecanicoPagina = await NuevaPaginaAsync();

@@ -93,12 +93,7 @@ public sealed class BusquedaTests(NavegadorFixture fixture, ITestOutputHelper sa
         await Expect(Pagina.GetByText(TextoFrenos)).ToBeVisibleAsync();
     }
 
-    /// <summary>
-    /// ERROR CONOCIDO. El boton se deshabilita recien cuando vuelve el primer render, y el segundo
-    /// clic ya viajo por SignalR: Home.BuscarAsync corre dos veces y quedan dos consultas iguales.
-    /// Arreglo posible: salir de BuscarAsync si <c>buscando</c> ya es true. Sacar el Skip al arreglarlo.
-    /// </summary>
-    [Fact(Skip = "Error conocido: el doble clic crea dos consultas (ver comentario de la prueba).")]
+    [Fact]
     public async Task Doble_clic_en_buscar_crea_una_sola_consulta()
     {
         await ClienteConGolAsync(Pagina);

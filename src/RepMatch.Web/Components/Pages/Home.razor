@@ -460,8 +460,10 @@ else
     private async Task BuscarAsync()
     {
         // Mientras llegan los precios de la busqueda anterior no se lanza otra: la pagina comparte un
-        // solo DbContext con esa consulta.
-        if (Sesion.Cliente is null || cargandoPrecios)
+        // solo DbContext con esa consulta. El chequeo de buscando evita que un doble clic cree dos
+        // busquedas: el flag se pone antes del primer await, antes de que el boton se renderice como
+        // deshabilitado.
+        if (Sesion.Cliente is null || cargandoPrecios || buscando)
             return;
 
         buscando = true;

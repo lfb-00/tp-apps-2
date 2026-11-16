@@ -141,15 +141,13 @@ Las pruebas que encontraron un error real están marcadas con `Skip` y un coment
 la causa y un arreglo posible. Así la corrida queda en verde, pero el problema sigue a la vista
 como "omitida". Al arreglarlo, se saca el `Skip`.
 
-| Prueba | Error |
-|---|---|
-| `BusquedaTests.Doble_clic_en_buscar_crea_una_sola_consulta` | Dos clics rápidos en "Diagnosticar con IA" crean dos consultas iguales. |
-| `MecanicoTests.Sin_recargar_el_cliente_puede_compartir_apenas_el_mecanico_pasa_a_Pro` | El cliente ve datos viejos del mecánico hasta recargar la página. |
-
-El de datos viejos viene de que, en Blazor Server, el `DbContext` vive lo que dura la conexión de
-la pestaña, y EF devuelve las entidades que ya tiene cargadas sin releerlas. La página de la
-consulta ya tiene su propio scope (`OwningComponentBase`), así que navegar hasta ella lee datos
-actuales; este caso queda porque el cliente reintenta en la misma página, sin volver a abrirla.
+Hoy no queda ninguna. Los dos últimos se arreglaron en el PR #63: el doble clic en
+"Diagnosticar con IA" creaba dos consultas iguales (ahora `Home.BuscarAsync` sale si ya está
+buscando), y el cliente veía datos viejos del mecánico hasta recargar la página. Esto pasaba
+porque en Blazor Server el `DbContext` vive lo que dura la conexión de la pestaña y EF devuelve
+las entidades que ya tiene cargadas sin releerlas. Ahora la página de la consulta tiene su propio
+scope (`OwningComponentBase`) y los repositorios releen la consulta y el cliente que ya estaban
+cargados (`ReloadAsync`).
 
 ## Relación con los issues
 
