@@ -20,7 +20,8 @@ public sealed class NotificacionConfiguration : IEntityTypeConfiguration<Notific
         b.Property(n => n.CreadaEn).IsRequired();
 
         // Sin FK a clientes ni a busquedas, igual que derivaciones: borrar una cuenta o una consulta
-        // no tiene que fallar por sus avisos; el servicio los borra explicitamente si hace falta.
+        // no tiene que fallar por sus avisos. ServicioClientes.EliminarCuentaAsync los borra
+        // explicitamente, y la bandeja no muestra los de consultas que ya no se pueden abrir.
         b.HasIndex(n => new { n.DestinatarioId, n.LeidaEn });
         b.HasIndex(n => new { n.DestinatarioId, n.BusquedaId });
     }

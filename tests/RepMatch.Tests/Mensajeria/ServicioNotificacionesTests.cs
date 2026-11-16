@@ -129,4 +129,57 @@ public class ServicioNotificacionesTests
         Assert.Equal(1, await Crear(lectura).ContarNoLeidasAsync(mecanico));
         Assert.True((await Crear(lectura).ObtenerBandejaAsync(cliente)).Recientes.Single().Leida);
     }
+
+    /// <summary>
+    /// Un aviso solo se marca leido al abrir su consulta. Si el cliente deja de compartirla, el
+    /// mecanico ya no puede abrirla: el aviso no puede quedar contando para siempre en la campana.
+    /// El segundo caso es la carrera con la cola: el cliente deja de compartir antes de que el
+    /// worker escriba el aviso.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Si_el_cliente_deja_de_compartir_el_aviso_del_mecanico_deja_de_contar(bool avisoDespuesDeRetirar)
+    {
+        var (cliente, mecanico, busqueda) = await SembrarAsync();
+        if (!avisoDespuesDeRetirar)
+        {
+            await using var contexto = CrearContexto();
+            await Crear(contexto).AvisarCompartidaAsync(Compartida(cliente, mecanico, busqueda));
+        }
+
+        await using (var contexto = CrearContexto())
+        {
+            (await contexto.Busquedas.SingleAsync(b => b.Id == busqueda)).DejarDeCompartir();
+            await contexto.SaveChangesAsync();
+        }
+
+        if (avisoDespuesDeRetirar)
+        {
+            await using var contexto = CrearContexto();
+            await Crear(contexto).AvisarCompartidaAsync(Compartida(cliente, mecanico, busqueda));
+        }
+
+        await using var lectura = CrearContexto();
+        Assert.Equal(0, await Crear(lectura).ContarNoLeidasAsync(mecanico));
+        Assert.Empty((await Crear(lectura).ObtenerBandejaAsync(mecanico)).Recientes);
+    }
+
+    [Fact]
+    public async Task Si_la_consulta_ya_no_existe_su_aviso_deja_de_contar()
+    {
+        var (cliente, mecanico, busqueda) = await SembrarAsync();
+        await using (var contexto = CrearContexto())
+            await Crear(contexto).AvisarRevisadaAsync(Revisada(cliente, mecanico, busqueda, confirmado: true));
+
+        await using (var contexto = CrearContexto())
+        {
+            contexto.Busquedas.Remove(await contexto.Busquedas.SingleAsync(b => b.Id == busqueda));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var lectura = CrearContexto();
+        Assert.Equal(0, await Crear(lectura).ContarNoLeidasAsync(cliente));
+        Assert.Empty((await Crear(lectura).ObtenerBandejaAsync(cliente)).Recientes);
+    }
 }

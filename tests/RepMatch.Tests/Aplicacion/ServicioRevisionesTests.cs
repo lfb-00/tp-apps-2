@@ -47,6 +47,7 @@ public class ServicioRevisionesTests
     private static ServicioClientes CrearClientes(RepMatchDbContext contexto) =>
         new(new ClienteRepository(contexto),
             new BusquedaRepository(contexto),
+            new NotificacionRepository(contexto),
             new UnitOfWork(contexto),
             new ValidadorCrearCliente(),
             new ValidadorVehiculo(),

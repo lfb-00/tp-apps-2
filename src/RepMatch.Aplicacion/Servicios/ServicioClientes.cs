@@ -17,6 +17,7 @@ namespace RepMatch.Aplicacion.Servicios;
 public sealed class ServicioClientes(
     IClienteRepository clientes,
     IBusquedaRepository busquedas,
+    INotificacionRepository notificaciones,
     IUnitOfWork unidadDeTrabajo,
     IValidator<CrearClienteDto> validador,
     IValidator<VehiculoDto> validadorVehiculo,
@@ -224,6 +225,9 @@ public sealed class ServicioClientes(
                 await unidadDeTrabajo.ConfirmarAsync(token);
             }
 
+            // Los avisos van antes que las busquedas: se buscan tambien por las consultas de la
+            // persona, y esas consultas tienen que seguir en la base al consultarlas.
+            await notificaciones.EliminarDePersonaAsync(clienteId, token);
             cantidadBusquedas = await busquedas.EliminarPorClienteAsync(clienteId, token);
 
             // Las consultas que un mecanico tenia sin revisar vuelven a sus duenios; las revisadas

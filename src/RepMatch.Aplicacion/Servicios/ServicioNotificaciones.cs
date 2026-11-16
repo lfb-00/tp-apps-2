@@ -90,7 +90,11 @@ public sealed class ServicioNotificaciones(
     private async Task<NotificacionDto> ADtoAsync(Notificacion n, CancellationToken ct)
     {
         var busqueda = await busquedas.ObtenerPorIdAsync(n.BusquedaId, ct);
-        var vehiculo = busqueda is null ? "una consulta" : $"{busqueda.Vehiculo.Marca} {busqueda.Vehiculo.Modelo} {busqueda.Vehiculo.Anio}";
+        var auto = busqueda is null ? null : $"{busqueda.Vehiculo.Marca} {busqueda.Vehiculo.Modelo} {busqueda.Vehiculo.Anio}";
+        // La bandeja ya no lista avisos de consultas borradas, pero entre leer la lista y armar el
+        // texto la consulta se puede borrar: el respaldo tiene que leerse bien igual.
+        var suVehiculo = auto is null ? "una consulta" : $"su {auto}";
+        var tuVehiculo = auto is null ? "tu consulta" : $"tu {auto}";
 
         string titulo;
         string detalle;
@@ -99,15 +103,15 @@ public sealed class ServicioNotificaciones(
             case TipoNotificacion.ConsultaCompartida:
                 var cliente = busqueda is null ? null : await clientes.ObtenerPorIdAsync(busqueda.ClienteId, ct);
                 titulo = "Nueva consulta para revisar";
-                detalle = $"{cliente?.Nombre ?? "Un cliente"} te compartió su {vehiculo}.";
+                detalle = $"{cliente?.Nombre ?? "Un cliente"} te compartió {suVehiculo}.";
                 break;
             default:
                 var mecanico = busqueda?.MecanicoId is { } id ? await clientes.ObtenerPorIdAsync(id, ct) : null;
                 var quien = mecanico?.NombreTaller ?? mecanico?.Nombre ?? "El mecánico";
                 titulo = n.Tipo == TipoNotificacion.DiagnosticoConfirmado ? "Diagnóstico confirmado" : "Diagnóstico corregido";
                 detalle = n.Tipo == TipoNotificacion.DiagnosticoConfirmado
-                    ? $"{quien} confirmó el diagnóstico de tu {vehiculo}."
-                    : $"{quien} recomendó otras piezas para tu {vehiculo}.";
+                    ? $"{quien} confirmó el diagnóstico de {tuVehiculo}."
+                    : $"{quien} recomendó otras piezas para {tuVehiculo}.";
                 break;
         }
 
