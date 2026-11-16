@@ -1,6 +1,6 @@
 # Status
 
-Read this first. Snapshot 2026-11-12. English. Facts only. Intent and the next slice are in `plan.md`.
+Read this first. Snapshot 2026-11-15. English. Facts only. Intent and the next slice are in `plan.md`.
 
 ## Now
 
@@ -16,7 +16,7 @@ Public search and password login implemented 2026-10-03. `/` is now the search f
 
 Profile, default vehicle and light/dark theme implemented 2026-10-05.
 
-Roles implemented 2026-11-03. `Cliente.Rol` is `Cliente` or `Mecanico`, chosen at sign-up and never changed. A mechanic also has `NombreTaller`, `Especialidades` (`SistemaVehiculo` list) and `Plan` (`Gratuito`/`Pro`). Business model: affiliate commission per `Derivacion` + Pro plan for mechanics; changing plan charges nothing. Free plan: at most 5 unreviewed searches in the inbox (`Cliente.MaximoPendientesPlanGratuito`). Role and plan checks live in `ServicioRevisiones`/`ServicioMecanicos`, not in pages. New events `BusquedaCompartida`, `DiagnosticoValidado`, `DerivacionATienda` are dispatched after commit and have no observers yet.
+Roles implemented 2026-11-03. `Cliente.Rol` is `Cliente` or `Mecanico`, chosen at sign-up and never changed. A mechanic also has `NombreTaller`, `Especialidades` (`SistemaVehiculo` list) and `Plan` (`Gratuito`/`Pro`). Business model: affiliate commission per `Derivacion` + Pro plan for mechanics; changing plan charges nothing. Free plan: at most 5 unreviewed searches in the inbox (`Cliente.MaximoPendientesPlanGratuito`). Role and plan checks live in `ServicioRevisiones`/`ServicioMecanicos`, not in pages. New events `BusquedaCompartida`, `DiagnosticoValidado`, `DerivacionATienda` are dispatched after commit; since 2026-11-15 `busqueda.compartida` and `diagnostico.validado` feed the notifications (below).
 
 AI diagnosis implemented 2026-11-04 (Segunda Parte slice 1). `IDiagnosticador` in Contracts. New library `RepMatch.IA`: `DiagnosticadorLlm` (OpenAI-compatible chat completions, Groq by default, Gemini by config), `DiagnosticadorLocal` (TF-IDF + 4-NN over the embedded `Datos/sintomas.json`, 41 phrases), `DiagnosticadorConRespaldo` (LLM, else local). New host `RepMatch.IA.Api` (`POST /api/diagnostico`, `/salud`, OpenAPI, no database). Web picks local or remote with `IA:Modo` (`FabricaDiagnostico`); `Catalogo.Api` always diagnoses in process. `ObservadorCompatibilidad` now goes through `ServicioDiagnostico`: fitment first, then the AI picks among those parts; codes outside the candidates are dropped; if the AI picks none, or the remote call fails, all fitting parts stay. `Busqueda` stores `SistemaDiagnosticado`, `Urgencia`, `CausasProbables`, `FuenteDiagnostico`. No LLM key is configured anywhere, so every run so far used `fallback-local`; the LLM path is only tested with recorded responses.
 
@@ -26,9 +26,18 @@ Offers implemented 2026-11-10 (Segunda Parte, issues #4 and #18, branch `feature
 
 Messaging implemented 2026-11-11 (Segunda Parte, issues #12, #13 and #14, branch `feature/mensajeria-rabbitmq` stacked on `feature/ofertas-vtex`). `IEventBus` and versioned `MensajeIntegracion<T>` contracts (`*V1`, ids only, never the free text) in Contracts. New library `RepMatch.Mensajeria` on `RabbitMQ.Client` 7.2.2: `BusRabbitMq` (persistent messages, publisher confirms, correlation id in the body and as AMQP header), `ConexionRabbitMq` (one lazy connection per process, automatic recovery, 30 s pause after a failed connect so a down broker costs one timeout, not one per click), `TopologiaRabbitMq` (topic exchange `repmatch.eventos`, dead-letter exchange `repmatch.eventos.dlx`, durable queue + `.dlq` per consumer) and `ConsumidorRabbitMq<T>` (ack after processing, one requeue, then DLQ; unreadable → DLQ). `BusRabbitMq` declares the shared consumer topology before its first publish, publishes as mandatory, and logs returned unroutable messages. `PublicadorEventos` is a second observer registered after `ObservadorCompatibilidad`; broker failures are logged and never break the user action. `BusDesactivado` when `Mensajeria:Habilitada=false` (default outside Docker). New host `RepMatch.Notificaciones.Worker` (port 8085): `ConsumidorComisiones` (`repmatch.comisiones` ← `derivacion.tienda` → `ComisionesTienda` per store and month, idempotent through `mensajes_procesados` in the same transaction) and `ConsumidorActividad` (`repmatch.actividad` ← `#`, log only); `/salud` and `GET /api/comisiones`. `ContextoCorrelacion` (AsyncLocal, set by `CorrelacionMiddleware`) carries the id to the publisher. Compose adds `rabbitmq` (4-management, fixed hostname, volume, user `repmatch`) and `worker`; the Web does not wait for the broker. Notifications to client and mechanic, and fetching prices from the worker, are not built: they would be new consumers. No outbox: a message published while the broker is down is lost (the fact stays in the database).
 
-**PostgreSQL schema updates use EF Core migrations.** The initial migration represents the schema before messaging; the next adds `comisiones_tienda` and `mensajes_procesados`. Existing volumes created by `EnsureCreatedAsync` are adopted only when all initial tables are present; the advisory lock serializes adoption, migration and seeding across hosts. InMemory continues using `EnsureCreatedAsync`.
+**PostgreSQL schema updates use EF Core migrations.** The initial migration represents the schema before messaging; the next adds `comisiones_tienda` and `mensajes_procesados`; `AgregarNotificaciones` (2026-11-15) adds `notificaciones`. Existing volumes created by `EnsureCreatedAsync` are adopted only when all initial tables are present; the advisory lock serializes adoption, migration and seeding across hosts. InMemory continues using `EnsureCreatedAsync`.
 
 2026-11-12, local .NET 10: 200 tests passed after adding RabbitMQ topology and migration-script checks. Build and migration SQL generation succeeded. Disposable PostgreSQL 17 verified fresh creation, adoption of both the pre-messaging and full schemas without migration history, retention of existing commission data, and two hosts initializing concurrently. Not verified against a live RabbitMQ broker or the retained project volume.
+
+Merged 2026-11-15 (PR #64, plus a fix by a teammate inside it):
+
+- Sourced catalog: `DatosSemilla` has 47 parts and 19 vehicle configurations (10 families), every code and fitment from an official catalog with its page in `docs/catalogo-fuentes.md`. A Postgres volume from before this keeps the old catalog: the seed only loads into an empty database (`docker compose down -v`).
+- Notifications: `ConsumidorAvisosCompartidas` / `ConsumidorAvisosRevisiones` in the worker → `ServicioNotificaciones` (idempotent) → table `notificaciones`. `CampanaNotificaciones` in the header polls every `Notificaciones:IntervaloSegundos`. A notice is marked read when its consultation is opened; the bell and its count only include notices of consultations the person can still open (owner, or the mechanic it is shared with), and account deletion removes the person's notices and those of their consultations.
+- Offers: `Ofertas:IncluirCoincidenciasPorNombre` defaults to false, so only exact matches are shown. Against live Easy/Frávega none of the 47 parts has an exact match: **in practice a real search shows no prices.** This is the open product problem (`plan.md`, "Open: prices").
+- eBay: `RepMatch.Fuentes.Ebay` (Browse API, client credentials) is wired but registers only with `EBAY_APP_ID`/`EBAY_CERT_ID`. No tests, never called for real (developer account pending). Mercado Libre search is closed to third-party apps (403).
+- AI: default LLM `openai/gpt-oss-120b` on Groq with `reasoning_effort=low`. Validation over 60 labelled phrases: LLM 95.0 % system / 100 % urgency; local fallback 81.7 % / 88.9 %, 0 grave underestimations (RNF-IA-02 met).
+- Errors (#26): every host returns ProblemDetails with `correlationId` (`AgregarProblemDetails()` in Common); the Web always uses the exception handler, also in Development. Report 6.12.
 
 Data Protection keys live in the `claves-web` volume (`ProteccionDatos:DirectorioClaves`), so a tab keeps its session when the Web container is recreated. If a stored session cannot be decrypted anyway, `SesionActual` drops it and starts signed out.
 
@@ -74,7 +83,14 @@ TP Inicial and Primera Parte are implemented. Do not redo them.
 | Segunda Parte: SOAP | done 2026-11-10 (`feature/soap`) |
 | Segunda Parte: external API (VTEX: Easy, Frávega) and `ServicioOfertas` | done 2026-11-10 (`feature/ofertas-vtex`). Report 6.9, sequence 9, patterns "Las tiendas externas y los mismos patrones" |
 | Segunda Parte: queue (RabbitMQ, producers, worker) | done 2026-11-11 (`feature/mensajeria-rabbitmq`). Report 6.10, `docs/diagramas/mensajes.md`, sequence 10, patterns "La cola de mensajes y los mismos patrones" and "Template Method" |
-| Segunda Parte: eBay, notifications, Segunda Parte report and evidence | not started (`plan.md` slices 4 and 5) |
+| Segunda Parte: notifications (mechanic and client, by the queue) | done 2026-11-15 (PR #64). Report 6.10, `docs/diagramas/mensajes.md` |
+| Segunda Parte: eBay | adapter written, off without credentials; no tests, no real call (account pending) |
+| Segunda Parte: real prices | open. Exact-only offers find nothing on Easy/Frávega; source not decided |
+| Segunda Parte: report | written (`docs/informe-arquitectura.md` 6.7-6.12, section 7) |
+| Segunda Parte: evidence | 15-23 exist; the six files that show the catalog are from the old one and must be regenerated |
+| Integrador: requirements, AI validation, load, deployment manual, error audit | done (`docs/requerimientos.md`, report 6.12, `docs/evidencias/carga.md`, `docs/manual-despliegue.md`) |
+| Integrador: class and deployment diagrams | missing notifications and eBay |
+| Integrador: demo script (#28) | not started, on hold until prices are decided |
 
 `docs/` is Spanish and is the hand-in. Do not translate it.
 
@@ -100,6 +116,8 @@ TP Inicial and Primera Parte are implemented. Do not redo them.
 - Do not change the `@key` of the `InputFile` while a file is being read: the input element is replaced and reading fails.
 
 ## Last verification
+
+2026-11-15, after PR #64 was merged: `main` unit tests 235 passed, 1 skipped (LLM validation, opt-in). PR #63 (double-click guard in `Home.BuscarAsync`; `ReloadAsync` of an already tracked `Busqueda`/`Cliente` in their repositories) with `main` merged into it: unit tests 235 passed, 1 skipped; `scripts/e2e.sh` all six phases OK (Normal 81 passed/12 skipped, SinIA 2, SinCatalogo 4, SinSoap 3, SinTiendas 2, SinCola 1). The last three known-bug tests pass; #63 was merged, so no E2E test is skipped for a known bug. No service reloads an entity it changed before saving it, so `ReloadAsync` does not discard pending changes today.
 
 2026-11-15, before the PR. Offers: `Ofertas:IncluirCoincidenciasPorNombre` (default false) drops name-only matches in `ServicioOfertas`; a probe of all 47 parts against live Easy/Frávega found 0 exact matches and only wrong products by name (jumper cables for spark-plug cables, motorcycle pads, a 40Ah battery for a 50Ah one). `scripts/e2e.sh` turns it on because the store simulator replays name-only matches. AI: local urgency is now the highest among similar neighbours (`UrgenciaPrudente`): local validation 81.7 % system, 88.9 % urgency, 0 grave underestimations, test un-skipped; LLM validation (Groq `openai/gpt-oss-120b`, 6 s pause, `REPMATCH_VALIDAR_LLM_PAUSA_SEGUNDOS`) 95.0 % system, 100 % urgency, 0 underestimations, p95 1030 ms, 60/60 by the LLM. Error audit (#26): `AgregarProblemDetails()` in Common puts `correlationId` in every ProblemDetails and restores `X-Correlation-Id` (the exception handler clears headers); Web now always uses `UseExceptionHandler()` (compose runs Development, where it used to return the raw exception); the unused `/Error` page was removed; `ErroresTests` covers it; no credentials in files or in the 103 commits of history. Unit tests: 231 passed, 1 skipped (LLM validation, opt-in). `scripts/e2e.sh`: all six phases OK (Normal 79/14 skipped).
 

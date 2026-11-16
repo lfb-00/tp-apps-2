@@ -57,9 +57,19 @@ status.md       snapshot of what is true now
 
 ## Next: Segunda Parte
 
-Slice 1 (AI, #15 and #16) is done; facts in `status.md`. The Docker run was checked on 2026-11-05. Close #15 and #16 once the work is committed.
+Slices 1-3 are done and slices 4-5 are done except where noted; facts in `status.md`. Issues #10-#21 hold the details per slice; where an issue contradicts this file, this file wins and the issue gets a comment.
 
-Before slice 2: commit the roles and AI work that is still uncommitted in the tree, and close the `tp-primera` issues that are done (#1-#9, #35 if its evidence exists). Issues #10-#21 hold the details per slice; where an issue contradicts this file, this file wins and the issue gets a comment.
+### Open: prices (decide before anything else)
+
+Prices are the core of the product and a real search shows none. Only exact matches are shown (`Ofertas:IncluirCoincidenciasPorNombre=false`), and Easy and Frávega (VTEX) have no exact match for any of the 47 sourced parts: they are not parts shops, and by name they return wrong products. eBay needs an approved developer account; Mercado Libre search is closed (403). Scraping is not allowed. The next session agrees with the team where prices come from before building more; the demo script (#28) waits for this.
+
+### Left after prices
+
+- Regenerate `docs/evidencias/` (the files that show the catalog are from the old one) and the test-count files at hand-in.
+- Class and deployment diagrams: add notifications and eBay.
+- eBay: fixture tests and one real call once the account is approved.
+- `ColaTests.Con_la_cola_caida_buscar_compartir_y_salir_a_la_tienda_siguen_andando` (SinCola) timed out once in three runs: investigate.
+- Issues still open that are not done: #8 (business-process diagram, `docs/diagramas/proceso-negocio.md` does not exist), #1 (screenshots; it asks for `/acceso`, which is deleted, so it needs a comment and a new scope), #35 (evidence for the facade and the domain events), #31 (column naming, cosmetic).
 
 ### Slice 2. Messaging (#12, #13, #14).
 
@@ -68,7 +78,7 @@ Before slice 2: commit the roles and AI work that is still uncommitted in the tr
 - Worker `src/RepMatch.Notificaciones.Worker` consumes `busqueda.compartida` (notify the mechanic: a stored notification shown on `/taller`), `derivacion.tienda` (commission ledger per shop) and `busqueda.creada` (log/metrics). Idempotent by message id, ack after success.
 - Drop `AlertaPrecio` from #14: it does not exist in the domain and needs offers first.
 - AI over the queue is optional: only if time remains, a consumer that re-diagnoses with the LLM when the synchronous call fell back to local.
-- Done 2026-11-11 in `feature/mensajeria-rabbitmq`: broker, `IEventBus`, `PublicadorEventos` (all four events), worker with `derivacion.tienda` (commission ledger) and `busqueda.creada` and the rest (activity log). The `busqueda.compartida` notification for the mechanic is not built yet (new consumer on the same base). Verified only without a broker; needs a run with Docker.
+- Done 2026-11-11 in `feature/mensajeria-rabbitmq`: broker, `IEventBus`, `PublicadorEventos` (all four events), worker with `derivacion.tienda` (commission ledger) and `busqueda.creada` and the rest (activity log). Notifications for `busqueda.compartida` and `diagnostico.validado` were added 2026-11-15 (PR #64).
 
 ### Slice 3. SOAP (#10, #11).
 
@@ -83,7 +93,7 @@ Before slice 2: commit the roles and AI work that is still uncommitted in the tr
 - Aggregation in parallel with partial results. Prefer endpoints on an existing host over a new `Search.Api` unless a third REST service is needed for the grade.
 - Polly per source (timeout, retry, circuit breaker). Use `IDistributedCache` with Redis in Compose and an in-memory provider otherwise; cache failures must not stop offer lookup.
 - Offers render on the result only when captured; `/derivar/{ofertaId}` then works for real. Ranking by price only.
-- #29/#30 (EAN match and validating name matches) and #20 (per-source resilience) are implemented in the current offers worktree: shared EANs classify as exact matches, contradictory name matches are discarded, and Polly failures are isolated at the source boundary. eBay (#17) remains pending; #19 only if a third REST service is needed.
+- #29/#30 (EAN match and validating name matches) and #20 (per-source resilience) are implemented in the current offers worktree: shared EANs classify as exact matches, contradictory name matches are discarded, and Polly failures are isolated at the source boundary. eBay (#17): adapter written 2026-11-15, off without credentials, untested. #19 is not needed: there are already three REST hosts.
 - `ServicioOfertas` (#4) and the VTEX adapter (#18) are implemented in `feature/ofertas-vtex`: prices load after the parts, source responses are cached through `IDistributedCache`, and only captured offers are shown.
 
 ### Slice 5. Docs and evidence (#21).
@@ -91,7 +101,8 @@ Before slice 2: commit the roles and AI work that is still uncommitted in the tr
 - `scripts/evidencias.sh`: WSDL, OpenAPI of each REST host, AI response from LLM and from fallback, one message produced and consumed with the same correlation id, an aggregated offer search.
 - `docs/informe-segunda-parte.md` (contracts, queue topology, AI decisions), deployment diagram from *prevista* to real, new message-flow diagram, sequence for the AI search, `docs/patrones.md` for new patterns (Strategy for `IDiagnosticador`, Adapter for SOAP/VTEX/eBay, circuit breaker), section 7 table of the report, README, test count in report 5.4 and `status.md`.
 - Each slice updates its own docs when it lands; slice 5 only closes gaps.
+- 2026-11-15: report sections 6.7-6.12 and section 7 are written; evidence regeneration and two diagrams remain ("Left after prices").
 
 ## Later, not now
 
-Integrador (#22-#28): requirements, AI accuracy on the mechanic-validated dataset (`DiagnosticoValidado`), load tests, deployment manual, demo script.
+Integrador (#22-#28): requirements (#22), AI validation (#23), load tests (#25), error audit (#26) and deployment manual (#27) are done. The demo script (#28) waits for prices. AI accuracy on the mechanic-validated dataset (`DiagnosticoValidado`) is not built.

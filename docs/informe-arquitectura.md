@@ -647,15 +647,18 @@ Las decisiones:
   o el cliente, idempotente por id de mensaje como las comisiones. Sumarlos no tocó productores,
   `ConsumidorRabbitMq<T>` ni la lógica de compartir y revisar: dos colas más en la topología. La
   Web consulta los avisos cada pocos segundos desde la campana del encabezado, con su propio
-  scope de DI para no compartir el `DbContext` del circuito. La búsqueda de precios en segundo
+  scope de DI para no compartir el `DbContext` del circuito. Un aviso se marca leído al abrir su
+  consulta, así que la campana solo cuenta los de consultas que la persona todavía puede abrir:
+  si el cliente deja de compartirla o borra su cuenta, el aviso no queda pendiente para siempre.
+  Borrar una cuenta borra también sus avisos. La búsqueda de precios en segundo
   plano sigue como próximo consumidor (sección 7).
 
 ### 6.11 Catálogo de repuestos: solo datos con fuente
 
 El catálogo de repuestos no es de ejemplo. Cada pieza, sus números de fabricante y los vehículos
-a los que aplica salen de catálogos oficiales publicados por Volkswagen, Bosch y MAHLE, con la
+a los que aplica salen de catálogos oficiales publicados por Volkswagen, Bosch, MAHLE y MANN-FILTER, con la
 página citada en [`docs/catalogo-fuentes.md`](catalogo-fuentes.md). Se eligió cubrir menos
-(ocho familias de vehículos y los tipos de pieza que esas fuentes documentan) antes que mostrar
+(diez familias de vehículos y los tipos de pieza que esas fuentes documentan) antes que mostrar
 compatibilidades inventadas: RepMatch existe para decir qué pieza le entra a un auto, y un dato
 falso ahí es el peor error posible. Los números de fabricante sirven además como términos de
 búsqueda en las tiendas (sección 6.9), así que un número real también mejora las ofertas que se
