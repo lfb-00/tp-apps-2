@@ -296,6 +296,37 @@ public class MapaOpenStreetMapTests
         }
     }
 
+    /// <summary>
+    /// Overpass saturado puede devolver un JSON valido con una parte del pais. Con menos de la
+    /// mitad de las casas guardadas, la descarga no reemplaza la copia y se informa como falla.
+    /// </summary>
+    [Fact]
+    public async Task Una_descarga_con_menos_de_la_mitad_de_las_casas_no_reemplaza_la_copia()
+    {
+        await ImportarGrabadasAsync();
+        int antes;
+        await using (var contexto = Contexto())
+            antes = await contexto.CasasRepuestos.CountAsync();
+        Assert.True(antes >= 4, "La respuesta grabada tiene que traer varias casas para esta prueba.");
+
+        const string recortada = """
+            {"elements": [
+              {"type": "node", "id": 900001, "lat": -34.6, "lon": -58.38, "tags": {"shop": "car_parts", "name": "Unica Casa"}}
+            ]}
+            """;
+        await using (var contexto = Contexto())
+        {
+            var resultado = await Importacion(contexto, Mapa(new OsmFalso(_ => Json(recortada)))).ImportarAsync();
+            Assert.False(resultado.EsExitoso);
+        }
+
+        await using (var contexto = Contexto())
+        {
+            Assert.Equal(antes, await contexto.CasasRepuestos.CountAsync());
+            Assert.False(await contexto.CasasRepuestos.AnyAsync(c => c.Nombre == "Unica Casa"));
+        }
+    }
+
     [Fact]
     public async Task Volver_a_importar_reemplaza_la_copia_sin_duplicar()
     {

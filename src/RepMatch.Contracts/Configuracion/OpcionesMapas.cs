@@ -12,7 +12,12 @@ public sealed class OpcionesMapas
 {
     public const string Seccion = "Mapas";
 
-    public bool Habilitado { get; set; } = true;
+    /// <summary>
+    /// Apagado por defecto y encendido en compose (<c>MAPAS_HABILITADO</c>). La busqueda lee la
+    /// copia de casas que mantiene el worker: con <c>dotnet run</c> de la Web sola no hay worker,
+    /// la copia nunca se carga y la seccion responderia "todavia estamos cargando" para siempre.
+    /// </summary>
+    public bool Habilitado { get; set; }
 
     /// <summary>Servidor de Overpass (comercios por tipo alrededor de un punto).</summary>
     public string UrlOverpass { get; set; } = "https://overpass-api.de/api/";

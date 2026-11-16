@@ -13,7 +13,8 @@ namespace RepMatch.Aplicacion.Servicios;
 /// Las casas de repuestos cerca de la persona, para cuando una pieza no tiene ofertas en linea:
 /// "no tenemos ofertas ahora, pero podes conseguirla en estos lugares". Lee la copia de
 /// OpenStreetMap que guarda el worker (<see cref="ServicioImportacionCasas"/>), no el mapa en
-/// vivo: la ubicacion del navegador no sale de RepMatch y no se guarda. Solo una zona escrita
+/// vivo: las coordenadas del navegador no se guardan ni se mandan a otro servicio (el mapa que
+/// dibuja el navegador si pide a OpenStreetMap las imagenes de la zona). Solo una zona escrita
 /// viaja al mapa, para saber donde queda. Los errores esperables (mapa caido, zona que no existe,
 /// casas todavia no importadas) se informan con <see cref="ResultadoOperacion{T}"/>.
 /// </summary>
@@ -117,6 +118,14 @@ public sealed class ServicioImportacionCasas(
 {
     private readonly TimeProvider _reloj = reloj ?? TimeProvider.System;
 
+    /// <summary>
+    /// Una descarga con menos de la mitad de las casas que ya hay no reemplaza la copia. Overpass
+    /// saturado a veces corta la respuesta y devuelve un JSON valido con una parte del pais; de una
+    /// semana a otra no cierra la mitad de las casas de repuestos. Se trata como cualquier otra
+    /// falla: queda la copia anterior y el worker reintenta.
+    /// </summary>
+    private const double ProporcionMinima = 0.5;
+
     /// <summary>true si no hay copia o tiene mas de <see cref="OpcionesMapas.RefrescoDias"/> dias.</summary>
     public async Task<bool> HaceFaltaImportarAsync(CancellationToken ct = default)
     {
@@ -137,6 +146,8 @@ public sealed class ServicioImportacionCasas(
             // Una respuesta vacia de todo el pais es una falla del servidor, no que cerraron todas.
             if (descargadas.Count == 0)
                 falla = "El mapa respondió sin casas de repuestos.";
+            else if (await casas.ContarAsync(ct) is var anteriores && descargadas.Count < anteriores * ProporcionMinima)
+                falla = $"El mapa respondió {descargadas.Count} casas de repuestos y la copia guardada tiene {anteriores}.";
         }
         catch (Exception ex) when (!ct.IsCancellationRequested && ex is HttpRequestException or TaskCanceledException)
         {

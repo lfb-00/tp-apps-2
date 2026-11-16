@@ -655,10 +655,16 @@ sin resultados. Por eso las casas se **copian a la base propia**:
 - **Copia incluida.** La aplicación trae las casas descargadas al armar la versión
   (`Datos/casas-argentina.json`). Si la base está vacía y Overpass no responde (un primer arranque
   sin internet, o en la defensa), se carga esa copia en vez de esperar.
-- **La búsqueda lee solo la base:** un rectángulo por índice y después la distancia exacta. La
-  ubicación del navegador no sale de RepMatch y no se guarda. Solo una zona escrita viaja a
-  Nominatim, con timeout, reintento, circuito y caché de un día, un pedido a la vez y User-Agent
-  propio, como pide su política de uso.
+- **La búsqueda lee solo la base:** un rectángulo por índice y después la distancia exacta. Las
+  coordenadas del navegador llegan solo al servidor de RepMatch, que no las guarda ni las manda a
+  otro servicio. Solo una zona escrita viaja a Nominatim, con timeout, reintento, circuito y caché
+  de un día, un pedido a la vez y User-Agent propio, como pide su política de uso.
+- **Lo que sí ve OpenStreetMap.** Para dibujar el mapa, el navegador le pide a
+  `tile.openstreetmap.org` las imágenes de la zona (zoom 13 a 15), así que OpenStreetMap ve la zona
+  aproximada y la IP de quien mira el mapa, como cualquier sitio que muestra uno de sus mapas.
+  Por eso Leaflet se carga recién al dibujar el primer mapa (`mapa.js`) y no en todas las páginas:
+  quien nunca abre el mapa no le pide nada a cdnjs ni a OpenStreetMap. La lista funciona igual
+  sin el mapa.
 - **Los datos los carga su comunidad.** De las casas de Argentina, el 93 % tiene nombre (las sin
   nombre no se guardan) y la mitad tiene dirección; pocas tienen teléfono u horario. La pantalla lo
   aclara ("confirmá horarios y stock antes de ir"). La licencia de OpenStreetMap (ODbL) permite

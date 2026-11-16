@@ -59,16 +59,20 @@ status.md       snapshot of what is true now
 
 Slices 1-3 are done and slices 4-5 are done except where noted; facts in `status.md`. Issues #10-#21 hold the details per slice; where an issue contradicts this file, this file wins and the issue gets a comment.
 
-### Open: prices (decide before anything else)
+### Prices (resolved in PR #66)
 
-Prices are the core of the product and a real search shows none. Only exact matches are shown (`Ofertas:IncluirCoincidenciasPorNombre=false`), and Easy and Frávega (VTEX) have no exact match for any of the 47 sourced parts: they are not parts shops, and by name they return wrong products. eBay needs an approved developer account; Mercado Libre search is closed (403). Scraping is not allowed. The next session agrees with the team where prices come from before building more; the demo script (#28) waits for this.
+Autodo, a parts shop on VTEX, gives exact offers for 17 of the 47 parts; parts without one get a link to search them in Autodo and nearby parts shops from OpenStreetMap. Offers are visible without an account (`/ir/{token}` records the derivation). Still open:
 
-### Left after prices
+- Spark plugs and ignition cables have no price: their numbers need an NGK catalog that can be read.
+- Amarok 2.0 fuel filter: MANN Brazil (WK 9016 until 12/2014, WK 10 034 z from 2015) and MANN Australia disagree. Decide which source wins.
 
-- Regenerate `docs/evidencias/` (the files that show the catalog are from the old one) and the test-count files at hand-in.
-- Class and deployment diagrams: add notifications and eBay.
+### Left
+
+- Demo script (#28): no longer blocked by prices.
+- Regenerate `docs/evidencias/` (the files that show the catalog are from the old one; there is no evidence yet for Autodo or the nearby shops) and the test-count files at hand-in.
+- Class diagram: add `Notificacion`, `CasaRepuestos` and `Derivacion.SinCuenta` (the deployment diagram was updated in PR #66).
 - eBay: fixture tests and one real call once the account is approved.
-- `ColaTests.Con_la_cola_caida_buscar_compartir_y_salir_a_la_tienda_siguen_andando` (SinCola) timed out once in three runs: investigate.
+- E2E SinCatalogo is intermittent on Windows (the two `SelectorVehiculo` alert tests, see `status.md` 2026-11-16): investigate whether the call to a stopped `catalogo-api` hangs until the 30 s timeout.
 - Issues still open that are not done: #8 (business-process diagram, `docs/diagramas/proceso-negocio.md` does not exist), #1 (screenshots; it asks for `/acceso`, which is deleted, so it needs a comment and a new scope), #35 (evidence for the facade and the domain events), #31 (column naming, cosmetic).
 - Issues that are done but still open on GitHub: close #20, #29, #30 (offers) and #22, #23, #25, #26, #27 (Integrador) with a comment pointing to the PR or the doc that covers them; close #19 as not needed (three REST hosts already exist). #17, #21 and #28 stay open (see above).
 
@@ -102,8 +106,8 @@ Prices are the core of the product and a real search shows none. Only exact matc
 - `scripts/evidencias.sh`: WSDL, OpenAPI of each REST host, AI response from LLM and from fallback, one message produced and consumed with the same correlation id, an aggregated offer search.
 - `docs/informe-segunda-parte.md` (contracts, queue topology, AI decisions), deployment diagram from *prevista* to real, new message-flow diagram, sequence for the AI search, `docs/patrones.md` for new patterns (Strategy for `IDiagnosticador`, Adapter for SOAP/VTEX/eBay, circuit breaker), section 7 table of the report, README, test count in report 5.4 and `status.md`.
 - Each slice updates its own docs when it lands; slice 5 only closes gaps.
-- 2026-11-15: report sections 6.7-6.12 and section 7 are written; evidence regeneration and two diagrams remain ("Left after prices").
+- 2026-11-15: report sections 6.7-6.12 and section 7 are written; evidence regeneration and the class diagram remain ("Left").
 
 ## Later, not now
 
-Integrador (#22-#28): requirements (#22), AI validation (#23), load tests (#25), error audit (#26) and deployment manual (#27) are done. The demo script (#28) waits for prices. AI accuracy on the mechanic-validated dataset (`DiagnosticoValidado`) is not built.
+Integrador (#22-#28): requirements (#22), AI validation (#23), load tests (#25), error audit (#26) and deployment manual (#27) are done. The demo script (#28) is next; prices landed in PR #66. AI accuracy on the mechanic-validated dataset (`DiagnosticoValidado`) is not built.

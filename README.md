@@ -55,8 +55,10 @@ muestra "Buscando precios…": una tienda lenta no demora el diagnóstico.
   no una oferta: no muestra precio. Debajo, "¿Preferís comprarla en persona?": casas de repuestos
   cercanas en un mapa y una lista, desde la ubicación del navegador (con permiso) o un barrio o
   ciudad escritos. Los datos son de OpenStreetMap: el worker copia las casas de Argentina a la base
-  cada semana (Overpass) y la búsqueda lee la copia, así que la ubicación no sale de RepMatch ni se
-  guarda; solo una zona escrita se ubica con Nominatim.
+  cada semana (Overpass) y la búsqueda lee la copia: las coordenadas llegan solo al servidor de
+  RepMatch, que no las guarda ni las reenvía, y solo una zona escrita se ubica con Nominatim. Al
+  dibujar el mapa, el navegador pide a OpenStreetMap las imágenes de esa zona; por eso Leaflet se
+  carga recién al abrir el mapa.
 
 Las coincidencias exactas por código o EAN se separan de las probables por nombre. Estas últimas se
 advierten ("verificá que sea la medida de tu auto") y se descartan si los datos de la publicación
@@ -376,7 +378,7 @@ Todo se puede sobreescribir por variable de entorno (`Seccion__Clave`).
 | `IA:Llm:EsfuerzoRazonamiento` | `reasoning_effort` del pedido (`low`, `medium`, `high`); vacío no lo envía, para modelos que no razonan | `low` (en compose: `IA_LLM_ESFUERZO`) |
 | `IA:Llm:TimeoutSegundos` | espera máxima al LLM antes de responder con el local (1 a 60) | `4` |
 | `Notificaciones:IntervaloSegundos` | cada cuánto la campana de la Web busca avisos nuevos (2 a 300) | `20` (en compose: `NOTIFICACIONES_INTERVALO_SEGUNDOS`) |
-| `Mapas:Habilitado`, `:UrlOverpass`, `:UrlNominatim` | casas de repuestos cercanas con OpenStreetMap; sin habilitar, la sección no aparece | `true`, los servidores públicos (en compose: `MAPAS_HABILITADO`, `MAPAS_URL_OVERPASS`, `MAPAS_URL_NOMINATIM`; `scripts/e2e.sh` los apunta a `tienda-simulada`) |
+| `Mapas:Habilitado`, `:UrlOverpass`, `:UrlNominatim` | casas de repuestos cercanas con OpenStreetMap; sin habilitar, la sección no aparece. Necesita el worker, que carga la copia de casas | `false` (en compose: `true`), los servidores públicos (en compose: `MAPAS_HABILITADO`, `MAPAS_URL_OVERPASS`, `MAPAS_URL_NOMINATIM`; `scripts/e2e.sh` los apunta a `tienda-simulada`) |
 | `Mapas:RadioMetros`, `:Maximo`, `:TimeoutSegundos`, `:CacheHoras`, `:AgenteUsuario` | radio de búsqueda, comercios a mostrar, timeout y caché de Nominatim (en compose: `MAPAS_CACHE_HORAS`) y el User-Agent que pide OpenStreetMap | `5000`, `10`, `10`, `24`, `RepMatch/1.0 (…)` |
 | `Mapas:TimeoutDescargaSegundos`, `:RefrescoDias`, `:ReintentoMinutos` | la copia de casas del worker: timeout de la descarga, cada cuánto se renueva y cuánto esperar si Overpass falla | `300`, `7`, `15` |
 | `Ofertas:Ebay:ClientId`, `Ofertas:Ebay:ClientSecret` | App ID y Cert ID de producción de eBay; vacíos, la fuente eBay no se registra | vacíos (en compose: `EBAY_APP_ID`, `EBAY_CERT_ID` del `.env`) |

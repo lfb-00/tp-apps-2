@@ -24,7 +24,7 @@ namespace RepMatch.Fuentes.Mapas;
 /// <item><b>Ubicar una zona escrita</b> (Nominatim): mientras la persona espera, con timeout corto,
 /// un reintento, circuito con Polly y cache de un dia, como pide su politica de uso (un pedido por
 /// segundo como maximo y un User-Agent propio). Solo viaja el texto de la zona, nunca la ubicacion
-/// del navegador: esa se usa contra la base propia y no sale de RepMatch.</item>
+/// del navegador: esa se usa contra la base propia y este adapter no la manda a ningun lado.</item>
 /// </list>
 /// </summary>
 public sealed class MapaOpenStreetMap : IMapaCasasRepuestos

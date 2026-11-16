@@ -93,23 +93,46 @@
 
     protected override void OnInitialized() => zona = ZonaInicial ?? "";
 
+    /// <summary>
+    /// Cuanto se espera la ubicacion del navegador, incluido el tiempo que la persona tarda en
+    /// responder el pedido de permiso. El timeout de getCurrentPosition (mapa.js) no cuenta esa
+    /// espera, y la llamada a JS de Blazor se corta sola al minuto con TaskCanceledException: sin
+    /// un tope propio y sin atraparla, dejar el cartel abierto tiraba el circuito entero.
+    /// </summary>
+    private static readonly TimeSpan EsperaUbicacion = TimeSpan.FromMinutes(2);
+
     private async Task UsarMiUbicacionAsync()
     {
         buscando = true;
         error = null;
         try
         {
-            modulo ??= await JS.InvokeAsync<IJSObjectReference>("import", "./mapa.js");
-            var centro = await modulo.InvokeAsync<UbicacionDto>("ubicacion");
-            await MostrarAsync(await Fachada.BuscarCasasCercaAsync(centro));
+            UbicacionDto centro;
+            try
+            {
+                modulo ??= await JS.InvokeAsync<IJSObjectReference>("import", "./mapa.js");
+                centro = await modulo.InvokeAsync<UbicacionDto>("ubicacion", EsperaUbicacion);
+            }
+            catch (JSException ex)
+            {
+                Log.LogInformation("Sin ubicacion del navegador: {Motivo}", ex.Message);
+                MostrarError(ex.Message.Contains("denegada", StringComparison.Ordinal)
+                    ? "No tenemos permiso para usar tu ubicación. Escribí tu barrio o ciudad."
+                    : "No pudimos obtener tu ubicación. Escribí tu barrio o ciudad.");
+                return;
+            }
+            catch (TaskCanceledException)
+            {
+                Log.LogInformation("Sin ubicacion del navegador: no respondio en {Segundos} s", EsperaUbicacion.TotalSeconds);
+                MostrarError("No pudimos obtener tu ubicación. Escribí tu barrio o ciudad.");
+                return;
+            }
+
+            await BuscarAsync(() => Fachada.BuscarCasasCercaAsync(centro));
         }
-        catch (JSException ex)
+        catch (JSDisconnectedException)
         {
-            Log.LogInformation("Sin ubicacion del navegador: {Motivo}", ex.Message);
-            error = ex.Message.Contains("denegada", StringComparison.Ordinal)
-                ? "No tenemos permiso para usar tu ubicación. Escribí tu barrio o ciudad."
-                : "No pudimos obtener tu ubicación. Escribí tu barrio o ciudad.";
-            resultado = null;
+            // La pestania se cerro mientras se pedia la ubicacion: no hay pantalla que actualizar.
         }
         finally
         {
@@ -123,12 +146,36 @@
         error = null;
         try
         {
-            await MostrarAsync(await Fachada.BuscarCasasCercaDeAsync(zona));
+            await BuscarAsync(() => Fachada.BuscarCasasCercaDeAsync(zona));
         }
         finally
         {
             buscando = false;
         }
+    }
+
+    /// <summary>
+    /// Los errores esperables (zona que no existe, mapa caido) llegan como resultado fallido. Lo
+    /// que queda es lo inesperado, como la base caida: la seccion es accesoria, asi que avisa y
+    /// lo deja en el log en vez de tirar la pagina con la busqueda y los precios.
+    /// </summary>
+    private async Task BuscarAsync(Func<Task<RepMatch.Common.Resultados.ResultadoOperacion<CasasCercanasDto>>> buscar)
+    {
+        try
+        {
+            await MostrarAsync(await buscar());
+        }
+        catch (Exception ex)
+        {
+            Log.LogWarning(ex, "No se pudieron buscar casas de repuestos cercanas");
+            MostrarError("No pudimos buscar casas de repuestos ahora. Probá de nuevo en unos minutos.");
+        }
+    }
+
+    private void MostrarError(string mensaje)
+    {
+        error = mensaje;
+        resultado = null;
     }
 
     private async Task TeclaAsync(KeyboardEventArgs e)
