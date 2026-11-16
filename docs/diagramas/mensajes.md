@@ -23,6 +23,8 @@ flowchart LR
         DLX{{"repmatch.eventos.dlx<br/>exchange directo"}}
         D1[["repmatch.comisiones.dlq"]]
         D2[["repmatch.actividad.dlq"]]
+        D3[["repmatch.avisos.compartidas.dlq"]]
+        D4[["repmatch.avisos.revisiones.dlq"]]
     end
 
     subgraph worker["RepMatch.Notificaciones.Worker"]
@@ -49,13 +51,19 @@ flowchart LR
     C4 --> BD
     Q1 -. "rechazado sin reencolar" .-> DLX
     Q2 -. "rechazado sin reencolar" .-> DLX
+    Q3 -. "rechazado sin reencolar" .-> DLX
+    Q4 -. "rechazado sin reencolar" .-> DLX
     DLX -- "repmatch.comisiones" --> D1
     DLX -- "repmatch.actividad" --> D2
+    DLX -- "repmatch.avisos.compartidas" --> D3
+    DLX -- "repmatch.avisos.revisiones" --> D4
 
     style EX fill:#fef3c7,stroke:#b45309
     style DLX fill:#fee2e2,stroke:#b91c1c
     style D1 fill:#fee2e2,stroke:#b91c1c
     style D2 fill:#fee2e2,stroke:#b91c1c
+    style D3 fill:#fee2e2,stroke:#b91c1c
+    style D4 fill:#fee2e2,stroke:#b91c1c
 ```
 
 ## Eventos
