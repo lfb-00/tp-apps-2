@@ -656,14 +656,14 @@ Las decisiones:
 ### 6.11 Catálogo de repuestos: solo datos con fuente
 
 El catálogo de repuestos no es de ejemplo. Cada pieza, sus números de fabricante y los vehículos
-a los que aplica salen de catálogos oficiales publicados por Volkswagen, Bosch, MAHLE y MANN-FILTER, con la
-página citada en [`docs/catalogo-fuentes.md`](catalogo-fuentes.md). Se eligió cubrir menos
-(diez familias de vehículos y los tipos de pieza que esas fuentes documentan) antes que mostrar
-compatibilidades inventadas: RepMatch existe para decir qué pieza le entra a un auto, y un dato
-falso ahí es el peor error posible. Los números de fabricante sirven además como términos de
-búsqueda en las tiendas (sección 6.9), así que un número real también mejora las ofertas que se
-encuentran. Los vehículos sin ninguna pieza con fuente se sacaron del selector, y una prueba
-impide volver a agregar un modelo sin repuestos.
+a los que aplica salen de catálogos oficiales publicados por Volkswagen, Bosch, MAHLE y
+MANN-FILTER, con la página citada en [`docs/catalogo-fuentes.md`](catalogo-fuentes.md). Se eligió
+cubrir menos (diez familias de vehículos y los tipos de pieza que esas fuentes documentan) antes
+que mostrar compatibilidades inventadas: RepMatch existe para decir qué pieza le entra a un auto,
+y un dato falso ahí es el peor error posible. Los números de fabricante sirven además como
+términos de búsqueda en las tiendas (sección 6.9), así que un número real también mejora las
+ofertas que se encuentran. Los vehículos sin ninguna pieza con fuente se sacaron del selector, y
+una prueba impide volver a agregar un modelo sin repuestos.
 
 
 ### 6.12 Manejo de errores, logging y configuración
@@ -676,7 +676,7 @@ cuatro criterios:
 | Todos los servicios loguean igual | Los cinco hosts (Web, Catálogo REST, Catálogo SOAP, IA, Worker) llaman `UsarSerilog(nombre)` y `UsarCorrelacion()` de `RepMatch.Common`: mismo formato, mismo enriquecimiento y el mismo `X-Correlation-Id` de punta a punta, también por la cola | Sección 5.3 y evidencias `20` y `21` |
 | Un error 500 nunca muestra la traza | Los hosts REST responden `ProblemDetails` (`AgregarProblemDetails()`, en `Common`) con el `correlationId` en el cuerpo y en la cabecera, para reportarlo; el detalle queda en el log. La Web responde igual en sus endpoints HTTP (`/derivar`, `/evidencia`); los errores de la interfaz los muestra Blazor en el circuito, sin detalles. SOAP responde un *fault* genérico | `ErroresTests` y la prueba manual de abajo |
 | Ninguna credencial en el repositorio | Las claves (LLM, eBay) llegan solo por variable de entorno o `.env`, que está en `.gitignore`. Los usuarios de Postgres y RabbitMQ del compose son valores de desarrollo local que se pisan desde el `.env` | Búsqueda de formatos de clave (Groq, OpenAI, Google, AWS, GitHub, claves privadas) en los archivos y en los 103 commits del historial: sin resultados |
-| Configuración documentada | Cada clave de las clases `Opciones*` tiene su fila en la tabla de configuración del README, y las variables del compose, en el manual de despliegue | Comparación automática entre las propiedades de `Opciones*` y el README |
+| Configuración documentada | Cada clave de las clases `Opciones*` tiene su fila en la tabla de configuración del README, y las variables del compose, en el manual de despliegue | Revisión manual (2026-11-15) de las propiedades de las clases `Opciones*` contra la tabla del README; ninguna prueba lo controla, así que una clave nueva hay que documentarla a mano |
 
 **Lo que encontró la auditoría.** El compose corre todos los servicios en `Development` (así
 publican OpenAPI, que leen las evidencias), y en ese entorno la Web registraba su manejador de

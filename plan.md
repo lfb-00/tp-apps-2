@@ -70,6 +70,7 @@ Prices are the core of the product and a real search shows none. Only exact matc
 - eBay: fixture tests and one real call once the account is approved.
 - `ColaTests.Con_la_cola_caida_buscar_compartir_y_salir_a_la_tienda_siguen_andando` (SinCola) timed out once in three runs: investigate.
 - Issues still open that are not done: #8 (business-process diagram, `docs/diagramas/proceso-negocio.md` does not exist), #1 (screenshots; it asks for `/acceso`, which is deleted, so it needs a comment and a new scope), #35 (evidence for the facade and the domain events), #31 (column naming, cosmetic).
+- Issues that are done but still open on GitHub: close #20, #29, #30 (offers) and #22, #23, #25, #26, #27 (Integrador) with a comment pointing to the PR or the doc that covers them; close #19 as not needed (three REST hosts already exist). #17, #21 and #28 stay open (see above).
 
 ### Slice 2. Messaging (#12, #13, #14).
 
