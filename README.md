@@ -8,8 +8,9 @@ las ofertas de varios sitios reales. **No vende ni almacena stock**: normaliza, 
 tienda de origen.
 
 > **Alcance de este repo: TP Inicial, Primera Parte y, de la Segunda Parte, el componente de IA, el
-> servicio SOAP, los precios de tiendas reales (Easy y Frávega, por la API pública de VTEX) y la cola
-> de mensajes (RabbitMQ).** La aplicación es el comparador. eBay y las notificaciones todavía no están.
+> servicio SOAP, los precios de tiendas reales (Autodo, Easy y Frávega, por la API pública de VTEX),
+> la cola de mensajes (RabbitMQ) y los avisos a cliente y mecánico.** La aplicación es el
+> comparador. El adaptador de eBay está escrito pero apagado hasta tener credenciales.
 > Diagramas, informe, evidencias y patrones están en `docs/`. El seguimiento del trabajo está
 > en `plan.md` y `status.md`.
 
@@ -34,8 +35,10 @@ no se guarda.
 
 ## Precios de las tiendas
 
-Después de mostrar el diagnóstico y las piezas, la Web busca los precios en **Easy** y **Frávega**
-con la API pública de catálogo de VTEX (sin credenciales, nunca scraping). Mientras tanto cada pieza
+Después de mostrar el diagnóstico y las piezas, la Web busca los precios en **Autodo** (casa de
+repuestos), **Easy** y **Frávega** con la API pública de catálogo de VTEX (sin credenciales, nunca
+scraping). Solo se muestran coincidencias exactas por número de fabricante, código original o
+equivalencia publicados por la tienda; hoy las da Autodo. Mientras tanto cada pieza
 muestra "Buscando precios…": una tienda lenta no demora el diagnóstico.
 
 - **Cliente**: ve primero las coincidencias exactas y luego las probables desplegables; cada grupo
@@ -44,7 +47,16 @@ muestra "Buscando precios…": una tienda lenta no demora el diagnóstico.
 - **Mecánico**: ve las mismas ofertas con enlace directo a la tienda, para que su clic no cuente
   como una derivación atribuida a él. Si corrige el diagnóstico, también se buscan los precios de lo
   que recomendó.
-- **Sin sesión**: "desde $X en N tiendas" e "Ingresá para ver dónde".
+- **Sin sesión**: las mismas ofertas que el cliente. Comprar una pieza no pide cuenta (la cuenta es
+  para guardar consultas y compartirlas con un mecánico). "Ir a la tienda" pasa por `/ir/{enlace
+  firmado}`, que registra una derivación sin cuenta (sin persona ni texto) y redirige.
+- **Sin ofertas**: "No tenemos ofertas de esta pieza por ahora" y un enlace a la búsqueda de la pieza
+  en las tiendas de repuestos conectadas (`VendeRepuestos`; hoy Autodo). Es un enlace a su buscador,
+  no una oferta: no muestra precio. Debajo, "¿Preferís comprarla en persona?": casas de repuestos
+  cercanas en un mapa y una lista, desde la ubicación del navegador (con permiso) o un barrio o
+  ciudad escritos. Los datos son de OpenStreetMap: el worker copia las casas de Argentina a la base
+  cada semana (Overpass) y la búsqueda lee la copia, así que la ubicación no sale de RepMatch ni se
+  guarda; solo una zona escrita se ubica con Nominatim.
 
 Las coincidencias exactas por código o EAN se separan de las probables por nombre. Estas últimas se
 advierten ("verificá que sea la medida de tu auto") y se descartan si los datos de la publicación
@@ -261,7 +273,8 @@ src/
   RepMatch.Clientes.Rest/   adaptador remoto           · CatalogoRemoto, CatalogoVehiculosRemoto y DiagnosticadorRemoto
   RepMatch.Clientes.Soap/   adaptador SOAP             · CatalogoSoap y el proxy generado desde el WSDL
   RepMatch.IA/              componente de IA           · LLM, clasificador local y respaldo entre ambos
-  RepMatch.Fuentes.Vtex/    adaptador de API externa   · FuenteVtex: precios de Easy y Frávega (VTEX)
+  RepMatch.Fuentes.Vtex/    adaptador de API externa   · FuenteVtex: precios de Autodo, Easy y Frávega (VTEX)
+  RepMatch.Fuentes.Mapas/   adaptador de API externa   · casas de repuestos cercanas (OpenStreetMap)
   RepMatch.Mensajeria/      mensajería                 · IEventBus sobre RabbitMQ, topología, base de consumidores
   RepMatch.Notificaciones.Worker/ consumidor de la cola · registro de comisiones y log de actividad
   RepMatch.Catalogo.Api/    host REST del catálogo
@@ -271,7 +284,7 @@ src/
 tests/RepMatch.Tests/       pruebas
 tests/RepMatch.E2E/         pruebas de punta a punta con Playwright (ver su README)
 tests/RepMatch.TiendaSimulada/ simulador de tiendas VTEX para las pruebas de punta a punta
-tests/fixtures/vtex/        respuestas reales grabadas de Easy y Frávega
+tests/fixtures/vtex/        respuestas reales grabadas de Autodo, Easy y Frávega
 docs/                        diagramas, informe y evidencias
 scripts/evidencias.sh        genera las evidencias del entregable
 scripts/evidencias-integracion.sh  evidencias de IA, RabbitMQ y VTEX (solo Docker)
@@ -328,8 +341,8 @@ dotnet ef migrations add NombreDelCambio --project src/RepMatch.Persistence --st
 ```
 
 Las entidades persistidas son `Cliente`, `Vehiculo`, `ConfiguracionVehiculo`, `Repuesto`,
-`AplicacionVehiculo`, `Busqueda`, `Oferta`, `Derivacion`, `ComisionesTienda`, `MensajeProcesado` y
-`Notificacion`.
+`AplicacionVehiculo`, `Busqueda`, `Oferta`, `Derivacion`, `ComisionesTienda`, `MensajeProcesado`,
+`Notificacion` y `CasaRepuestos` (la copia de OpenStreetMap que mantiene el worker).
 El catálogo vehicular contiene las combinaciones
 permitidas de marca, modelo, año y motor que consumen los selectores de la Web. Ojo con el alcance:
 la base guarda el **catálogo propio y las búsquedas de los usuarios**,
@@ -363,12 +376,15 @@ Todo se puede sobreescribir por variable de entorno (`Seccion__Clave`).
 | `IA:Llm:EsfuerzoRazonamiento` | `reasoning_effort` del pedido (`low`, `medium`, `high`); vacío no lo envía, para modelos que no razonan | `low` (en compose: `IA_LLM_ESFUERZO`) |
 | `IA:Llm:TimeoutSegundos` | espera máxima al LLM antes de responder con el local (1 a 60) | `4` |
 | `Notificaciones:IntervaloSegundos` | cada cuánto la campana de la Web busca avisos nuevos (2 a 300) | `20` (en compose: `NOTIFICACIONES_INTERVALO_SEGUNDOS`) |
+| `Mapas:Habilitado`, `:UrlOverpass`, `:UrlNominatim` | casas de repuestos cercanas con OpenStreetMap; sin habilitar, la sección no aparece | `true`, los servidores públicos (en compose: `MAPAS_HABILITADO`, `MAPAS_URL_OVERPASS`, `MAPAS_URL_NOMINATIM`; `scripts/e2e.sh` los apunta a `tienda-simulada`) |
+| `Mapas:RadioMetros`, `:Maximo`, `:TimeoutSegundos`, `:CacheHoras`, `:AgenteUsuario` | radio de búsqueda, comercios a mostrar, timeout y caché de Nominatim (en compose: `MAPAS_CACHE_HORAS`) y el User-Agent que pide OpenStreetMap | `5000`, `10`, `10`, `24`, `RepMatch/1.0 (…)` |
+| `Mapas:TimeoutDescargaSegundos`, `:RefrescoDias`, `:ReintentoMinutos` | la copia de casas del worker: timeout de la descarga, cada cuánto se renueva y cuánto esperar si Overpass falla | `300`, `7`, `15` |
 | `Ofertas:Ebay:ClientId`, `Ofertas:Ebay:ClientSecret` | App ID y Cert ID de producción de eBay; vacíos, la fuente eBay no se registra | vacíos (en compose: `EBAY_APP_ID`, `EBAY_CERT_ID` del `.env`) |
 | `Ofertas:Ebay:UrlBase`, `:Marketplace`, `:TimeoutSegundos`, `:PedidosSimultaneos`, `:ResultadosPorTermino`, `:MaximoCodigos`, `:CacheMinutos` | API de eBay (`https://api.sandbox.ebay.com/` para el entorno de prueba), sitio donde buscar y límites | `https://api.ebay.com/`, `EBAY_US`, `5`, `2`, `10`, `3`, `60` |
 | `Ofertas:IncluirCoincidenciasPorNombre` | mostrar publicaciones que coinciden solo por nombre, sin número de fabricante ni EAN | `false` (en compose: `OFERTAS_INCLUIR_POR_NOMBRE`; `scripts/e2e.sh` lo enciende para el simulador) |
 | `Ofertas:TimeoutGlobalSegundos` | tope para todas las tiendas juntas (1 a 60) | `8` |
 | `Ofertas:VigenciaMinutos` | después de esto los precios se vuelven a consultar | `60` |
-| `Ofertas:Tiendas:N:Nombre`, `:UrlBase`, `:Moneda`, `:PrefijosCategoria` | una entrada por tienda VTEX; sumar una tienda es sumar una entrada | Easy (`https://www.easy.com.ar`, `/Automotor/`) y Frávega (`https://www.fravega.com`, `/Autos, Motos y Otros/`) |
+| `Ofertas:Tiendas:N:Nombre`, `:UrlBase`, `:Moneda`, `:PrefijosCategoria` | una entrada por tienda VTEX; sumar una tienda es sumar una entrada | Easy (`https://www.easy.com.ar`, `/Automotor/`), Frávega (`https://www.fravega.com`, `/Autos, Motos y Otros/`) y Autodo (`https://www.autodo.com.ar`, categorías de repuestos) |
 | `Ofertas:Tiendas:N:TimeoutSegundos`, `:PedidosSimultaneos`, `:ResultadosPorTermino`, `:CacheMinutos` | límites por tienda | `5`, `2`, `10`, `10` |
 | `Mensajeria:Habilitada` | publicar y consumir en RabbitMQ | `false` (en compose: `true`) |
 | `Mensajeria:Host`, `:Puerto`, `:Usuario`, `:Contrasena` | conexión al broker | `localhost`, `5672`, `guest`, `guest` (en compose: `rabbitmq` y `RABBITMQ_USUARIO` / `RABBITMQ_CONTRASENA` del `.env`) |
@@ -379,8 +395,8 @@ Todo se puede sobreescribir por variable de entorno (`Seccion__Clave`).
 Y los puertos del host, vía `.env` (ver `.env.example`): `PUERTO_WEB`, `PUERTO_CATALOGO`,
 `PUERTO_IA`, `PUERTO_POSTGRES`, `PUERTO_WEB_LOCAL`, `PUERTO_RABBITMQ`, `PUERTO_RABBITMQ_UI`,
 `PUERTO_WORKER`. En compose, `OFERTAS_URL_EASY`,
-`OFERTAS_URL_FRAVEGA` y `OFERTAS_CACHE_MINUTOS` cambian las tiendas: `scripts/e2e.sh` las apunta a
-`tienda-simulada`.
+`OFERTAS_URL_FRAVEGA`, `OFERTAS_URL_AUTODO`, `OFERTAS_AUTODO_HABILITADA` y `OFERTAS_CACHE_MINUTOS`
+cambian las tiendas: `scripts/e2e.sh` apunta Easy y Frávega a `tienda-simulada` y apaga Autodo.
 
 ## Documentación
 

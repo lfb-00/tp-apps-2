@@ -182,8 +182,9 @@ classDiagram
     }
 
     class Derivacion {
-        +Guid BusquedaId
-        +Guid OfertaId
+        +Guid? BusquedaId
+        +Guid? OfertaId
+        +string CodigoRepuesto
         +string NombreTienda
         +string UrlDestino
         +Guid? MecanicoId
@@ -237,8 +238,9 @@ classDiagram
 
     class DerivacionATienda {
         +Guid DerivacionId
-        +Guid BusquedaId
-        +Guid OfertaId
+        +Guid? BusquedaId
+        +Guid? OfertaId
+        +string CodigoRepuesto
         +string NombreTienda
         +Guid? MecanicoId
         +DateTimeOffset OcurridoEn
@@ -435,7 +437,9 @@ classDiagram
             +CambiarPlanAsync(mecanicoId, plan) ResultadoOperacion~ClienteDto~
             +DerivarAsync(ofertaId) ResultadoOperacion~string~
             +ObtenerOfertasAsync(busquedaId, usuarioId, forzar) ResultadoOperacion~OfertasBusquedaDto~
-            +ResumirPreciosAsync(piezas) ResumenPreciosBusquedaDto
+            +ObtenerPreciosSinCuentaAsync(piezas) PreciosSinCuentaDto
+            +SugerirTiendas(pieza, vehiculo) List~SugerenciaTiendaDto~
+            +DerivarSinCuentaAsync(codigo, tienda, url) ResultadoOperacion~string~
         }
     }
 
@@ -480,7 +484,8 @@ classDiagram
 
         class ServicioOfertas {
             +ObtenerAsync(busquedaId, usuarioId, forzar) ResultadoOperacion~OfertasBusquedaDto~
-            +ResumirAsync(piezas) ResumenPreciosBusquedaDto
+            +PreciosSinCuentaAsync(piezas) PreciosSinCuentaDto
+            +SugerirTiendas(pieza, vehiculo) List~SugerenciaTiendaDto~
         }
 
         class ValidadorCandidatoOferta {
@@ -951,8 +956,9 @@ classDiagram
         }
 
         class Derivacion {
-            +Guid BusquedaId
-            +Guid OfertaId
+            +Guid? BusquedaId
+            +Guid? OfertaId
+            +string CodigoRepuesto
             +string NombreTienda
             +string UrlDestino
             +Guid? MecanicoId
@@ -1006,8 +1012,9 @@ classDiagram
 
         class DerivacionATienda {
             +Guid DerivacionId
-            +Guid BusquedaId
-            +Guid OfertaId
+            +Guid? BusquedaId
+            +Guid? OfertaId
+            +string CodigoRepuesto
             +string NombreTienda
             +Guid? MecanicoId
             +DateTimeOffset OcurridoEn
@@ -1112,7 +1119,9 @@ classDiagram
             +CambiarPlanAsync(mecanicoId, plan) ResultadoOperacion~ClienteDto~
             +DerivarAsync(ofertaId) ResultadoOperacion~string~
             +ObtenerOfertasAsync(busquedaId, usuarioId, forzar) ResultadoOperacion~OfertasBusquedaDto~
-            +ResumirPreciosAsync(piezas) ResumenPreciosBusquedaDto
+            +ObtenerPreciosSinCuentaAsync(piezas) PreciosSinCuentaDto
+            +SugerirTiendas(pieza, vehiculo) List~SugerenciaTiendaDto~
+            +DerivarSinCuentaAsync(codigo, tienda, url) ResultadoOperacion~string~
         }
     }
 
@@ -1157,7 +1166,8 @@ classDiagram
 
         class ServicioOfertas {
             +ObtenerAsync(busquedaId, usuarioId, forzar) ResultadoOperacion~OfertasBusquedaDto~
-            +ResumirAsync(piezas) ResumenPreciosBusquedaDto
+            +PreciosSinCuentaAsync(piezas) PreciosSinCuentaDto
+            +SugerirTiendas(pieza, vehiculo) List~SugerenciaTiendaDto~
         }
 
         class ValidadorCandidatoOferta {

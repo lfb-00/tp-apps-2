@@ -57,8 +57,9 @@ flowchart TB
         SOAPC["RepMatch.Clientes.Soap<br/><b>CatalogoSoap</b><br/>proxy generado desde el WSDL"]
         IA["RepMatch.IA<br/><b>DiagnosticadorConRespaldo</b><br/>DiagnosticadorLlm · DiagnosticadorLocal"]
         VTEX["RepMatch.Fuentes.Vtex<br/><b>FuenteVtex</b> · LectorVtex<br/>Polly: retry · timeout · circuit breaker · cache"]
+        MAPAS["RepMatch.Fuentes.Mapas<br/><b>MapaOpenStreetMap</b> · LectorOpenStreetMap<br/>Polly · cache · copia incluida"]
         MSG["RepMatch.Mensajeria<br/><b>BusRabbitMq</b> · ConsumidorRabbitMq&lt;T&gt;<br/>TopologiaRabbitMq"]
-        CON["RepMatch.Contracts<br/><b>«interface» ICatalogoRepuestos · ICatalogoVehiculos<br/>«interface» IDiagnosticador · IFuenteOfertas · IEventBus</b><br/>DTOs · eventos de integración · Opciones*"]
+        CON["RepMatch.Contracts<br/><b>«interface» ICatalogoRepuestos · ICatalogoVehiculos<br/>«interface» IDiagnosticador · IFuenteOfertas · IMapaCasasRepuestos · IEventBus</b><br/>DTOs · eventos de integración · Opciones*"]
         PER["RepMatch.Persistence<br/>RepMatchDbContext · Repositorios · UnitOfWork"]
         DOM["RepMatch.Domain<br/>Entidades · Value objects<br/><b>«interface» IRepuestoRepository · IConfiguracionVehiculoRepository</b>"]
         COM["RepMatch.Common<br/>Validación · Logging · Configuración<br/>ResultadoOperacion · Cronometro"]
@@ -66,7 +67,8 @@ flowchart TB
 
     BD[("PostgreSQL<br/><i>o InMemory</i>")]
     LLM(["Proveedor LLM externo<br/><i>Groq o Gemini, opcional</i>"])
-    TIENDAS(["Tiendas VTEX<br/><i>easy.com.ar · fravega.com</i>"])
+    TIENDAS(["Tiendas VTEX<br/><i>autodo.com.ar · easy.com.ar · fravega.com</i>"])
+    OSM(["OpenStreetMap<br/><i>Overpass · Nominatim</i>"])
     MQ{{"RabbitMQ<br/><i>repmatch.eventos</i>"}}
 
     UI --> FACH
@@ -89,6 +91,9 @@ flowchart TB
     UI -. "registra una por tienda (AgregarFuentesOfertas)" .-> VTEX
     VTEX == "HTTPS · JSON · API pública de catálogo" ==> TIENDAS
     VTEX --> COM
+    MAPAS -- implementa IMapaCasasRepuestos --> CON
+    UI -. "AgregarMapas" .-> MAPAS
+    MAPAS == "HTTPS · JSON · descarga semanal (worker) y zonas" ==> OSM
     MSG -- implementa IEventBus --> CON
     APP -- "IEventBus (PublicadorEventos)" --> CON
     UI -. "registra (AgregarMensajeria)" .-> MSG
@@ -163,7 +168,7 @@ El componente de IA repite el ejercicio con `IDiagnosticador`: `FabricaDiagnosti
 la petición las piezas compatibles que ya resolvió el catálogo y elige entre ellas.
 
 Las tiendas son el caso opuesto: no se elige una, se usan todas. `AgregarFuentesOfertas` registra un
-`FuenteVtex` por cada tienda de la sección `Ofertas` (hoy Easy y Frávega), y `ServicioOfertas`
+`FuenteVtex` por cada tienda de la sección `Ofertas` (hoy Autodo, Easy y Frávega), y `ServicioOfertas`
 recibe la lista completa de `IFuenteOfertas` y las consulta en paralelo. Cada una sale por HTTPS a
 la API pública de catálogo de su tienda. `FuenteVtex` aísla los fallos por tienda con Polly y cachea
 las respuestas mediante `IDistributedCache`; `ServicioOfertas` clasifica los EAN compartidos entre

@@ -59,7 +59,8 @@ de derivaciones del modelo de negocio.
 De la Segunda Parte ya están el **componente de IA** (diagnóstico del texto libre, expuesto por REST
 en `RepMatch.IA.Api`, secciones 6.7 y 7) y el **servicio SOAP** del catálogo (`RepMatch.Catalogo.Soap`,
 con WSDL, secciones 4 y 6.8), que la Web usa en cada búsqueda, y la **API externa real**: el
-Servicio de Ofertas consulta los precios en Easy y Frávega con la API pública de VTEX
+Servicio de Ofertas consulta los precios en Autodo (una casa de repuestos), Easy y Frávega con la
+API pública de VTEX
 (`RepMatch.Fuentes.Vtex`, sección 6.9). También está la **cola de mensajes** con productores y
 consumidores: los eventos de dominio se publican en RabbitMQ y un worker los consume (sección
 6.10), con avisos a cliente y mecánico: compartir una consulta y revisarla dejan una notificación
@@ -178,9 +179,8 @@ Los precios llegan en un segundo paso, a propósito. La página muestra el diagn
 apenas vuelve `BuscarAsync`, con "Buscando precios…" en cada pieza, y recién entonces pide
 `ObtenerOfertasAsync`: una tienda lenta no demora el diagnóstico. Es también el comportamiento que va
 a tener con la cola de mensajes, cuando el consumidor de `BusquedaCreada` sea quien busque los
-precios y la página solo los lea. Sin sesión, `ResumirPreciosAsync` devuelve "desde cuánto y en
-cuántas tiendas" sin guardar nada: ver dónde y derivar requiere una búsqueda guardada, que es de
-donde sale la comisión.
+precios y la página solo los lea. Sin sesión, `ObtenerPreciosSinCuentaAsync` devuelve las mismas
+ofertas sin guardar nada; la salida a la tienda se registra igual como derivación sin cuenta.
 
 `SelectorVehiculo.razor` inyecta directamente `ICatalogoVehiculos` para obtener las opciones.
 La fábrica selecciona este contrato entre `CatalogoVehiculosLocal` y `CatalogoVehiculosRemoto`.
@@ -465,8 +465,10 @@ Se relevaron las fuentes reales disponibles antes de comprometer el diseño:
 | `argautopartes.com.ar` (Tiendanube) | `robots.txt` con `Disallow: /search/` | ❌ Descartada |
 | **VTEX `easy.com.ar`** | HTTP 206 con autopartes reales y precio, endpoint público, permitido por `robots.txt` | ✅ Implementada |
 | **VTEX `fravega.com`** | HTTP 206, mismo contrato | ✅ Implementada |
+| **VTEX `autodo.com.ar`** | HTTP 206, mismo contrato; casa de repuestos con número de fabricante, códigos originales y equivalencias en cada publicación | ✅ Implementada (2026-11-16) |
 | **eBay Browse API** | API oficial, OAuth2 client_credentials, 5000 llamadas/día, filtros de compatibilidad vehicular | ✅ Adoptada |
 | **NHTSA vPIC** | HTTP 200, sin API key, sin rate limit | ✅ Adoptada |
+| **OpenStreetMap** (Overpass y Nominatim) | HTTP 200, sin API key; pide User-Agent propio, caché y pocos pedidos | ✅ Implementada (2026-11-16): casas de repuestos cercanas |
 
 La conclusión que gobierna el diseño: **usar endpoints públicos y documentados en vez de parsear
 HTML**. VTEX expone `/api/catalog_system/pub/products/search?ft=` sin autenticación, y como es una
@@ -564,8 +566,27 @@ La consigna pide al menos un servicio SOAP con WSDL y contrato. Las decisiones:
 
 ### 6.9 Precios de las tiendas: lo que mostró la API real
 
-El adaptador se diseñó a partir de respuestas reales de Easy y Frávega, grabadas en
-`tests/fixtures/vtex/`:
+El adaptador se diseñó a partir de respuestas reales de Easy y Frávega, y se ajustó con las de
+Autodo, grabadas en `tests/fixtures/vtex/`:
+
+- **Easy y Frávega no venden repuestos.** Con solo coincidencias exactas, ninguna de las 47 piezas
+  del catálogo tiene precio en ellas: por nombre traen otra cosa (cables puente por cables de bujía,
+  pastillas de moto). Por eso se sumó **Autodo** (`www.autodo.com.ar`), una casa de repuestos que
+  también usa VTEX: fue solo una entrada más en `Ofertas:Tiendas`, sin código nuevo. Sus
+  publicaciones traen el número del fabricante en la referencia (`W712-83-003` es el MANN
+  W 712/83) y, como especificaciones, los códigos originales de la automotriz y las equivalencias de
+  otras marcas. Con eso, 17 de las 47 piezas tienen precio exacto (relevamiento del 2026-11-16).
+- **Los números se comparan sin la marca.** El catálogo guarda "MANN W 712/83"; la tienda,
+  "W712/83". `CodigosRepuesto.SinMarca` y `ParaBuscar` (en `Contracts`, los usan VTEX y eBay)
+  sacan la marca y los espacios: el buscador de VTEX separa por espacios y "W 712/83" trae
+  cualquier filtro W. Las equivalencias se comparan número por número, nunca como texto corrido.
+- **Exacto aunque llegue por nombre.** El buscador de Autodo no siempre encuentra una pieza por su
+  número; buscar "Filtro de aceite" sí la trae. Una publicación que menciona un código de la pieza es
+  coincidencia exacta llegue por donde llegue. Los kits que incluyen la pieza no cuentan: el número
+  aparece en otra especificación, no como código del producto.
+- **Paréntesis en el nombre.** El buscador de VTEX responde 400 a "Filtro de aceite (cartucho)".
+  Cada 400 contaba como falla de la tienda y a la tercera el circuito la cortaba 30 segundos para
+  todas las piezas siguientes. El nombre se busca sin lo que va entre paréntesis.
 
 - **Las tiendas generalistas tienen pocos repuestos.** Del catálogo semilla, Easy publica baterías
   de auto y casi nada más; Frávega vende sobre todo accesorios. La pantalla lo dice ("Ninguna tienda
@@ -599,8 +620,52 @@ Cada rol ve los precios de una forma distinta. El **cliente** ve las ofertas de 
 la tienda por `/derivar`, que registra la comisión. El **mecánico** ve las mismas ofertas con enlace
 directo a la tienda: si pasara por `/derivar`, su propio clic contaría como una derivación atribuida
 a él. Si corrige el diagnóstico, también se buscan los precios de las piezas que recomendó, para que
-el cliente pueda comprarlas. **Sin sesión** se ve "desde $X en N tiendas" con un "Ingresá para ver
-dónde".
+el cliente pueda comprarlas. **Sin sesión** se ven las mismas ofertas: comprar una pieza no tiene
+por qué pedir una cuenta, que sirve para guardar consultas y compartirlas con un mecánico. Como no
+hay oferta guardada a la que apuntar, el enlace es `/ir/{token}`: la pieza, la tienda y el destino
+van firmados con Data Protection y vencen en un día (`EnlacesSinCuenta`), así que `/ir` no sirve de
+redirección abierta. Al seguirlo se registra una `Derivacion` sin búsqueda ni persona
+(`Derivacion.SinCuenta`): la mayoría de quienes comparan no tiene cuenta, y sin esto su salida a la
+tienda no contaría para la comisión. El evento `DerivacionATienda` y el mensaje
+`DerivacionTiendaV1` llevan búsqueda y oferta en null (sigue siendo la versión 1: los mensajes
+anteriores se leen igual y el consumidor de comisiones solo usa la tienda).
+
+Si una pieza no tiene ofertas exactas, la pantalla dice "No tenemos ofertas de esta pieza por ahora"
+y sugiere buscarla en las tiendas marcadas como casas de repuestos (`VendeRepuestos`, hoy Autodo),
+con un enlace al buscador del propio sitio (`IFuenteOfertas.UrlParaBuscar`). No es una oferta ni
+muestra precio: Easy y Frávega no se sugieren porque ya se sabe que no venden estas piezas.
+
+Debajo, "¿Preferís comprarla en persona?" muestra casas de repuestos cercanas en un mapa (Leaflet con
+las teselas de OpenStreetMap) y una lista con nombre, dirección cuando está cargada, distancia y un
+enlace a sus coordenadas en Google Maps (formato público "Maps URLs", sin clave), desde donde la
+persona saca cómo llegar. La ubicación sale del navegador, con el permiso de la persona, o de
+un barrio o ciudad escritos. Es una segunda API externa real con su propio componente,
+`RepMatch.Fuentes.Mapas`: `MapaOpenStreetMap` implementa `IMapaCasasRepuestos` con Overpass
+(comercios `shop=car_parts`) y Nominatim (zona a coordenadas).
+
+La primera versión consultaba Overpass en cada búsqueda, alrededor de la persona. Al probarla, los
+servidores públicos de Overpass (y tres espejos) respondían *"at capacity"* y la persona se quedaba
+sin resultados. Por eso las casas se **copian a la base propia**:
+
+- **El worker importa todas las casas de repuestos de Argentina** (`ImportadorCasasRepuestos` →
+  `ServicioImportacionCasas`) al arrancar si la copia falta o tiene más de 7 días, y la revisa cada
+  seis horas. Es un solo pedido grande (unas 2.250 casas, 570 KB, alrededor de un minuto), en
+  segundo plano: nadie lo espera. Si Overpass está saturado reintenta a los 15 minutos y queda la
+  copia anterior; una respuesta vacía también cuenta como falla. La tabla es `casas_repuestos`.
+- **Copia incluida.** La aplicación trae las casas descargadas al armar la versión
+  (`Datos/casas-argentina.json`). Si la base está vacía y Overpass no responde (un primer arranque
+  sin internet, o en la defensa), se carga esa copia en vez de esperar.
+- **La búsqueda lee solo la base:** un rectángulo por índice y después la distancia exacta. La
+  ubicación del navegador no sale de RepMatch y no se guarda. Solo una zona escrita viaja a
+  Nominatim, con timeout, reintento, circuito y caché de un día, un pedido a la vez y User-Agent
+  propio, como pide su política de uso.
+- **Los datos los carga su comunidad.** De las casas de Argentina, el 93 % tiene nombre (las sin
+  nombre no se guardan) y la mitad tiene dirección; pocas tienen teléfono u horario. La pantalla lo
+  aclara ("confirmá horarios y stock antes de ir"). La licencia de OpenStreetMap (ODbL) permite
+  guardar la copia citando la fuente, y la sección la cita.
+- **Sin mapa no se rompe nada.** Si Nominatim no responde, la sección avisa y se puede usar la
+  ubicación del navegador; con `Mapas:Habilitado=false` queda `MapaDesactivado` y la sección no
+  aparece.
 
 ### 6.10 Cola de mensajes: qué se publica y para qué
 
@@ -700,7 +765,7 @@ catálogo) quedan en el log y la pantalla muestra un aviso genérico.
 | **Segunda** | REST documentados con OpenAPI | `Catalogo.Api` e `IA.Api` publican `/openapi/v1.json` | — |
 | **Segunda** *(implementado)* | RabbitMQ, productores y consumidores | `PublicadorEventos` es un observador más de los eventos de dominio y publica por `IEventBus` (`BusRabbitMq`); el worker consume `derivacion.tienda` (registro de comisiones) y todos los eventos para el log de actividad (sección 6.10) | `ServicioBusquedas`, `DespachadorEventos`, entidades |
 | **Segunda** *(notificaciones implementadas)* | Notificaciones y precios en segundo plano | Avisos: `repmatch.avisos.compartidas` y `repmatch.avisos.revisiones`, consumidas por el worker, que escribe `notificaciones`; la campana de la Web las muestra (sección 6.10). Precios: falta una cola atada a `busqueda.creada` que llame a `ServicioOfertas.ObtenerAsync`, el mismo método que hoy dispara la página | Productores, `ConsumidorRabbitMq<T>`, la pantalla de precios |
-| **Segunda** *(implementado)* | Servicio de Ofertas y API externa (VTEX: Easy y Frávega) | `IFuenteOfertas` en `Contracts`; `FuenteVtex` en `RepMatch.Fuentes.Vtex`, con caché distribuida y resiliencia por tienda; `ServicioOfertas` agrega resultados, clasifica EAN y valida coincidencias por nombre (sección 6.9) | `ServicioBusquedas.CrearAsync`, catálogo |
+| **Segunda** *(implementado)* | Servicio de Ofertas y API externa (VTEX: Autodo, Easy y Frávega) | `IFuenteOfertas` en `Contracts`; `FuenteVtex` en `RepMatch.Fuentes.Vtex`, con caché distribuida y resiliencia por tienda; `ServicioOfertas` agrega resultados, clasifica EAN y valida coincidencias por nombre (sección 6.9) | `ServicioBusquedas.CrearAsync`, catálogo |
 | **Segunda** | Adaptador a eBay | Otra implementación de `IFuenteOfertas`, en USD; el ranking no mezcla monedas | `ServicioOfertas`, presentación |
 | **Segunda** *(implementado)* | Componente de IA (texto libre → repuestos) | `ObservadorCompatibilidad` usa `ServicioDiagnostico`, que le pasa `Busqueda.TextoLibre` y las piezas compatibles a `IDiagnosticador` (local o remota contra `IA.Api`, por `IA:Modo`) | `ServicioBusquedas.CrearAsync`; en la presentación solo se agregó la tarjeta del diagnóstico |
 | **Integrador** *(requerimientos y validación implementados)* | Requerimientos y métricas de exactitud de IA | [`docs/requerimientos.md`](requerimientos.md) fija los mínimos y `ValidacionIATests` los mide sobre un conjunto etiquetado fijo (sección 6.7). En producción, `DiagnosticoValidado` trae por cada revisión los códigos propuestos y los que recomendó el mecánico: el dataset para seguir midiendo con datos reales | `IDiagnosticador`, `DiagnosticadorConRespaldo` |

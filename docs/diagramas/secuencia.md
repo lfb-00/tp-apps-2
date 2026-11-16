@@ -757,10 +757,11 @@ sequenceDiagram
     end
 ```
 
-Sin sesión, `Home` llama a `FachadaAplicacion.ResumirPreciosAsync(piezas)`: consulta las tiendas
-igual, pero no guarda nada y solo devuelve el precio más bajo y en cuántas tiendas está cada pieza,
-con un "Ingresá para ver dónde". Sin búsqueda guardada no hay oferta guardada, y sin oferta no hay
-derivación que registrar.
+Sin sesión, `Home` llama a `FachadaAplicacion.ObtenerPreciosSinCuentaAsync(piezas)`: consulta las
+tiendas igual y devuelve las mismas ofertas, sin guardar nada. Como no hay oferta guardada, cada
+"Ir a la tienda" es un enlace `/ir/{token}` firmado por la Web; al seguirlo,
+`FachadaAplicacion.DerivarSinCuentaAsync` registra una derivación sin búsqueda ni persona y la Web
+redirige a la publicación.
 
 Código de referencia: [ServicioOfertas.cs](../../src/RepMatch.Aplicacion/Servicios/ServicioOfertas.cs),
 [Busqueda.cs](../../src/RepMatch.Domain/Entidades/Busqueda.cs),

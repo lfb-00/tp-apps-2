@@ -41,7 +41,7 @@ flowchart TB
         VTX["FuenteVtex · LectorVtex<br/>una instancia por tienda"]
     end
 
-    TIENDAS(["Tiendas VTEX<br/>Easy · Frávega"])
+    TIENDAS(["Tiendas VTEX<br/>Autodo · Easy · Frávega"])
 
     subgraph mensajeria["Mensajería · RepMatch.Mensajeria"]
         BUS["BusRabbitMq · ConsumidorRabbitMq&lt;T&gt;"]
