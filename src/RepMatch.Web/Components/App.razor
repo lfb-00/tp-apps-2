@@ -17,6 +17,12 @@
     <ResourcePreloader />
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="stylesheet" href="@Assets["RepMatch.Web.styles.css"]" />
+    @* Leaflet para el mapa de casas de repuestos cercanas (CasasCercanas). Version fija con hash:
+       si el CDN sirviera otro archivo, el navegador no lo ejecuta. *@
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous" />
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
     <ImportMap />
     <link rel="icon" type="image/svg+xml" href="logo-icon.svg" />
     <title>RepMatch</title>

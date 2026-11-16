@@ -9,6 +9,7 @@
   <!-- Las mismas respuestas reales grabadas que usan las pruebas unitarias del adapter. -->
   <ItemGroup>
     <Content Include="..\fixtures\vtex\*.json" Link="fixtures\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\fixtures\mapas\*.json" Link="fixtures\mapas\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

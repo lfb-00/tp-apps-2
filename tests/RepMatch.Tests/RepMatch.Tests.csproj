@@ -31,6 +31,7 @@
   <!-- Respuestas reales de tiendas VTEX, grabadas para probar el adapter sin red. -->
   <ItemGroup>
     <None Include="..\fixtures\vtex\*.json" Link="fixtures\vtex\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\fixtures\mapas\*.json" Link="fixtures\mapas\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- Conjunto etiquetado para validar la exactitud del componente de IA (ValidacionIATests). -->
@@ -55,6 +56,7 @@
     <ProjectReference Include="..\..\src\RepMatch.IA\RepMatch.IA.csproj" />
     <ProjectReference Include="..\..\src\RepMatch.Fuentes.Vtex\RepMatch.Fuentes.Vtex.csproj" />
     <ProjectReference Include="..\..\src\RepMatch.Fuentes.Ebay\RepMatch.Fuentes.Ebay.csproj" />
+    <ProjectReference Include="..\..\src\RepMatch.Fuentes.Mapas\RepMatch.Fuentes.Mapas.csproj" />
     <ProjectReference Include="..\..\src\RepMatch.Mensajeria\RepMatch.Mensajeria.csproj" />
     <!-- Mismo motivo que Web: el worker tambien expone su propia clase Program. -->
     <ProjectReference Include="..\..\src\RepMatch.Notificaciones.Worker\RepMatch.Notificaciones.Worker.csproj" Aliases="Worker" />

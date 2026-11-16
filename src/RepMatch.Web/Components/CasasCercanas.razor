@@ -1,0 +1,197 @@
+@using System.Globalization
+@using RepMatch.Aplicacion.Fachada
+@implements IAsyncDisposable
+@inject FachadaAplicacion Fachada
+@inject IJSRuntime JS
+@inject ILogger<CasasCercanas> Log
+
+@* Casas de repuestos cerca de la persona, para las piezas que no tienen ofertas en linea. Una sola
+   seccion por busqueda: una casa de repuestos vende todas las piezas. La ubicacion sale del
+   navegador (con permiso) o de una zona escrita; no se guarda. Los datos son de OpenStreetMap. *@
+
+@if (Fachada.HayMapaDeCasas)
+{
+    <section class="casas-cercanas" aria-labelledby="@($"{Prefijo}-titulo")">
+        <h3 id="@($"{Prefijo}-titulo")">¿Preferís comprarla en persona?</h3>
+        <p class="texto-ayuda">@Motivo Buscá casas de repuestos cerca tuyo.</p>
+
+        <div class="casas-buscar">
+            <button class="secundario" @onclick="UsarMiUbicacionAsync" disabled="@buscando">Usar mi ubicación</button>
+            <span class="casas-o">o</span>
+            <label class="sr-only" for="@($"{Prefijo}-zona")">Barrio o ciudad</label>
+            <input id="@($"{Prefijo}-zona")" type="text" maxlength="80" placeholder="Barrio o ciudad"
+                   @bind="zona" @bind:event="oninput" @onkeydown="TeclaAsync" disabled="@buscando" />
+            <button @onclick="BuscarZonaAsync" disabled="@buscando">Buscar</button>
+        </div>
+
+        @if (buscando)
+        {
+            <p class="precios-cargando" role="status">Buscando en el mapa…</p>
+        }
+        else if (error is not null)
+        {
+            <div class="alerta alerta-error" role="alert" aria-live="polite">@error</div>
+        }
+        else if (resultado is not null)
+        {
+            <p class="casas-centro">
+                @(resultado.Casas.Count == 0 ? "No hay casas de repuestos cargadas en el mapa" : $"{resultado.Casas.Count} {(resultado.Casas.Count == 1 ? "casa de repuestos" : "casas de repuestos")}")
+                a menos de @Distancia(resultado.RadioMetros) de @(resultado.Centro.Descripcion is { } descripcion ? Corta(descripcion) : "tu ubicación").
+            </p>
+            @if (resultado.Casas.Count > 0)
+            {
+                <div id="@IdMapa" class="mapa-casas" role="img" aria-label="Mapa con las casas de repuestos cercanas"></div>
+                <ol class="casas-lista">
+                    @foreach (var casa in resultado.Casas)
+                    {
+                        <li class="casa">
+                            <div class="casa-datos">
+                                <strong>@casa.Nombre</strong>
+                                <span>@(casa.Direccion ?? "Sin dirección cargada")</span>
+                                @if (casa.Telefono is { } telefono)
+                                {
+                                    <a class="link-discreto" href="tel:@telefono">@telefono</a>
+                                }
+                            </div>
+                            <span class="casa-distancia">a @Distancia(casa.DistanciaMetros)</span>
+                            <a class="link-marca" href="@casa.UrlMapa" target="_blank" rel="noopener noreferrer">Ver en Google Maps</a>
+                        </li>
+                    }
+                </ol>
+            }
+        }
+        <small class="casas-fuente">
+            Comercios de <a class="link-discreto" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a>,
+            cargados por su comunidad: confirmá horarios y stock antes de ir.
+        </small>
+    </section>
+}
+
+@code {
+    private static readonly CultureInfo Argentina = CultureInfo.GetCultureInfo("es-AR");
+
+    /// <summary>Por que aparece la seccion ("2 piezas no tienen ofertas en línea.").</summary>
+    [Parameter]
+    public string Motivo { get; set; } = "";
+
+    /// <summary>Con sesion: la localidad y provincia del perfil, para no tener que escribirla.</summary>
+    [Parameter]
+    public string? ZonaInicial { get; set; }
+
+    /// <summary>Para ids unicos si hay mas de una seccion en la pagina.</summary>
+    [Parameter]
+    public string Prefijo { get; set; } = "casas";
+
+    private string IdMapa => $"{Prefijo}-mapa";
+
+    private string zona = "";
+    private bool buscando;
+    private string? error;
+    private CasasCercanasDto? resultado;
+    private bool dibujar;
+    private IJSObjectReference? modulo;
+
+    protected override void OnInitialized() => zona = ZonaInicial ?? "";
+
+    private async Task UsarMiUbicacionAsync()
+    {
+        buscando = true;
+        error = null;
+        try
+        {
+            modulo ??= await JS.InvokeAsync<IJSObjectReference>("import", "./mapa.js");
+            var centro = await modulo.InvokeAsync<UbicacionDto>("ubicacion");
+            await MostrarAsync(await Fachada.BuscarCasasCercaAsync(centro));
+        }
+        catch (JSException ex)
+        {
+            Log.LogInformation("Sin ubicacion del navegador: {Motivo}", ex.Message);
+            error = ex.Message.Contains("denegada", StringComparison.Ordinal)
+                ? "No tenemos permiso para usar tu ubicación. Escribí tu barrio o ciudad."
+                : "No pudimos obtener tu ubicación. Escribí tu barrio o ciudad.";
+            resultado = null;
+        }
+        finally
+        {
+            buscando = false;
+        }
+    }
+
+    private async Task BuscarZonaAsync()
+    {
+        buscando = true;
+        error = null;
+        try
+        {
+            await MostrarAsync(await Fachada.BuscarCasasCercaDeAsync(zona));
+        }
+        finally
+        {
+            buscando = false;
+        }
+    }
+
+    private async Task TeclaAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !buscando)
+            await BuscarZonaAsync();
+    }
+
+    private Task MostrarAsync(RepMatch.Common.Resultados.ResultadoOperacion<CasasCercanasDto> respuesta)
+    {
+        if (respuesta.EsFallido)
+        {
+            error = respuesta.Error;
+            resultado = null;
+        }
+        else
+        {
+            resultado = respuesta.Valor;
+            dibujar = resultado.Casas.Count > 0;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!dibujar || resultado is null)
+            return;
+
+        dibujar = false;
+        try
+        {
+            modulo ??= await JS.InvokeAsync<IJSObjectReference>("import", "./mapa.js");
+            await modulo.InvokeAsync<bool>("mostrar", IdMapa, resultado.Centro, resultado.Casas);
+        }
+        catch (JSException ex)
+        {
+            // Sin el mapa dibujado, la lista sigue en la pagina.
+            Log.LogWarning("No se pudo dibujar el mapa de casas: {Motivo}", ex.Message);
+        }
+    }
+
+    private static string Distancia(int metros) =>
+        metros < 1000
+            ? $"{Math.Max(50, metros / 50 * 50)} m"
+            : $"{(metros / 1000.0).ToString("0.#", Argentina)} km";
+
+    /// <summary>"Palermo, Buenos Aires, Comuna 14, ..., Argentina": las dos primeras partes alcanzan.</summary>
+    private static string Corta(string descripcion) =>
+        string.Join(", ", descripcion.Split(',', StringSplitOptions.TrimEntries).Take(2));
+
+    public async ValueTask DisposeAsync()
+    {
+        if (modulo is null)
+            return;
+        try
+        {
+            await modulo.InvokeVoidAsync("quitar", IdMapa);
+            await modulo.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+            // El circuito ya se cerro: no hay nada que limpiar en el navegador.
+        }
+    }
+}

@@ -1,8 +1,10 @@
 using RepMatch.Aplicacion.Servicios;
 using RepMatch.Common.Logging;
 using RepMatch.Contracts.Configuracion;
+using RepMatch.Fuentes.Mapas;
 using RepMatch.Mensajeria;
 using RepMatch.Notificaciones.Worker.Consumidores;
+using RepMatch.Notificaciones.Worker.Tareas;
 using RepMatch.Persistence;
 using Serilog;
 
@@ -22,6 +24,15 @@ builder.Services.AgregarProblemDetails();
 builder.Services.AgregarPersistencia(builder.Configuration);
 builder.Services.AddScoped<ServicioComisiones>();
 builder.Services.AddScoped<ServicioNotificaciones>();
+
+// Copia semanal de las casas de repuestos de OpenStreetMap, para la busqueda de casas cercanas.
+var opcionesMapas = builder.Configuration.GetSection(OpcionesMapas.Seccion).Get<OpcionesMapas>() ?? new OpcionesMapas();
+if (opcionesMapas.Habilitado)
+{
+    builder.Services.AgregarMapas(builder.Configuration);
+    builder.Services.AddScoped<ServicioImportacionCasas>();
+    builder.Services.AddHostedService<ImportadorCasasRepuestos>();
+}
 
 builder.Services.AgregarMensajeria(builder.Configuration);
 builder.Services.AgregarConsumidor<ConsumidorComisiones>();

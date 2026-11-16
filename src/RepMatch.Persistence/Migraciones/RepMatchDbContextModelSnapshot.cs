@@ -143,6 +143,48 @@ namespace RepMatch.Persistence.Migraciones
                     b.ToTable("busquedas", (string)null);
                 });
 
+            modelBuilder.Entity("RepMatch.Domain.Entidades.CasaRepuestos", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Direccion")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("IdMapa")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTimeOffset>("ImportadaEn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<double>("Latitud")
+                        .HasColumnType("double precision");
+
+                    b.Property<double>("Longitud")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Telefono")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IdMapa")
+                        .IsUnique();
+
+                    b.HasIndex("Latitud", "Longitud");
+
+                    b.ToTable("casas_repuestos", (string)null);
+                });
+
             modelBuilder.Entity("RepMatch.Domain.Entidades.Cliente", b =>
                 {
                     b.Property<Guid>("Id")
@@ -295,8 +337,15 @@ namespace RepMatch.Persistence.Migraciones
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("BusquedaId")
+                    b.Property<Guid?>("BusquedaId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("CodigoRepuesto")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasDefaultValue("");
 
                     b.Property<Guid?>("MecanicoId")
                         .HasColumnType("uuid");
@@ -309,7 +358,7 @@ namespace RepMatch.Persistence.Migraciones
                     b.Property<DateTimeOffset>("OcurridaEn")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid>("OfertaId")
+                    b.Property<Guid?>("OfertaId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("UrlDestino")

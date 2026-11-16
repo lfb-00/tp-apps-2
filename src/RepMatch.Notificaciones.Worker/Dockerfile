@@ -11,6 +11,7 @@ COPY src/RepMatch.Contracts/RepMatch.Contracts.csproj           src/RepMatch.Con
 COPY src/RepMatch.Persistence/RepMatch.Persistence.csproj       src/RepMatch.Persistence/
 COPY src/RepMatch.Aplicacion/RepMatch.Aplicacion.csproj         src/RepMatch.Aplicacion/
 COPY src/RepMatch.Mensajeria/RepMatch.Mensajeria.csproj           src/RepMatch.Mensajeria/
+COPY src/RepMatch.Fuentes.Mapas/RepMatch.Fuentes.Mapas.csproj   src/RepMatch.Fuentes.Mapas/
 COPY src/RepMatch.Notificaciones.Worker/RepMatch.Notificaciones.Worker.csproj     src/RepMatch.Notificaciones.Worker/
 RUN dotnet restore src/RepMatch.Notificaciones.Worker/RepMatch.Notificaciones.Worker.csproj
 

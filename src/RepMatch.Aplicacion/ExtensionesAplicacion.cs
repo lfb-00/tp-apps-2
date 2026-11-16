@@ -42,6 +42,10 @@ public static class ExtensionesAplicacion
         servicios.AddScoped<ServicioOfertas>();
         servicios.AddScoped<ServicioComisiones>();
         servicios.AddScoped<ServicioNotificaciones>();
+        servicios.AddScoped<ServicioCasasCercanas>();
+        // Sin mapa (AgregarMapas no se llamo o esta deshabilitado) la seccion no aparece.
+        servicios.TryAddSingleton<RepMatch.Contracts.IMapaCasasRepuestos, MapaDesactivado>();
+        servicios.TryAddSingleton(new OpcionesMapas());
         servicios.TryAddSingleton(new OpcionesOfertas());
         servicios.AddScoped<FachadaAplicacion>();
 

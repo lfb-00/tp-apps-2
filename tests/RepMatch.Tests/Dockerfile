@@ -19,6 +19,7 @@ COPY src/RepMatch.Mensajeria/RepMatch.Mensajeria.csproj           src/RepMatch.M
 COPY src/RepMatch.Notificaciones.Worker/RepMatch.Notificaciones.Worker.csproj src/RepMatch.Notificaciones.Worker/
 COPY src/RepMatch.Fuentes.Vtex/RepMatch.Fuentes.Vtex.csproj     src/RepMatch.Fuentes.Vtex/
 COPY src/RepMatch.Fuentes.Ebay/RepMatch.Fuentes.Ebay.csproj     src/RepMatch.Fuentes.Ebay/
+COPY src/RepMatch.Fuentes.Mapas/RepMatch.Fuentes.Mapas.csproj   src/RepMatch.Fuentes.Mapas/
 COPY src/RepMatch.IA.Api/RepMatch.IA.Api.csproj                 src/RepMatch.IA.Api/
 COPY src/RepMatch.Catalogo.Api/RepMatch.Catalogo.Api.csproj     src/RepMatch.Catalogo.Api/
 COPY src/RepMatch.Catalogo.Soap/RepMatch.Catalogo.Soap.csproj   src/RepMatch.Catalogo.Soap/

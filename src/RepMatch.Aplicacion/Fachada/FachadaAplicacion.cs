@@ -19,8 +19,20 @@ public sealed class FachadaAplicacion(
     ServicioDerivaciones derivaciones,
     ServicioDiagnostico diagnostico,
     ServicioOfertas ofertas,
-    ServicioNotificaciones notificaciones)
+    ServicioNotificaciones notificaciones,
+    ServicioCasasCercanas casasCercanas)
 {
+    /// <summary>Hay un mapa configurado: la pantalla puede ofrecer buscar casas de repuestos cerca.</summary>
+    public bool HayMapaDeCasas => casasCercanas.EstaDisponible;
+
+    /// <summary>Casas de repuestos cerca de un punto (la ubicacion del navegador). No se guarda.</summary>
+    public Task<ResultadoOperacion<CasasCercanasDto>> BuscarCasasCercaAsync(UbicacionDto centro, CancellationToken ct = default) =>
+        casasCercanas.BuscarCercaAsync(centro, ct);
+
+    /// <summary>Casas de repuestos cerca de un barrio o ciudad escritos a mano.</summary>
+    public Task<ResultadoOperacion<CasasCercanasDto>> BuscarCasasCercaDeAsync(string zona, CancellationToken ct = default) =>
+        casasCercanas.BuscarCercaDeAsync(zona, ct);
+
     public Task<BandejaNotificacionesDto> ObtenerNotificacionesAsync(Guid usuarioId, CancellationToken ct = default) =>
         notificaciones.ObtenerBandejaAsync(usuarioId, ct);
 
@@ -76,10 +88,20 @@ public sealed class FachadaAplicacion(
         Guid busquedaId, Guid usuarioId, bool forzar = false, CancellationToken ct = default) =>
         ofertas.ObtenerAsync(busquedaId, usuarioId, forzar, ct);
 
-    /// <summary>"Desde $X en N tiendas" para la busqueda sin sesion. No guarda nada.</summary>
-    public Task<ResumenPreciosBusquedaDto> ResumirPreciosAsync(
+    /// <summary>Las ofertas para la busqueda sin sesion. No guarda nada.</summary>
+    public Task<PreciosSinCuentaDto> ObtenerPreciosSinCuentaAsync(
         IReadOnlyList<RepuestoDto> piezas, VehiculoDto vehiculo, CancellationToken ct = default) =>
-        ofertas.ResumirAsync(piezas, vehiculo, ct);
+        ofertas.PreciosSinCuentaAsync(piezas, vehiculo, ct);
+
+    /// <summary>Tiendas de repuestos donde buscar a mano una pieza sin ofertas exactas.</summary>
+    public IReadOnlyList<SugerenciaTiendaDto> SugerirTiendas(RepuestoDto pieza, VehiculoDto? vehiculo) =>
+        ofertas.SugerirTiendas(pieza, vehiculo);
+
+    /// <summary>Registra la salida a la tienda de quien compara sin cuenta. La Web solo lo llama
+    /// con datos de un enlace que ella misma firmo.</summary>
+    public Task<ResultadoOperacion<string>> DerivarSinCuentaAsync(
+        string codigoRepuesto, string tienda, string url, CancellationToken ct = default) =>
+        derivaciones.DerivarSinCuentaAsync(codigoRepuesto, tienda, url, ct);
 
     public Task<IReadOnlyList<ClienteDto>> ListarClientesAsync(CancellationToken ct = default) =>
         clientes.ListarAsync(ct);
