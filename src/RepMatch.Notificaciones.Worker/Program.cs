@@ -15,16 +15,19 @@ var builder = WebApplication.CreateBuilder(args);
 builder.UsarSerilog("Worker");
 
 builder.Services.AddOpenApi();
-builder.Services.AddProblemDetails();
+builder.Services.AgregarProblemDetails();
 
 // La misma base que el resto. El worker no crea el esquema ni siembra datos: eso lo hacen los
 // hosts que arrancan antes (en compose depende de catalogo-api sano).
 builder.Services.AgregarPersistencia(builder.Configuration);
 builder.Services.AddScoped<ServicioComisiones>();
+builder.Services.AddScoped<ServicioNotificaciones>();
 
 builder.Services.AgregarMensajeria(builder.Configuration);
 builder.Services.AgregarConsumidor<ConsumidorComisiones>();
 builder.Services.AgregarConsumidor<ConsumidorActividad>();
+builder.Services.AgregarConsumidor<ConsumidorAvisosCompartidas>();
+builder.Services.AgregarConsumidor<ConsumidorAvisosRevisiones>();
 
 var app = builder.Build();
 
@@ -44,7 +47,11 @@ app.MapGet("/salud", () => Results.Ok(new
     servicio = "RepMatch.Notificaciones.Worker",
     estado = "ok",
     broker = opciones.Habilitada ? $"{opciones.Host}:{opciones.Puerto}" : "mensajeria desactivada",
-    colas = new[] { ConsumidorComisiones.Definicion.Nombre, ConsumidorActividad.Definicion.Nombre },
+    colas = new[]
+    {
+        ConsumidorComisiones.Definicion.Nombre, ConsumidorActividad.Definicion.Nombre,
+        ConsumidorAvisosCompartidas.Definicion.Nombre, ConsumidorAvisosRevisiones.Definicion.Nombre
+    },
     utc = DateTimeOffset.UtcNow
 }));
 

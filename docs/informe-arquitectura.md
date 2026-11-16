@@ -62,8 +62,9 @@ con WSDL, secciones 4 y 6.8), que la Web usa en cada búsqueda, y la **API exter
 Servicio de Ofertas consulta los precios en Easy y Frávega con la API pública de VTEX
 (`RepMatch.Fuentes.Vtex`, sección 6.9). También está la **cola de mensajes** con productores y
 consumidores: los eventos de dominio se publican en RabbitMQ y un worker los consume (sección
-6.10). El adaptador de eBay y las notificaciones a cliente y mecánico corresponden a las entregas
-siguientes, y la arquitectura está preparada para recibirlos sin rediseño (sección 7).
+6.10), con avisos a cliente y mecánico: compartir una consulta y revisarla dejan una notificación
+que la campana del encabezado muestra sin recargar. El adaptador de eBay está implementado pero
+queda deshabilitado hasta tener credenciales de producción (sección 7).
 
 ---
 
@@ -640,9 +641,52 @@ Las decisiones:
   directo. Como un mensaje puede llegar dos veces, el registro de comisiones guarda el id del
   mensaje procesado en la misma transacción que la suma.
 - **Un worker aparte.** `RepMatch.Notificaciones.Worker` corre en su propio contenedor: si se cae,
-  los mensajes esperan en la cola y se procesan cuando vuelve, sin que la Web se entere. Las
-  notificaciones a cliente y mecánico, y la búsqueda de precios en segundo plano, son los próximos
-  consumidores (sección 7).
+  los mensajes esperan en la cola y se procesan cuando vuelve, sin que la Web se entere.
+- **Avisos por la cola.** `ConsumidorAvisosCompartidas` (`busqueda.compartida`) y
+  `ConsumidorAvisosRevisiones` (`diagnostico.validado`) escriben una `Notificacion` para el mecánico
+  o el cliente, idempotente por id de mensaje como las comisiones. Sumarlos no tocó productores,
+  `ConsumidorRabbitMq<T>` ni la lógica de compartir y revisar: dos colas más en la topología. La
+  Web consulta los avisos cada pocos segundos desde la campana del encabezado, con su propio
+  scope de DI para no compartir el `DbContext` del circuito. La búsqueda de precios en segundo
+  plano sigue como próximo consumidor (sección 7).
+
+### 6.11 Catálogo de repuestos: solo datos con fuente
+
+El catálogo de repuestos no es de ejemplo. Cada pieza, sus números de fabricante y los vehículos
+a los que aplica salen de catálogos oficiales publicados por Volkswagen, Bosch y MAHLE, con la
+página citada en [`docs/catalogo-fuentes.md`](catalogo-fuentes.md). Se eligió cubrir menos
+(ocho familias de vehículos y los tipos de pieza que esas fuentes documentan) antes que mostrar
+compatibilidades inventadas: RepMatch existe para decir qué pieza le entra a un auto, y un dato
+falso ahí es el peor error posible. Los números de fabricante sirven además como términos de
+búsqueda en las tiendas (sección 6.9), así que un número real también mejora las ofertas que se
+encuentran. Los vehículos sin ninguna pieza con fuente se sacaron del selector, y una prueba
+impide volver a agregar un modelo sin repuestos.
+
+
+### 6.12 Manejo de errores, logging y configuración
+
+Es un requisito mínimo de la solución final. Se auditó el 2026-11-15 (issue #26) contra sus
+cuatro criterios:
+
+| Criterio | Cómo se cumple | Verificación |
+|---|---|---|
+| Todos los servicios loguean igual | Los cinco hosts (Web, Catálogo REST, Catálogo SOAP, IA, Worker) llaman `UsarSerilog(nombre)` y `UsarCorrelacion()` de `RepMatch.Common`: mismo formato, mismo enriquecimiento y el mismo `X-Correlation-Id` de punta a punta, también por la cola | Sección 5.3 y evidencias `20` y `21` |
+| Un error 500 nunca muestra la traza | Los hosts REST responden `ProblemDetails` (`AgregarProblemDetails()`, en `Common`) con el `correlationId` en el cuerpo y en la cabecera, para reportarlo; el detalle queda en el log. La Web responde igual en sus endpoints HTTP (`/derivar`, `/evidencia`); los errores de la interfaz los muestra Blazor en el circuito, sin detalles. SOAP responde un *fault* genérico | `ErroresTests` y la prueba manual de abajo |
+| Ninguna credencial en el repositorio | Las claves (LLM, eBay) llegan solo por variable de entorno o `.env`, que está en `.gitignore`. Los usuarios de Postgres y RabbitMQ del compose son valores de desarrollo local que se pisan desde el `.env` | Búsqueda de formatos de clave (Groq, OpenAI, Google, AWS, GitHub, claves privadas) en los archivos y en los 103 commits del historial: sin resultados |
+| Configuración documentada | Cada clave de las clases `Opciones*` tiene su fila en la tabla de configuración del README, y las variables del compose, en el manual de despliegue | Comparación automática entre las propiedades de `Opciones*` y el README |
+
+**Lo que encontró la auditoría.** El compose corre todos los servicios en `Development` (así
+publican OpenAPI, que leen las evidencias), y en ese entorno la Web registraba su manejador de
+excepciones solo fuera de `Development`: con la base caída, `/evidencia/catalogo` devolvía el texto
+de la excepción al navegador. Ahora el manejador se registra siempre. Además, el manejador de
+ASP.NET limpia las cabeceras de la respuesta antes de escribir el 500, así que justo en un error se
+perdía el `X-Correlation-Id`: ahora se vuelve a poner y viaja también en el cuerpo. Con la base de
+datos detenida, Catálogo REST y Worker responden `application/problem+json` sin detalles internos y
+SOAP responde un *fault* genérico.
+
+Los mensajes que llegan a la pantalla salen solo de `ExcepcionDominio`, que son reglas de negocio
+escritas para la persona ("tiene la bandeja llena"). Las fallas de servicios externos (tiendas, IA,
+catálogo) quedan en el log y la pantalla muestra un aviso genérico.
 
 
 ---
@@ -655,7 +699,7 @@ Las decisiones:
 | **Segunda** *(implementado)* | SOAP `ConsultaCompatibilidad` (CoreWCF + WSDL) | `Catalogo.Soap` publica el servicio; `CatalogoSoap` es la tercera implementación de `ICatalogoRepuestos`, elegida con `Catalogo:Modo=Soap` (sección 6.8) | Presentación, lógica de negocio, interfaz del catálogo |
 | **Segunda** | REST documentados con OpenAPI | `Catalogo.Api` e `IA.Api` publican `/openapi/v1.json` | — |
 | **Segunda** *(implementado)* | RabbitMQ, productores y consumidores | `PublicadorEventos` es un observador más de los eventos de dominio y publica por `IEventBus` (`BusRabbitMq`); el worker consume `derivacion.tienda` (registro de comisiones) y todos los eventos para el log de actividad (sección 6.10) | `ServicioBusquedas`, `DespachadorEventos`, entidades |
-| **Segunda** | Notificaciones y precios en segundo plano | Consumidores nuevos en el worker: una cola atada a `busqueda.compartida` o `diagnostico.validado` para avisar al mecánico o al cliente, y otra a `busqueda.creada` que llame a `ServicioOfertas.ObtenerAsync`, el mismo método que hoy dispara la página | Productores, topología, `ConsumidorRabbitMq<T>`, la pantalla de precios |
+| **Segunda** *(notificaciones implementadas)* | Notificaciones y precios en segundo plano | Avisos: `repmatch.avisos.compartidas` y `repmatch.avisos.revisiones`, consumidas por el worker, que escribe `notificaciones`; la campana de la Web las muestra (sección 6.10). Precios: falta una cola atada a `busqueda.creada` que llame a `ServicioOfertas.ObtenerAsync`, el mismo método que hoy dispara la página | Productores, `ConsumidorRabbitMq<T>`, la pantalla de precios |
 | **Segunda** *(implementado)* | Servicio de Ofertas y API externa (VTEX: Easy y Frávega) | `IFuenteOfertas` en `Contracts`; `FuenteVtex` en `RepMatch.Fuentes.Vtex`, con caché distribuida y resiliencia por tienda; `ServicioOfertas` agrega resultados, clasifica EAN y valida coincidencias por nombre (sección 6.9) | `ServicioBusquedas.CrearAsync`, catálogo |
 | **Segunda** | Adaptador a eBay | Otra implementación de `IFuenteOfertas`, en USD; el ranking no mezcla monedas | `ServicioOfertas`, presentación |
 | **Segunda** *(implementado)* | Componente de IA (texto libre → repuestos) | `ObservadorCompatibilidad` usa `ServicioDiagnostico`, que le pasa `Busqueda.TextoLibre` y las piezas compatibles a `IDiagnosticador` (local o remota contra `IA.Api`, por `IA:Modo`) | `ServicioBusquedas.CrearAsync`; en la presentación solo se agregó la tarjeta del diagnóstico |
@@ -754,9 +798,9 @@ quedan demostrados apenas se levanta el entorno.
 |---|---|
 | ≥1 servicio SOAP (WSDL + contrato) | `src/RepMatch.Catalogo.Soap` (contrato `IConsultaCompatibilidad`) y su cliente `src/RepMatch.Clientes.Soap`, sección 6.8. WSDL en [`10-wsdl.xml`](evidencias/10-wsdl.xml) y [`11-wsdl-tipos.xsd`](evidencias/11-wsdl-tipos.xsd); la Web lo usa en cada búsqueda ([`13-web-modo-soap.log`](evidencias/13-web-modo-soap.log)) |
 | ≥2 servicios REST (OpenAPI) | `src/RepMatch.Catalogo.Api`, `src/RepMatch.IA.Api` y `src/RepMatch.Notificaciones.Worker`. Contratos en [`05-openapi.json`](evidencias/05-openapi.json), [`15-openapi-ia.json`](evidencias/15-openapi-ia.json) y [`16-openapi-worker.json`](evidencias/16-openapi-worker.json) |
-| Mensajería con colas | RabbitMQ (`src/RepMatch.Mensajeria`): exchange topic, colas `repmatch.comisiones` y `repmatch.actividad` con DLQ, secciones 6.5 y 6.10, [`docs/diagramas/mensajes.md`](diagramas/mensajes.md) |
+| Mensajería con colas | RabbitMQ (`src/RepMatch.Mensajeria`): exchange topic, colas `repmatch.comisiones`, `repmatch.actividad`, `repmatch.avisos.compartidas` y `repmatch.avisos.revisiones` con DLQ, secciones 6.5 y 6.10, [`docs/diagramas/mensajes.md`](diagramas/mensajes.md) |
 | Integración SOA / microservicios ligeros | Hosts independientes en Docker Compose (Web, Catálogo REST, Catálogo SOAP, IA, Worker), [`docs/diagramas/componentes.md`](diagramas/componentes.md) y [`docs/diagramas/despliegue.md`](diagramas/despliegue.md) |
-| Productores y consumidores de mensajes | Productor `PublicadorEventos` (`BusquedaCreada`, `BusquedaCompartida`, `DiagnosticoValidado`, `DerivacionTienda`); consumidores `ConsumidorComisiones` y `ConsumidorActividad`, sección 6.10. Recorrido en [`20-productor-catalogo-api.log`](evidencias/20-productor-catalogo-api.log), [`21-consumidor-worker.log`](evidencias/21-consumidor-worker.log) y [`22-colas-rabbitmq.json`](evidencias/22-colas-rabbitmq.json) |
+| Productores y consumidores de mensajes | Productor `PublicadorEventos` (`BusquedaCreada`, `BusquedaCompartida`, `DiagnosticoValidado`, `DerivacionTienda`); consumidores `ConsumidorComisiones`, `ConsumidorActividad`, `ConsumidorAvisosCompartidas` y `ConsumidorAvisosRevisiones`, sección 6.10. Recorrido en [`20-productor-catalogo-api.log`](evidencias/20-productor-catalogo-api.log), [`21-consumidor-worker.log`](evidencias/21-consumidor-worker.log) y [`22-colas-rabbitmq.json`](evidencias/22-colas-rabbitmq.json) |
 | ≥1 API externa real | API pública de VTEX en Easy y Frávega (`src/RepMatch.Fuentes.Vtex`), secciones 6.1 y 6.9, [`23-vtex-tiendas.json`](evidencias/23-vtex-tiendas.json) |
 | Componente de IA | Clasificación de la urgencia a partir del texto libre del cliente, junto con el sistema afectado, las causas probables y las piezas recomendadas entre las compatibles: LLM con respaldo local (`src/RepMatch.IA`), sección 6.7. Respuesta en [`17-respuesta-ia.json`](evidencias/17-respuesta-ia.json) |
 | IA expuesta por REST o por la cola | REST: `POST /api/diagnostico` en `src/RepMatch.IA.Api` |

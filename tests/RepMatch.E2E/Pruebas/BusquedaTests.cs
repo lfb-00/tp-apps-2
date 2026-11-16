@@ -86,8 +86,11 @@ public sealed class BusquedaTests(NavegadorFixture fixture, ITestOutputHelper sa
         await Consultas(Pagina).First.GetByRole(AriaRole.Link).ClickAsync();
         await EsperarListaAsync(Pagina);
         await Expect(Pagina).ToHaveURLAsync($"{Entorno.UrlWeb}/consultas/{id}");
-        await Expect(Pagina.GetByText(TextoFrenos)).ToBeVisibleAsync();
+        // La navegacion mejorada de Blazor cambia la URL antes de reemplazar el contenido: hasta
+        // que aparece la consulta, la portada sigue en pantalla con el mismo texto dos veces
+        // (resultado y "Tus consultas"). Se espera primero algo que solo tiene la consulta.
         await Expect(Pagina.GetByText("Tu consulta del")).ToBeVisibleAsync();
+        await Expect(Pagina.GetByText(TextoFrenos)).ToBeVisibleAsync();
     }
 
     [Fact]

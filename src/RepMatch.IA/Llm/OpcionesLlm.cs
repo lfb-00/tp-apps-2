@@ -17,7 +17,20 @@ public sealed class OpcionesLlm
 
     public string UrlBase { get; set; } = "https://api.groq.com/openai/v1/";
 
-    public string Modelo { get; set; } = "llama-3.3-70b-versatile";
+    /// <summary>
+    /// Modelo del proveedor. Groq retiro llama-3.3-70b-versatile (respondia 404 y todo caia al
+    /// respaldo local sin que se notara); gpt-oss-120b es el modelo general mas capaz del cupo
+    /// gratuito. Los proveedores retiran modelos: por eso vive en configuracion y no en codigo.
+    /// </summary>
+    public string Modelo { get; set; } = "openai/gpt-oss-120b";
+
+    /// <summary>
+    /// reasoning_effort de la API compatible con OpenAI. gpt-oss "piensa" antes de responder y
+    /// esos tokens cuentan para el cupo (8000 por minuto en el plan gratuito de Groq): con "low"
+    /// cada diagnostico baja de ~850 a ~700 tokens y la respuesta no cambia. Vacio no se envia,
+    /// para los modelos que no razonan y rechazarian el parametro.
+    /// </summary>
+    public string EsfuerzoRazonamiento { get; set; } = "low";
 
     public string ApiKey { get; set; } = string.Empty;
 

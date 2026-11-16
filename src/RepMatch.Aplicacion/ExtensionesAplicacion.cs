@@ -41,6 +41,7 @@ public static class ExtensionesAplicacion
         servicios.AddScoped<ServicioDiagnostico>();
         servicios.AddScoped<ServicioOfertas>();
         servicios.AddScoped<ServicioComisiones>();
+        servicios.AddScoped<ServicioNotificaciones>();
         servicios.TryAddSingleton(new OpcionesOfertas());
         servicios.AddScoped<FachadaAplicacion>();
 

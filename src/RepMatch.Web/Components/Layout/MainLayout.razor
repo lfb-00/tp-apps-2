@@ -33,6 +33,7 @@
 
         @if (Sesion.Cliente is not null)
         {
+            <CampanaNotificaciones UsuarioId="Sesion.Cliente.Id" />
             <div class="quien">
                 <button class="user-trigger @(dropdownAbierto ? "abierto" : "")" @onclick="ToggleDropdown">
                     <Avatar Nombre="@Sesion.Cliente.Nombre" FotoUrl="@Sesion.Cliente.FotoUrl" Tamano="28" />

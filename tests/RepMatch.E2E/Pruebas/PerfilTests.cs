@@ -105,7 +105,7 @@ public sealed class PerfilTests(NavegadorFixture fixture, ITestOutputHelper sali
     {
         await RegistrarAsync(Pagina);
         await AgregarGolAsync(Pagina, apodo: "Primero");
-        await AgregarVehiculoAsync(Pagina, "Segundo", "Volkswagen", "Polo", "2020", "1.6 MSI");
+        await AgregarVehiculoAsync(Pagina, "Segundo", "Peugeot", "208", "2019", "1.6");
 
         await IrAsync("/perfil");
         var opcion = Pagina.Locator("#p-vehiculo option", new() { HasText = "Segundo" });

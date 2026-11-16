@@ -44,7 +44,7 @@ public sealed class CatalogoYGarageTests(NavegadorFixture fixture, ITestOutputHe
     public async Task Un_vehiculo_sin_piezas_cargadas_lo_avisa()
     {
         await IrAsync("/catalogo");
-        await ElegirVehiculoAsync(Pagina, "catalogo", "Volkswagen", "Amarok", "2024", "3.0 V6 TDI");
+        await ElegirVehiculoAsync(Pagina, "catalogo", "Volkswagen", "Gol", "2015", "1.6");   // sin piezas de direccion
         await Pagina.Locator("#sistema").SelectOptionAsync("Direccion");
         await Pagina.GetByRole(AriaRole.Button, new() { Name = "Buscar compatibles" }).ClickAsync();
 

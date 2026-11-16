@@ -98,10 +98,14 @@ Variables del `.env`:
 | `PUERTO_WEB`, `PUERTO_CATALOGO`, `PUERTO_CATALOGO_SOAP`, `PUERTO_IA`, `PUERTO_WORKER`, `PUERTO_WEB_LOCAL` | Puertos del host de cada servicio | 8080, 8081, 8082, 8083, 8085, 8090 |
 | `PUERTO_POSTGRES`, `PUERTO_RABBITMQ`, `PUERTO_RABBITMQ_UI` | Puertos del host de la base y del broker | 5432, 5672, 15672 |
 | `IA_LLM_APIKEY` | Clave del LLM. Vacía: diagnostica el clasificador local | vacía |
-| `IA_LLM_URLBASE`, `IA_LLM_MODELO` | Proveedor y modelo del LLM (API compatible con OpenAI) | Groq, `llama-3.3-70b-versatile` |
+| `IA_LLM_URLBASE`, `IA_LLM_MODELO` | Proveedor y modelo del LLM (API compatible con OpenAI) | Groq, `openai/gpt-oss-120b` |
+| `IA_LLM_ESFUERZO` | `reasoning_effort` del LLM. Vacío no lo envía (modelos que no razonan) | `low` |
 | `RABBITMQ_USUARIO`, `RABBITMQ_CONTRASENA` | Credenciales del broker, para todos los servicios | `repmatch` / `repmatch` |
 | `OFERTAS_URL_EASY`, `OFERTAS_URL_FRAVEGA` | URL base de cada tienda VTEX | las tiendas reales |
 | `OFERTAS_CACHE_MINUTOS` | Caché de respuestas de las tiendas; 0 la desactiva | 10 |
+| `EBAY_APP_ID`, `EBAY_CERT_ID` | Credenciales de producción de la Browse API de eBay. Vacías: eBay no se consulta | vacías |
+| `NOTIFICACIONES_INTERVALO_SEGUNDOS` | Cada cuánto la campana de la Web busca avisos nuevos | 20 |
+| `OFERTAS_INCLUIR_POR_NOMBRE` | Mostrar ofertas que coinciden solo por nombre (sin número de fabricante ni EAN) | false |
 | `CATALOGO_MODO` | Cómo consulta la web el catálogo: `Soap`, `Remoto` o `Local` | `Soap` |
 
 Los puertos solo cambian por dónde se ve cada servicio desde el host: entre ellos, los contenedores

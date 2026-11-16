@@ -22,6 +22,19 @@ public sealed class OpcionesOfertas
     public int VigenciaMinutos { get; set; } = 60;
 
     public List<OpcionesTiendaVtex> Tiendas { get; set; } = [];
+
+    /// <summary>
+    /// Si se muestran las publicaciones que coinciden solo por nombre. Apagado por defecto: en las
+    /// tiendas generalistas "Juego de cables de bujia" trae cables puente y "Pastillas de freno"
+    /// trae pastillas de moto, y RepMatch existe para decir que pieza le entra a un auto. Sin
+    /// coincidencia por numero de fabricante o EAN, la pieza dice que ninguna tienda la publica.
+    /// Las pruebas de punta a punta lo encienden: el simulador repite respuestas reales de Easy y
+    /// Fravega, que solo coinciden por nombre, y con eso ejercitan precios y derivaciones.
+    /// </summary>
+    public bool IncluirCoincidenciasPorNombre { get; set; }
+
+    /// <summary>eBay, la fuente que no es VTEX. Deshabilitada mientras no tenga credenciales.</summary>
+    public OpcionesEbay Ebay { get; set; } = new();
 }
 
 /// <summary>
@@ -64,4 +77,48 @@ public sealed class OpcionesTiendaVtex
     /// cuando varias personas buscan lo mismo.</summary>
     [Range(0, 1440)]
     public int CacheMinutos { get; set; } = 10;
+}
+
+/// <summary>
+/// La Browse API de eBay (seccion "Ofertas:Ebay"), la segunda API externa de precios (issue #17).
+/// Sin <see cref="ClientId"/> y <see cref="ClientSecret"/> la fuente no se registra y el resto de
+/// las tiendas sigue igual: el entorno levanta y las pruebas corren sin credenciales. Las claves
+/// llegan solo por variable de entorno (Ofertas__Ebay__ClientId / __ClientSecret) o por el .env.
+/// </summary>
+public sealed class OpcionesEbay
+{
+    public const string NombreTienda = "eBay";
+
+    /// <summary>App ID del keyset de produccion de eBay.</summary>
+    public string ClientId { get; set; } = string.Empty;
+
+    /// <summary>Cert ID del keyset de produccion de eBay. Es un secreto: nunca en el repo.</summary>
+    public string ClientSecret { get; set; } = string.Empty;
+
+    /// <summary>Raiz de la API. https://api.sandbox.ebay.com/ apunta al entorno de prueba de eBay.</summary>
+    public string UrlBase { get; set; } = "https://api.ebay.com/";
+
+    /// <summary>Sitio de eBay donde se busca (encabezado X-EBAY-C-MARKETPLACE-ID). Los precios
+    /// vienen en la moneda de ese sitio: USD en EBAY_US.</summary>
+    public string Marketplace { get; set; } = "EBAY_US";
+
+    [Range(1, 30)]
+    public int TimeoutSegundos { get; set; } = 5;
+
+    [Range(1, 10)]
+    public int PedidosSimultaneos { get; set; } = 2;
+
+    [Range(1, 50)]
+    public int ResultadosPorTermino { get; set; } = 10;
+
+    /// <summary>Cuantos numeros de fabricante se consultan por pieza. En eBay se busca solo por
+    /// numero: los nombres del catalogo estan en castellano y las publicaciones, en ingles.</summary>
+    [Range(1, 10)]
+    public int MaximoCodigos { get; set; } = 3;
+
+    [Range(0, 1440)]
+    public int CacheMinutos { get; set; } = 60;
+
+    public bool EstaConfigurada =>
+        !string.IsNullOrWhiteSpace(ClientId) && !string.IsNullOrWhiteSpace(ClientSecret);
 }

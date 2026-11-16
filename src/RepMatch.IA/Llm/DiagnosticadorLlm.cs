@@ -59,19 +59,21 @@ public sealed class DiagnosticadorLlm(
 
         var reloj = Stopwatch.StartNew();
 
+        var cuerpo = new JsonObject
+        {
+            ["model"] = opciones.Modelo,
+            ["temperature"] = 0,
+            ["response_format"] = new JsonObject { ["type"] = "json_object" },
+            ["messages"] = new JsonArray(
+                new JsonObject { ["role"] = "system", ["content"] = InstruccionSistema },
+                new JsonObject { ["role"] = "user", ["content"] = MensajeUsuario(solicitud) })
+        };
+        if (!string.IsNullOrWhiteSpace(opciones.EsfuerzoRazonamiento))
+            cuerpo["reasoning_effort"] = opciones.EsfuerzoRazonamiento;
+
         using var peticion = new HttpRequestMessage(HttpMethod.Post, "chat/completions")
         {
-            Content = JsonContent.Create(new
-            {
-                model = opciones.Modelo,
-                temperature = 0,
-                response_format = new { type = "json_object" },
-                messages = new object[]
-                {
-                    new { role = "system", content = InstruccionSistema },
-                    new { role = "user", content = MensajeUsuario(solicitud) }
-                }
-            })
+            Content = JsonContent.Create(cuerpo)
         };
         peticion.Headers.Authorization = new AuthenticationHeaderValue("Bearer", opciones.ApiKey);
 

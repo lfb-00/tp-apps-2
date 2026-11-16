@@ -64,6 +64,14 @@ docker compose version >/dev/null || { echo "Falta docker compose (v2)."; exit 1
 # Carga secretos locales, pero las pruebas tienen puertos y almacenamiento aislados.
 if [ -f .env ]; then set -a; . ./.env; set +a; fi
 export IA_LLM_APIKEY=""
+# Lo mismo con eBay: las pruebas afirman precios exactos del simulador, no de eBay.
+export EBAY_APP_ID=""
+export EBAY_CERT_ID=""
+# La campana pregunta seguido: las pruebas esperan el aviso que escribe el worker.
+export NOTIFICACIONES_INTERVALO_SEGUNDOS=2
+# El simulador repite respuestas reales de Easy y Fravega, que solo coinciden por nombre: sin esto
+# no habria ofertas para probar precios, ranking y derivaciones.
+export OFERTAS_INCLUIR_POR_NOMBRE=true
 export COMPOSE_PROJECT_NAME="${E2E_COMPOSE_PROJECT_NAME:-repmatch-e2e}"
 export REPMATCH_CONTAINER_PREFIX="${COMPOSE_PROJECT_NAME}-"
 # La Web busca precios en el simulador, sin cache: la fase SinTiendas tiene que ver la caida.
